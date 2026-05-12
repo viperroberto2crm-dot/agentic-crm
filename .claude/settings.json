@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx next build)",
+      "Bash(npm run dev)",
+      "Bash(npm install*)",
+      "Bash(node -e *)",
+      "Bash(bash init.sh)",
+      "Bash(cat feature_list.json)",
+      "Bash(git status)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git log *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"C:\\Users\\roberto godinez\\Code\\agentic-crm\\app\" && npx tsc --noEmit 2>&1 | tail -5"
+          }
+        ]
+      }
+    ]
+  }
+}
