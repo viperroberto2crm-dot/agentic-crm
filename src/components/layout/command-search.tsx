@@ -50,14 +50,23 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
     setHistory((h) => [...h, userMsg])
     setQuery("")
     setLoading(true)
-    // Placeholder — will wire to /api/agent/ask in Semana 4
-    await new Promise((r) => setTimeout(r, 800))
-    const agentMsg: Message = {
-      role: "agent",
-      text: "La integración con el agente estará lista en la Semana 4. Por ahora puedo ver tus datos en el dashboard.",
+    try {
+      const res = await fetch("/api/agent/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: text.trim() }),
+      })
+      const data = await res.json()
+      const agentMsg: Message = {
+        role: "agent",
+        text: data.text ?? data.error ?? "Sin respuesta del agente.",
+      }
+      setHistory((h) => [...h, agentMsg])
+    } catch {
+      setHistory((h) => [...h, { role: "agent", text: "Error al conectar con el agente. Intenta de nuevo." }])
+    } finally {
+      setLoading(false)
     }
-    setHistory((h) => [...h, agentMsg])
-    setLoading(false)
   }
 
   function handleSelect(prompt: string) {
