@@ -1,0 +1,187 @@
+import { Phone, Calendar, DollarSign, StickyNote } from "lucide-react"
+import type { Database } from "@/types/database"
+
+type CallRow = {
+  id: string
+  called_at: string
+  direction: Database["public"]["Enums"]["call_direction"]
+  outcome: Database["public"]["Enums"]["call_outcome"] | null
+  duration_seconds: number | null
+  notes: string | null
+  source: string
+}
+
+type ApptRow = {
+  id: string
+  scheduled_at: string
+  type: Database["public"]["Enums"]["appointment_type"]
+  status: Database["public"]["Enums"]["appointment_status"]
+  service: string | null
+}
+
+type SaleRow = {
+  id: string
+  created_at: string
+  amount_cents: number
+  payment_status: Database["public"]["Enums"]["payment_status"]
+  payment_method: Database["public"]["Enums"]["payment_method"]
+}
+
+type Activity =
+  | { kind: "call"; date: string; data: CallRow }
+  | { kind: "appt"; date: string; data: ApptRow }
+  | { kind: "sale"; date: string; data: SaleRow }
+
+function formatDate(d: string) {
+  return new Intl.DateTimeFormat("es-MX", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(d))
+}
+
+function formatDuration(seconds: number | null) {
+  if (!seconds) return null
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, "0")}`
+}
+
+const OUTCOME_LABELS: Record<string, string> = {
+  no_answer: "No contestó",
+  voicemail: "Buzón de voz",
+  connected: "Conectada",
+  appointment_set: "Cita agendada",
+  not_interested: "No interesado",
+  callback_requested: "Pide callback",
+  wrong_number: "Número equivocado",
+}
+
+const APPT_STATUS_LABELS: Record<string, string> = {
+  scheduled: "Programada",
+  confirmed: "Confirmada",
+  completed: "Completada",
+  cancelled: "Cancelada",
+  no_show: "No asistió",
+}
+
+export function ActivityTimeline({
+  calls,
+  appointments,
+  sales,
+  notes,
+}: {
+  calls: CallRow[]
+  appointments: ApptRow[]
+  sales: SaleRow[]
+  notes: string | null
+}) {
+  const activities: Activity[] = [
+    ...calls.map((c) => ({ kind: "call" as const, date: c.called_at, data: c })),
+    ...appointments.map((a) => ({ kind: "appt" as const, date: a.scheduled_at, data: a })),
+    ...sales.map((s) => ({ kind: "sale" as const, date: s.created_at, data: s })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  return (
+    <div className="space-y-3">
+      {/* Lead notes */}
+      {notes && (
+        <div className="flex gap-3 pb-3 border-b border-zinc-800/50">
+          <div className="mt-0.5 w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+            <StickyNote className="w-3 h-3 text-zinc-500" />
+          </div>
+          <div>
+            <p className="text-xs text-zinc-600 mb-1">Notas del lead</p>
+            <p className="text-sm text-zinc-400 leading-relaxed">{notes}</p>
+          </div>
+        </div>
+      )}
+
+      {activities.length === 0 && (
+        <p className="text-sm text-zinc-600 py-4 text-center">
+          Sin actividad registrada aún.
+        </p>
+      )}
+
+      {activities.map((act) => {
+        if (act.kind === "call") {
+          const c = act.data
+          return (
+            <div key={c.id} className="flex gap-3">
+              <div className="mt-0.5 w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center shrink-0">
+                <Phone className="w-3 h-3 text-zinc-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-zinc-300">
+                    {c.direction === "outbound" ? "Llamada saliente" : "Llamada entrante"}
+                  </span>
+                  {c.outcome && (
+                    <span className="text-[10px] text-zinc-600">
+                      · {OUTCOME_LABELS[c.outcome] ?? c.outcome}
+                    </span>
+                  )}
+                  {formatDuration(c.duration_seconds) && (
+                    <span className="text-[10px] text-zinc-700 tabular-nums">
+                      {formatDuration(c.duration_seconds)}
+                    </span>
+                  )}
+                </div>
+                {c.notes && <p className="text-xs text-zinc-600 mt-0.5">{c.notes}</p>}
+                <p className="text-[10px] text-zinc-700 mt-0.5">{formatDate(c.called_at)}</p>
+              </div>
+            </div>
+          )
+        }
+
+        if (act.kind === "appt") {
+          const a = act.data
+          return (
+            <div key={a.id} className="flex gap-3">
+              <div className="mt-0.5 w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center shrink-0">
+                <Calendar className="w-3 h-3 text-zinc-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-zinc-300">Cita — {a.type}</span>
+                  <span className="text-[10px] text-zinc-600">
+                    · {APPT_STATUS_LABELS[a.status] ?? a.status}
+                  </span>
+                </div>
+                {a.service && <p className="text-xs text-zinc-600 mt-0.5">{a.service}</p>}
+                <p className="text-[10px] text-zinc-700 mt-0.5">{formatDate(a.scheduled_at)}</p>
+              </div>
+            </div>
+          )
+        }
+
+        if (act.kind === "sale") {
+          const s = act.data
+          const amount = (s.amount_cents / 100).toLocaleString("es-MX", {
+            style: "currency",
+            currency: "USD",
+          })
+          return (
+            <div key={s.id} className="flex gap-3">
+              <div className="mt-0.5 w-6 h-6 rounded-full bg-emerald-900/40 flex items-center justify-center shrink-0">
+                <DollarSign className="w-3 h-3 text-emerald-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-zinc-300">Venta — {amount}</span>
+                  <span className="text-[10px] text-zinc-600">
+                    · {s.payment_status === "paid" ? "Pagada" : "Pendiente"} · {s.payment_method}
+                  </span>
+                </div>
+                <p className="text-[10px] text-zinc-700 mt-0.5">{formatDate(s.created_at)}</p>
+              </div>
+            </div>
+          )
+        }
+
+        return null
+      })}
+    </div>
+  )
+}
