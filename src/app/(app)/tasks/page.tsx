@@ -1,8 +1,199 @@
-export default function TasksPage() {
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
+import Link from "next/link"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/database"
+import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { Badge } from "@/components/ui/badge"
+import { NewTaskButton } from "./_components/new-task-button"
+import { TaskStatusToggle } from "./_components/task-status-toggle"
+
+type TypedClient = SupabaseClient<Database>
+type TaskPriority = Database["public"]["Enums"]["task_priority"]
+type TaskStatus = Database["public"]["Enums"]["task_status"]
+
+const PRIORITY_CONFIG: Record<TaskPriority, { label: string; cls: string }> = {
+  urgent: { label: "Urgente", cls: "border-red-500/40 text-red-400" },
+  high:   { label: "Alta",    cls: "border-orange-500/40 text-orange-400" },
+  normal: { label: "Normal",  cls: "border-zinc-600 text-zinc-400" },
+  low:    { label: "Baja",    cls: "border-zinc-700 text-zinc-600" },
+}
+
+function fmtDue(d: string | null) {
+  if (!d) return null
+  const date = new Date(d)
+  const now = new Date()
+  const diff = date.getTime() - now.getTime()
+  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+  const fmt = new Intl.DateTimeFormat("es-MX", { month: "short", day: "numeric" }).format(date)
+  return { label: fmt, overdue: days < 0, soon: days >= 0 && days <= 2 }
+}
+
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const sb = supabase as unknown as TypedClient
+
+  const [profileRes, cookieStore, params] = await Promise.all([
+    sb.from("users").select("role").eq("id", user.id).single(),
+    cookies(),
+    searchParams,
+  ])
+
+  const role = (profileRes.data?.role ?? "rep") as string
+  const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+  const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
+
+  const sp = params as Record<string, string | string[] | undefined>
+  const statusFilter = typeof sp.status === "string" ? sp.status : "open"
+  const priorityFilter = typeof sp.priority === "string" ? sp.priority : null
+
+  let query = sb
+    .from("tasks")
+    .select(
+      `id, title, description, due_at, priority, status, created_at,
+       lead:leads!tasks_related_lead_id_fkey(id, first_name, last_name),
+       rep:users!tasks_assigned_to_fkey(id, name)`,
+      { count: "exact" }
+    )
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .order("priority", { ascending: false })
+    .limit(100)
+
+  if (role === "rep") query = query.eq("assigned_to", user.id)
+  if (brandId) query = query.eq("brand_id", brandId)
+  if (statusFilter && statusFilter !== "all") query = query.eq("status", statusFilter as TaskStatus)
+  if (priorityFilter) query = query.eq("priority", priorityFilter as TaskPriority)
+
+  const { data: raw, count } = await query
+
+  type TaskItem = {
+    id: string; title: string; description: string | null; due_at: string | null
+    priority: TaskPriority; status: TaskStatus; created_at: string
+    lead: { id: string; first_name: string; last_name: string | null } | null
+    rep: { id: string; name: string } | null
+  }
+  const tasks = (raw ?? []) as unknown as TaskItem[]
+
+  // reps for new-task modal (manager/admin only)
+  let reps: { id: string; name: string }[] = []
+  if (role !== "rep") {
+    const { data } = await sb.from("users").select("id, name").eq("active", true).order("name")
+    reps = (data ?? []) as typeof reps
+  }
+
+  const statusTabs = [
+    { value: "open", label: "Abiertas" },
+    { value: "done", label: "Completadas" },
+    { value: "all",  label: "Todas" },
+  ] as const
+
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold text-zinc-100 mb-2">Tareas</h1>
-      <p className="text-sm text-zinc-500">Próximamente — esta sección se construye en la siguiente sesión.</p>
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
+
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-100">Tareas</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-600">{count ?? tasks.length} total</span>
+          <NewTaskButton brandId={brandId} reps={reps} currentUserId={user.id} />
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        {statusTabs.map((tab) => {
+          const isActive = statusFilter === tab.value
+          return (
+            <Link
+              key={tab.value}
+              href={`/tasks?status=${tab.value}${priorityFilter ? `&priority=${priorityFilter}` : ""}`}
+              className={`px-3 py-1 rounded text-xs transition-colors ${
+                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
+        <span className="text-zinc-800">|</span>
+        {([
+          { value: null,     label: "Todas" },
+          { value: "urgent", label: "Urgente" },
+          { value: "high",   label: "Alta" },
+          { value: "normal", label: "Normal" },
+        ] as const).map((tab) => {
+          const isActive = priorityFilter === tab.value
+          return (
+            <Link
+              key={tab.label}
+              href={tab.value
+                ? `/tasks?status=${statusFilter}&priority=${tab.value}`
+                : `/tasks?status=${statusFilter}`
+              }
+              className={`px-3 py-1 rounded text-xs transition-colors ${
+                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
+      </div>
+
+      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg divide-y divide-zinc-800/40">
+        {tasks.length === 0 ? (
+          <p className="text-sm text-zinc-600 py-8 text-center">Sin tareas con estos filtros.</p>
+        ) : (
+          tasks.map((task) => {
+            const pCfg = PRIORITY_CONFIG[task.priority]
+            const due = fmtDue(task.due_at)
+            const isDone = task.status === "done"
+
+            return (
+              <div key={task.id} className={`flex items-start gap-3 px-4 py-3 hover:bg-zinc-800/20 transition-colors ${isDone ? "opacity-50" : ""}`}>
+                <div className="pt-0.5">
+                  <TaskStatusToggle id={task.id} status={task.status} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm text-zinc-200 font-medium leading-snug ${isDone ? "line-through text-zinc-500" : ""}`}>
+                    {task.title}
+                  </p>
+                  {task.description && (
+                    <p className="text-xs text-zinc-600 mt-0.5 truncate">{task.description}</p>
+                  )}
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${pCfg.cls}`}>
+                      {pCfg.label}
+                    </Badge>
+                    {task.lead && (
+                      <Link href={`/leads/${task.lead.id}`} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                        {task.lead.first_name} {task.lead.last_name ?? ""}
+                      </Link>
+                    )}
+                    {role !== "rep" && task.rep && (
+                      <span className="text-xs text-zinc-700">{task.rep.name}</span>
+                    )}
+                  </div>
+                </div>
+                {due && (
+                  <span className={`text-xs tabular-nums shrink-0 pt-0.5 ${
+                    due.overdue ? "text-red-400" : due.soon ? "text-amber-400" : "text-zinc-600"
+                  }`}>
+                    {due.label}
+                  </span>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
     </div>
   )
 }

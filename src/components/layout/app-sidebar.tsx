@@ -65,7 +65,7 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [
-  { label: "Settings", href: "/settings", icon: Settings, roles: ["admin", "manager"] },
+  { label: "Settings", href: "/settings", icon: Settings },
 ]
 
 function NavLink({
