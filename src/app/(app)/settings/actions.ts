@@ -75,29 +75,46 @@ const InviteUserSchema = z.object({
 
 export type InviteUserInput = z.infer<typeof InviteUserSchema>
 
-export async function inviteUser(raw: InviteUserInput) {
-  const input = InviteUserSchema.parse(raw)
-  const supabase = await typedClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = InviteUserSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
 
-  if (!input.brand_id) throw new Error("Se requiere una marca activa para invitar usuarios")
+    if (!input.brand_id) return { ok: false, error: "Se requiere una marca activa para invitar usuarios" }
 
-  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
-  if (profile?.role !== "admin") throw new Error("Solo admins pueden invitar usuarios")
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden invitar usuarios" }
 
-  const admin = createAdminClient()
-  const { error } = await admin.auth.admin.inviteUserByEmail(input.email, {
-    data: {
-      name: input.name,
-      role: input.role,
-      ...(input.brand_id ? { brand_id: input.brand_id } : {}),
-    },
-  })
+    const admin = createAdminClient()
+    const { error } = await admin.auth.admin.inviteUserByEmail(input.email, {
+      data: {
+        name: input.name,
+        role: input.role,
+        ...(input.brand_id ? { brand_id: input.brand_id } : {}),
+      },
+    })
 
-  if (error) throw new Error(error.message)
-  revalidatePath("/settings")
-  revalidatePath("/dashboard")
+    if (error) {
+      // User already exists — still update their record in case role/name changed
+      if (error.message.toLowerCase().includes("already") || error.code === "email_exists") {
+        const { error: updateErr } = await admin
+          .from("users")
+          .update({ name: input.name, role: input.role as UserRole })
+          .eq("email", input.email)
+        if (updateErr) return { ok: false, error: updateErr.message }
+      } else {
+        return { ok: false, error: error.message }
+      }
+    }
+
+    revalidatePath("/settings")
+    revalidatePath("/dashboard")
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error desconocido" }
+  }
 }
 
 const UpdateUserSchema = z.object({

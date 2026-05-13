@@ -32,13 +32,13 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
   function handleInvite() {
     setError(null)
     startTransition(async () => {
-      try {
-        await inviteUser({ email: form.email, name: form.name, role: form.role, brand_id: brandId })
-        router.refresh()
-        handleClose()
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al enviar invitación")
+      const result = await inviteUser({ email: form.email, name: form.name, role: form.role, brand_id: brandId })
+      if (!result.ok) {
+        setError(result.error)
+        return
       }
+      router.refresh()
+      handleClose()
     })
   }
 
