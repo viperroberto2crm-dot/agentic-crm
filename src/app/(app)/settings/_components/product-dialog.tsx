@@ -106,7 +106,7 @@ const CADENCE_LABELS: Record<string, string> = {
   annual: "Anual",
 }
 
-export function ProductDialog({ mode, product, brandId, categories, productNames, open, onClose }: Props) {
+export function ProductDialog({ mode, product, brandId, categories, open, onClose }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(() => defaultForm(product))
   const [serviceInput, setServiceInput] = useState("")
