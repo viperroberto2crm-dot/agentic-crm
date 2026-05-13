@@ -71,6 +71,7 @@ const InviteUserSchema = z.object({
   name: z.string().min(1, "Nombre requerido"),
   role: z.enum(["admin", "manager", "rep"]),
   brand_id: z.string().uuid().nullable(),
+  password: z.string().min(8, "Contraseña mínimo 8 caracteres"),
 })
 
 export type InviteUserInput = z.infer<typeof InviteUserSchema>
@@ -88,10 +89,12 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
     if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden invitar usuarios" }
 
     const admin = createAdminClient()
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentic-crm-sigma.vercel.app"
-    const { data: inviteData, error } = await admin.auth.admin.inviteUserByEmail(input.email, {
-      redirectTo: `${siteUrl}/auth/confirm?next=/dashboard`,
-      data: {
+    // Try to create user with password (no invite email needed)
+    const { data: createData, error } = await admin.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: {
         name: input.name,
         role: input.role,
         ...(input.brand_id ? { brand_id: input.brand_id } : {}),
@@ -99,7 +102,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
     })
 
     if (error) {
-      // User already exists — update their record in case role/name changed
+      // User already exists — update their record
       if (error.message.toLowerCase().includes("already") || error.code === "email_exists") {
         const { error: updateErr } = await admin
           .from("users")
@@ -109,10 +112,10 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
       } else {
         return { ok: false, error: error.message }
       }
-    } else if (inviteData?.user) {
-      // Explicitly upsert the user record so the role is always correct
+    } else if (createData?.user) {
+      // Upsert user record with correct role
       await admin.from("users").upsert({
-        id: inviteData.user.id,
+        id: createData.user.id,
         email: input.email,
         name: input.name,
         role: input.role as UserRole,
@@ -122,7 +125,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
       // Add to brand
       if (input.brand_id) {
         await admin.from("user_brands").upsert({
-          user_id: inviteData.user.id,
+          user_id: createData.user.id,
           brand_id: input.brand_id,
         }, { onConflict: "user_id,brand_id" })
       }
