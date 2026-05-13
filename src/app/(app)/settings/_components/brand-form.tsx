@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateBrand } from "../actions"
 
-const inputCls = "bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 h-9"
+const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400">{label}</label>
+      <label className="text-xs font-medium text-gray-500">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-zinc-600">{hint}</p>}
+      {hint && <p className="text-[11px] text-gray-400">{hint}</p>}
     </div>
   )
 }
@@ -79,7 +79,7 @@ export function BrandForm({
               setForm((p) => ({ ...p, brand_color: e.target.value }))
               document.documentElement.style.setProperty("--brand", e.target.value)
             }}
-            className="w-9 h-9 rounded cursor-pointer border border-zinc-800 bg-zinc-900 p-0.5"
+            className="w-9 h-9 rounded cursor-pointer border border-gray-200 bg-white p-0.5"
           />
           <Input
             className={`${inputCls} font-mono w-36`}
@@ -92,7 +92,7 @@ export function BrandForm({
             }}
           />
           <div
-            className="w-9 h-9 rounded border border-zinc-700"
+            className="w-9 h-9 rounded border border-gray-300"
             style={{ background: form.brand_color }}
           />
         </div>

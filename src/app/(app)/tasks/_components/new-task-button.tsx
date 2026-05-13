@@ -16,7 +16,7 @@ type Rep = { id: string; name: string }
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400">
+      <label className="text-xs font-medium text-gray-500">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       {children}
@@ -24,7 +24,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-const inputCls = "bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 h-9"
+const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
 export function NewTaskButton({
   brandId,
@@ -86,7 +86,7 @@ export function NewTaskButton({
       </Button>
 
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
-        <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-lg">
+        <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Nueva tarea</DialogTitle>
           </DialogHeader>
@@ -103,14 +103,14 @@ export function NewTaskButton({
             <div className="grid grid-cols-2 gap-3">
               <Field label="Prioridad">
                 <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v as TaskPriority }))}>
-                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                  <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectContent className="bg-white border-gray-200">
                     <SelectItem value="urgent" className="text-red-400">Urgente</SelectItem>
                     <SelectItem value="high" className="text-orange-400">Alta</SelectItem>
-                    <SelectItem value="normal" className="text-zinc-200">Normal</SelectItem>
-                    <SelectItem value="low" className="text-zinc-500">Baja</SelectItem>
+                    <SelectItem value="normal" className="text-gray-800">Normal</SelectItem>
+                    <SelectItem value="low" className="text-gray-400">Baja</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -127,12 +127,12 @@ export function NewTaskButton({
             {reps.length > 0 && (
               <Field label="Asignar a">
                 <Select value={form.assigned_to} onValueChange={(v) => setForm((p) => ({ ...p, assigned_to: v }))}>
-                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                  <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
+                  <SelectContent className="bg-white border-gray-200">
                     {reps.map((r) => (
-                      <SelectItem key={r.id} value={r.id} className="text-zinc-200">{r.name}</SelectItem>
+                      <SelectItem key={r.id} value={r.id} className="text-gray-800">{r.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -144,7 +144,7 @@ export function NewTaskButton({
                 rows={3}
                 value={form.description}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
                 placeholder="Detalles opcionales…"
               />
             </Field>
@@ -157,7 +157,7 @@ export function NewTaskButton({
               <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
                 {isPending ? "Guardando…" : "Crear tarea"}
               </Button>
-              <Button variant="ghost" className="text-zinc-500 hover:text-zinc-300" onClick={() => setOpen(false)} disabled={isPending}>
+              <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={() => setOpen(false)} disabled={isPending}>
                 Cancelar
               </Button>
             </div>

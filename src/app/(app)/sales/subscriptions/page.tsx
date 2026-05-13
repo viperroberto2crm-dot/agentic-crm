@@ -99,24 +99,24 @@ export default async function SubscriptionsPage({
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Suscripciones</h1>
-          <Link href="/sales" className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+          <h1 className="text-xl font-semibold text-gray-900">Suscripciones</h1>
+          <Link href="/sales" className="text-xs text-gray-400 hover:text-gray-500 transition-colors">
             ← Volver a Ventas
           </Link>
         </div>
-        <span className="text-xs text-zinc-600">{count ?? subs.length} total</span>
+        <span className="text-xs text-gray-400">{count ?? subs.length} total</span>
       </div>
 
       {/* KPI mini */}
       {statusFilter === "active" && (
         <div className="flex gap-6">
           <div>
-            <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">Activas</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Activas</p>
             <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--brand)" }}>{totalActive}</p>
           </div>
           <div>
-            <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-semibold">MRR estimado</p>
-            <p className="text-2xl font-semibold tabular-nums text-zinc-200">{fmtCents(totalMonthlyCents)}</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">MRR estimado</p>
+            <p className="text-2xl font-semibold tabular-nums text-gray-800">{fmtCents(totalMonthlyCents)}</p>
           </div>
         </div>
       )}
@@ -129,7 +129,7 @@ export default async function SubscriptionsPage({
               key={tab.value}
               href={`/sales/subscriptions?status=${tab.value}`}
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
@@ -138,19 +138,19 @@ export default async function SubscriptionsPage({
         })}
       </div>
 
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg px-4 py-2">
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {subs.length === 0 ? (
-          <p className="text-sm text-zinc-600 py-8 text-center">Sin suscripciones con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">Sin suscripciones con estos filtros.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800/60">
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Producto</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Cadencia</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Monto</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Próx. cobro</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Producto</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Cadencia</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Monto</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Próx. cobro</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
                 {(role === "admin" || role === "manager") && statusFilter === "active" && (
                   <th className="pb-2" />
                 )}
@@ -163,32 +163,32 @@ export default async function SubscriptionsPage({
                 const isOverdue = days !== null && days < 0
 
                 return (
-                  <tr key={sub.id} className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
+                  <tr key={sub.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
                       {sub.lead ? (
-                        <Link href={`/leads/${sub.lead.id}`} className="text-zinc-200 hover:text-white font-medium transition-colors">
+                        <Link href={`/leads/${sub.lead.id}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">
                           {sub.lead.first_name} {sub.lead.last_name ?? ""}
                         </Link>
                       ) : (
-                        <span className="text-zinc-600">—</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 hidden sm:table-cell">
-                      <span className="text-xs text-zinc-400">{sub.product?.name ?? "—"}</span>
+                      <span className="text-xs text-gray-500">{sub.product?.name ?? "—"}</span>
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-zinc-500">{CADENCE_LABEL[sub.cadence] ?? sub.cadence}</span>
+                      <span className="text-xs text-gray-400">{CADENCE_LABEL[sub.cadence] ?? sub.cadence}</span>
                     </td>
                     <td className="py-3 pr-4">
-                      <span className="text-zinc-200 font-medium tabular-nums text-sm">{fmtCents(sub.amount_cents)}</span>
+                      <span className="text-gray-800 font-medium tabular-nums text-sm">{fmtCents(sub.amount_cents)}</span>
                     </td>
                     <td className="py-3 pr-4">
                       {sub.status === "active" ? (
-                        <span className={`text-xs tabular-nums ${isOverdue ? "text-red-400" : isSoon ? "text-amber-400 font-medium" : "text-zinc-500"}`}>
+                        <span className={`text-xs tabular-nums ${isOverdue ? "text-red-400" : isSoon ? "text-amber-400 font-medium" : "text-gray-400"}`}>
                           {isOverdue ? "Vencido" : isSoon ? `${days}d — ${fmtDate(sub.next_billing_at)}` : fmtDate(sub.next_billing_at)}
                         </span>
                       ) : (
-                        <span className="text-xs text-zinc-700">{sub.cancelled_at ? fmtDate(sub.cancelled_at) : "—"}</span>
+                        <span className="text-xs text-gray-300">{sub.cancelled_at ? fmtDate(sub.cancelled_at) : "—"}</span>
                       )}
                     </td>
                     <td className="py-3 pr-4">
@@ -197,7 +197,7 @@ export default async function SubscriptionsPage({
                         className={`text-[10px] px-1.5 py-0 font-normal ${
                           sub.status === "active"
                             ? "border-emerald-500/40 text-emerald-400"
-                            : "border-zinc-700 text-zinc-600"
+                            : "border-gray-300 text-gray-400"
                         }`}
                       >
                         {sub.status === "active" ? "Activa" : "Cancelada"}

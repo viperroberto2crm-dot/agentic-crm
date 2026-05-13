@@ -35,7 +35,7 @@ function UrgentBadge({ lead }: { lead: UrgentLead }) {
   }
   if (lead.reason === "unconfirmed_appt") {
     return (
-      <Badge variant="outline" className="border-zinc-600 text-zinc-500 text-[10px] px-1.5 py-0 font-normal">
+      <Badge variant="outline" className="border-gray-200 text-zinc-500 text-[10px] px-1.5 py-0 font-normal">
         Hoy
       </Badge>
     )
@@ -46,46 +46,46 @@ function UrgentBadge({ lead }: { lead: UrgentLead }) {
 export function UrgentLeadList({ leads }: { leads: UrgentLead[] }) {
   if (leads.length === 0) {
     return (
-      <Card className="bg-zinc-900 border-zinc-800/60">
+      <Card className="bg-white border-gray-200">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-zinc-400">Leads urgentes</CardTitle>
+          <CardTitle className="text-sm font-medium text-gray-500">Leads urgentes</CardTitle>
         </CardHeader>
         <CardContent className="flex items-center gap-2.5">
           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-          <p className="text-sm text-zinc-600">Tu pipeline está al día. Buen trabajo.</p>
+          <p className="text-sm text-gray-400">Tu pipeline está al día. Buen trabajo.</p>
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800/60">
+    <Card className="bg-white border-gray-200">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-zinc-400">
+        <CardTitle className="text-sm font-medium text-gray-500">
           Leads urgentes
-          <span className="ml-2 text-zinc-600 font-normal text-xs">({leads.length})</span>
+          <span className="ml-2 text-gray-400 font-normal text-xs">({leads.length})</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="px-0 pb-2">
         {leads.map((lead, i) => (
           <div key={lead.id}>
-            {i > 0 && <Separator className="bg-zinc-800/50" />}
+            {i > 0 && <Separator className="bg-gray-100" />}
             <div className="px-6 py-2.5 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <Link
                   href={`/leads/${lead.id}`}
-                  className="text-sm font-medium text-zinc-200 hover:text-white transition-colors block truncate"
+                  className="text-sm font-medium text-gray-800 hover:text-gray-900 transition-colors block truncate"
                 >
                   {lead.first_name} {lead.last_name ?? ""}
                 </Link>
-                <p className="text-[11px] text-zinc-600">{urgentSubtext(lead)}</p>
+                <p className="text-[11px] text-gray-400">{urgentSubtext(lead)}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <UrgentBadge lead={lead} />
                 <form action={dismissUrgentLead.bind(null, lead.id, lead.reason)}>
                   <button
                     type="submit"
-                    className="text-zinc-700 hover:text-zinc-400 transition-colors text-xs cursor-pointer"
+                    className="text-gray-300 hover:text-gray-500 transition-colors text-xs cursor-pointer"
                     title="Marcar como contactado"
                   >
                     ✓

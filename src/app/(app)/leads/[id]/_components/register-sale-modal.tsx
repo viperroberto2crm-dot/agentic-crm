@@ -50,7 +50,7 @@ function ProductCard({
     <button
       type="button"
       onClick={() => onAdd(product)}
-      className="relative w-full text-left border border-zinc-800 hover:border-zinc-600 rounded-lg p-3 transition-colors group bg-zinc-900/60 hover:bg-zinc-800/40"
+      className="relative w-full text-left border border-gray-200 hover:border-zinc-600 rounded-lg p-3 transition-colors group bg-white hover:bg-gray-100"
     >
       {product.best_value && (
         <div className="absolute -top-2 right-3">
@@ -62,30 +62,30 @@ function ProductCard({
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-zinc-200 leading-tight">{product.name}</p>
+          <p className="text-sm font-medium text-gray-800 leading-tight">{product.name}</p>
           {product.description && (
-            <p className="text-[11px] text-zinc-600 mt-0.5 leading-snug line-clamp-2">
+            <p className="text-[11px] text-gray-400 mt-0.5 leading-snug line-clamp-2">
               {product.description}
             </p>
           )}
         </div>
         <div className="text-right shrink-0">
-          <p className="text-sm font-semibold text-zinc-100 tabular-nums">
+          <p className="text-sm font-semibold text-gray-900 tabular-nums">
             {fmtCents(displayPrice)}
             {product.display_unit && (
-              <span className="text-[10px] text-zinc-600 font-normal">/{product.display_unit}</span>
+              <span className="text-[10px] text-gray-400 font-normal">/{product.display_unit}</span>
             )}
           </p>
           {isRecurring && (
-            <p className="text-[10px] text-zinc-600">{product.cadence}</p>
+            <p className="text-[10px] text-gray-400">{product.cadence}</p>
           )}
         </div>
       </div>
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-[10px] text-zinc-700 uppercase tracking-wide">
+        <span className="text-[10px] text-gray-300 uppercase tracking-wide">
           {product.category}
         </span>
-        <span className="text-[10px] text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
           + Agregar
         </span>
       </div>
@@ -109,18 +109,18 @@ function CartLine({
   return (
     <div className="flex items-start gap-2 py-2">
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-zinc-200 leading-tight">{item.product_name}</p>
+        <p className="text-sm text-gray-800 leading-tight">{item.product_name}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[11px] text-zinc-600">{fmtCents(item.unit_price_cents)}</span>
+          <span className="text-[11px] text-gray-400">{fmtCents(item.unit_price_cents)}</span>
           {item.cadence !== "one_time" && (
-            <span className="text-[10px] text-zinc-700">· {item.cadence}</span>
+            <span className="text-[10px] text-gray-300">· {item.cadence}</span>
           )}
         </div>
       </div>
 
       {/* Discount input */}
       <div className="flex items-center gap-1">
-        <span className="text-xs text-zinc-600">Desc. $</span>
+        <span className="text-xs text-gray-400">Desc. $</span>
         <input
           type="number"
           min="0"
@@ -130,14 +130,14 @@ function CartLine({
             const v = parseFloat(e.target.value) || 0
             onDiscountChange(Math.round(v * 100))
           }}
-          className="w-16 text-xs text-right bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-300 focus:outline-none focus:border-zinc-500"
+          className="w-16 text-xs text-right bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-gray-700 focus:outline-none focus:border-zinc-500"
           placeholder="0"
         />
       </div>
 
       {/* Line total */}
       <div className="w-20 text-right">
-        <p className="text-sm font-medium text-zinc-200 tabular-nums">
+        <p className="text-sm font-medium text-gray-800 tabular-nums">
           {fmtCents(item.line_total_cents)}
         </p>
       </div>
@@ -145,7 +145,7 @@ function CartLine({
       <button
         type="button"
         onClick={onRemove}
-        className="text-zinc-700 hover:text-red-400 transition-colors mt-0.5"
+        className="text-gray-300 hover:text-red-400 transition-colors mt-0.5"
       >
         <Trash2 className="w-3.5 h-3.5" />
       </button>
@@ -252,8 +252,8 @@ export function RegisterSaleModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-zinc-800/60">
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200">
           <DialogTitle className="text-base font-semibold">Registrar venta</DialogTitle>
         </DialogHeader>
 
@@ -262,16 +262,16 @@ export function RegisterSaleModal({
 
             {/* Product catalog */}
             <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-widest font-semibold mb-3">
+              <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-3">
                 Productos
               </p>
               {loadingProducts ? (
-                <div className="flex items-center gap-2 text-sm text-zinc-600 py-4">
+                <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Cargando productos…
                 </div>
               ) : products.length === 0 ? (
-                <p className="text-sm text-zinc-600 py-2">
+                <p className="text-sm text-gray-400 py-2">
                   No hay productos activos para esta marca.
                 </p>
               ) : (
@@ -283,24 +283,24 @@ export function RegisterSaleModal({
               )}
             </div>
 
-            <Separator className="bg-zinc-800/50" />
+            <Separator className="bg-gray-100" />
 
             {/* Cart */}
             <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-widest font-semibold mb-3">
+              <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-3">
                 Carrito
                 {cart.length > 0 && (
-                  <span className="ml-2 text-zinc-600 font-normal">({cart.length})</span>
+                  <span className="ml-2 text-gray-400 font-normal">({cart.length})</span>
                 )}
               </p>
 
               {cart.length === 0 ? (
-                <div className="flex items-center gap-2 text-sm text-zinc-700 py-3">
+                <div className="flex items-center gap-2 text-sm text-gray-300 py-3">
                   <Plus className="w-4 h-4" />
                   Selecciona productos arriba
                 </div>
               ) : (
-                <div className="divide-y divide-zinc-800/50">
+                <div className="divide-y divide-gray-100">
                   {cart.map((item, i) => (
                     <CartLine
                       key={i}
@@ -313,8 +313,8 @@ export function RegisterSaleModal({
               )}
 
               {cart.length > 0 && (
-                <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-zinc-800/50">
-                  <span className="text-xs text-zinc-500">Total</span>
+                <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-gray-200">
+                  <span className="text-xs text-gray-400">Total</span>
                   <span className="text-lg font-semibold tabular-nums" style={{ color: "var(--brand)" }}>
                     {fmtCents(total)}
                   </span>
@@ -322,40 +322,40 @@ export function RegisterSaleModal({
               )}
 
               {recurringCount > 0 && (
-                <p className="text-[11px] text-zinc-600 mt-2">
+                <p className="text-[11px] text-gray-400 mt-2">
                   {recurringCount} producto{recurringCount !== 1 ? "s" : ""} recurrente
                   {recurringCount !== 1 ? "s" : ""} — se creará suscripción automáticamente.
                 </p>
               )}
             </div>
 
-            <Separator className="bg-zinc-800/50" />
+            <Separator className="bg-gray-100" />
 
             {/* Payment options */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs text-zinc-500">Método de pago</label>
+                <label className="text-xs text-gray-400">Método de pago</label>
                 <Select value={paymentMethod} onValueChange={(v: "cash" | "card" | "stripe") => setPaymentMethod(v)}>
-                  <SelectTrigger className="bg-zinc-900 border-zinc-800 text-zinc-300 h-9">
+                  <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="card" className="text-zinc-200">Tarjeta (terminal)</SelectItem>
-                    <SelectItem value="cash" className="text-zinc-200">Efectivo</SelectItem>
-                    <SelectItem value="stripe" className="text-zinc-200">Stripe / Online</SelectItem>
+                  <SelectContent className="bg-white border-gray-200">
+                    <SelectItem value="card" className="text-gray-800">Tarjeta (terminal)</SelectItem>
+                    <SelectItem value="cash" className="text-gray-800">Efectivo</SelectItem>
+                    <SelectItem value="stripe" className="text-gray-800">Stripe / Online</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-zinc-500">Estado del pago</label>
+                <label className="text-xs text-gray-400">Estado del pago</label>
                 <Select value={paymentStatus} onValueChange={(v: "paid" | "pending") => setPaymentStatus(v)}>
-                  <SelectTrigger className="bg-zinc-900 border-zinc-800 text-zinc-300 h-9">
+                  <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="paid" className="text-zinc-200">Pagado</SelectItem>
-                    <SelectItem value="pending" className="text-zinc-200">Pendiente</SelectItem>
+                  <SelectContent className="bg-white border-gray-200">
+                    <SelectItem value="paid" className="text-gray-800">Pagado</SelectItem>
+                    <SelectItem value="pending" className="text-gray-800">Pendiente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -363,13 +363,13 @@ export function RegisterSaleModal({
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <label className="text-xs text-zinc-500">Notas de venta</label>
+              <label className="text-xs text-gray-400">Notas de venta</label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Descuento autorizado por, instrucciones especiales…"
-                className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
               />
             </div>
 
@@ -384,11 +384,11 @@ export function RegisterSaleModal({
         </div>
 
         {/* Footer actions */}
-        <div className="px-6 py-4 border-t border-zinc-800/60 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-3">
           <Button
             type="button"
             variant="ghost"
-            className="text-zinc-500 hover:text-zinc-300"
+            className="text-gray-400 hover:text-gray-700"
             onClick={onClose}
             disabled={isPending}
           >

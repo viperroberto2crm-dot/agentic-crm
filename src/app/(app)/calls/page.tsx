@@ -17,9 +17,9 @@ const OUTCOME_CONFIG: Record<CallOutcome, { label: string; cls: string }> = {
   appointment_set:     { label: "Cita agendada",       cls: "border-blue-500/40 text-blue-400" },
   callback_requested:  { label: "Devolución",          cls: "border-violet-500/40 text-violet-400" },
   voicemail:           { label: "Buzón",               cls: "border-amber-500/40 text-amber-400" },
-  no_answer:           { label: "Sin respuesta",       cls: "border-zinc-600 text-zinc-500" },
+  no_answer:           { label: "Sin respuesta",       cls: "border-zinc-600 text-gray-400" },
   not_interested:      { label: "No interesado",       cls: "border-red-500/40 text-red-400" },
-  wrong_number:        { label: "N° equivocado",       cls: "border-zinc-600 text-zinc-600" },
+  wrong_number:        { label: "N° equivocado",       cls: "border-zinc-600 text-gray-400" },
 }
 
 function fmtDuration(s: number | null) {
@@ -108,9 +108,9 @@ export default async function CallsPage({
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-100">Llamadas</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Llamadas</h1>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-600">{count ?? calls.length} total</span>
+          <span className="text-xs text-gray-400">{count ?? calls.length} total</span>
           {brandId && <NewCallButton brandId={brandId} leads={leadsForModal} />}
         </div>
       </div>
@@ -123,14 +123,14 @@ export default async function CallsPage({
               key={tab.label}
               href={tab.value ? `/calls?outcome=${tab.value}` : "/calls"}
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
             </Link>
           )
         })}
-        <span className="text-zinc-800">|</span>
+        <span className="text-gray-300">|</span>
         {([
           { value: null,       label: "↕ Todas" },
           { value: "outbound", label: "↑ Salientes" },
@@ -145,7 +145,7 @@ export default async function CallsPage({
                 : (outcomeFilter ? `/calls?outcome=${outcomeFilter}` : "/calls")
               }
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
@@ -154,20 +154,20 @@ export default async function CallsPage({
         })}
       </div>
 
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg px-4 py-2">
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {calls.length === 0 ? (
-          <p className="text-sm text-zinc-600 py-8 text-center">Sin llamadas con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">Sin llamadas con estos filtros.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800/60">
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Fecha</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Dir.</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Resultado</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Duración</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Fecha</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Dir.</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Resultado</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Duración</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
                 )}
               </tr>
             </thead>
@@ -175,21 +175,21 @@ export default async function CallsPage({
               {calls.map((c) => {
                 const cfg = c.outcome ? OUTCOME_CONFIG[c.outcome] : null
                 return (
-                  <tr key={c.id} className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
+                  <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
-                      <span className="text-zinc-500 text-xs tabular-nums">{fmtDate(c.called_at)}</span>
+                      <span className="text-gray-400 text-xs tabular-nums">{fmtDate(c.called_at)}</span>
                     </td>
                     <td className="py-3 pr-4">
                       {c.lead ? (
-                        <Link href={`/leads/${c.lead.id}`} className="text-zinc-200 hover:text-white font-medium transition-colors">
+                        <Link href={`/leads/${c.lead.id}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">
                           {c.lead.first_name} {c.lead.last_name ?? ""}
                         </Link>
                       ) : (
-                        <span className="text-zinc-600">—</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 hidden sm:table-cell">
-                      <span className="text-xs text-zinc-600">
+                      <span className="text-xs text-gray-400">
                         {c.direction === "outbound" ? "↑ Saliente" : "↓ Entrante"}
                       </span>
                     </td>
@@ -199,15 +199,15 @@ export default async function CallsPage({
                           {cfg.label}
                         </Badge>
                       ) : (
-                        <span className="text-zinc-700 text-xs">—</span>
+                        <span className="text-gray-300 text-xs">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-zinc-600 tabular-nums">{fmtDuration(c.duration_seconds)}</span>
+                      <span className="text-xs text-gray-400 tabular-nums">{fmtDuration(c.duration_seconds)}</span>
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 hidden lg:table-cell">
-                        <span className="text-xs text-zinc-500">{c.rep?.name ?? "—"}</span>
+                        <span className="text-xs text-gray-400">{c.rep?.name ?? "—"}</span>
                       </td>
                     )}
                   </tr>

@@ -37,16 +37,16 @@ export function TodayApptList({
 }) {
   if (appts.length === 0) {
     return (
-      <Card className="bg-zinc-900 border-zinc-800/60">
+      <Card className="bg-white border-gray-200">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-zinc-400">Citas hoy</CardTitle>
+          <CardTitle className="text-sm font-medium text-gray-500">Citas hoy</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-gray-400">
             No tienes citas hoy.{" "}
             <Link
               href="/leads"
-              className="underline underline-offset-2 hover:text-zinc-400 transition-colors"
+              className="underline underline-offset-2 hover:text-gray-500 transition-colors"
               style={{ color: "var(--brand)" }}
             >
               Buen momento para llamar a leads stale →
@@ -58,29 +58,29 @@ export function TodayApptList({
   }
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800/60">
+    <Card className="bg-white border-gray-200">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-zinc-400">
+        <CardTitle className="text-sm font-medium text-gray-500">
           Citas hoy
-          <span className="ml-2 text-zinc-600 font-normal text-xs">({appts.length})</span>
+          <span className="ml-2 text-gray-400 font-normal text-xs">({appts.length})</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="px-0 pb-2">
         {appts.map((appt, i) => (
           <div key={appt.id}>
-            {i > 0 && <Separator className="bg-zinc-800/50" />}
+            {i > 0 && <Separator className="bg-gray-100" />}
             <div className="px-6 py-2.5 flex items-center gap-3">
-              <span className="text-[11px] font-mono text-zinc-500 w-11 shrink-0 tabular-nums">
+              <span className="text-[11px] font-mono text-gray-400 w-11 shrink-0 tabular-nums">
                 {formatTime(appt.scheduled_at, timezone)}
               </span>
               <div className="flex-1 min-w-0">
                 <Link
                   href={`/leads/${appt.lead_id}`}
-                  className="text-sm font-medium text-zinc-200 hover:text-white transition-colors truncate block"
+                  className="text-sm font-medium text-gray-800 hover:text-gray-900 transition-colors truncate block"
                 >
                   {appt.lead_first_name} {appt.lead_last_name ?? ""}
                 </Link>
-                <p className="text-[11px] text-zinc-600 truncate">{apptSubtext(appt)}</p>
+                <p className="text-[11px] text-gray-400 truncate">{apptSubtext(appt)}</p>
               </div>
               <div className="shrink-0">
                 {appt.status === "confirmed" ? (
@@ -94,7 +94,7 @@ export function TodayApptList({
                   <form action={confirmAppointment.bind(null, appt.id)}>
                     <button
                       type="submit"
-                      className="text-[11px] text-zinc-500 border border-zinc-700 rounded px-2 py-0.5 hover:text-zinc-300 hover:border-zinc-500 transition-colors cursor-pointer"
+                      className="text-[11px] text-gray-400 border border-gray-300 rounded px-2 py-0.5 hover:text-gray-700 hover:border-gray-400 transition-colors cursor-pointer"
                     >
                       Confirmar
                     </button>

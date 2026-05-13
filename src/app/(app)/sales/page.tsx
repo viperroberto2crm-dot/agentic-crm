@@ -27,7 +27,7 @@ const STATUS_CONFIG = {
   paid: { label: "Pagado", className: "border-emerald-500/40 text-emerald-400" },
   pending: { label: "Pendiente", className: "border-amber-500/40 text-amber-400" },
   failed: { label: "Fallido", className: "border-red-500/40 text-red-500" },
-  refunded: { label: "Reembolsado", className: "border-zinc-600 text-zinc-500" },
+  refunded: { label: "Reembolsado", className: "border-zinc-600 text-gray-400" },
   partial: { label: "Parcial", className: "border-blue-500/40 text-blue-400" },
 } as const
 
@@ -109,8 +109,8 @@ export default async function SalesPage({
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-100">Ventas</h1>
-        <p className="text-xs text-zinc-600">{count ?? sales.length} registros</p>
+        <h1 className="text-xl font-semibold text-gray-900">Ventas</h1>
+        <p className="text-xs text-gray-400">{count ?? sales.length} registros</p>
       </div>
 
       {/* KPI cards */}
@@ -140,7 +140,7 @@ export default async function SalesPage({
               key={tab.label}
               href={tab.value ? `/sales?status=${tab.value}` : "/sales"}
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
@@ -150,41 +150,41 @@ export default async function SalesPage({
       </div>
 
       {/* Table */}
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg px-4 py-2">
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {sales.length === 0 ? (
-          <p className="text-sm text-zinc-600 py-8 text-center">
+          <p className="text-sm text-gray-400 py-8 text-center">
             No hay ventas registradas con estos filtros.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800/60">
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Monto</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Método</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Monto</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Método</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
                 )}
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">Fecha</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">Fecha</th>
               </tr>
             </thead>
             <tbody>
               {sales.map((sale) => {
                 const cfg = STATUS_CONFIG[sale.payment_status] ?? STATUS_CONFIG.pending
                 return (
-                  <tr key={sale.id} className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
+                  <tr key={sale.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
                       {sale.lead ? (
-                        <Link href={`/leads/${sale.lead.id}`} className="text-zinc-200 hover:text-white transition-colors font-medium">
+                        <Link href={`/leads/${sale.lead.id}`} className="text-gray-800 hover:text-gray-900 transition-colors font-medium">
                           {sale.lead.first_name} {sale.lead.last_name ?? ""}
                         </Link>
                       ) : (
-                        <span className="text-zinc-600">—</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4">
-                      <span className="text-zinc-100 font-medium tabular-nums">{fmtCents(sale.amount_cents)}</span>
+                      <span className="text-gray-900 font-medium tabular-nums">{fmtCents(sale.amount_cents)}</span>
                     </td>
                     <td className="py-3 pr-4">
                       <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg.className}`}>
@@ -192,15 +192,15 @@ export default async function SalesPage({
                       </Badge>
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-zinc-500 capitalize">{sale.payment_method}</span>
+                      <span className="text-xs text-gray-400 capitalize">{sale.payment_method}</span>
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 pr-4 hidden lg:table-cell">
-                        <span className="text-xs text-zinc-500">{sale.rep?.name ?? "—"}</span>
+                        <span className="text-xs text-gray-400">{sale.rep?.name ?? "—"}</span>
                       </td>
                     )}
                     <td className="py-3 hidden sm:table-cell">
-                      <span className="text-xs text-zinc-600">{fmtDate(sale.paid_at ?? sale.created_at)}</span>
+                      <span className="text-xs text-gray-400">{fmtDate(sale.paid_at ?? sale.created_at)}</span>
                     </td>
                   </tr>
                 )
@@ -216,11 +216,11 @@ export default async function SalesPage({
 
 function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
   return (
-    <Card className="bg-zinc-900 border-zinc-800/60">
+    <Card className="bg-white border-gray-200">
       <CardContent className="p-4">
-        <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold mb-2">{label}</p>
+        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-2">{label}</p>
         <p className="text-xl font-semibold tabular-nums leading-none" style={{ color: accent }}>{value}</p>
-        <p className="text-[11px] text-zinc-600 mt-1.5">{sub}</p>
+        <p className="text-[11px] text-gray-400 mt-1.5">{sub}</p>
       </CardContent>
     </Card>
   )

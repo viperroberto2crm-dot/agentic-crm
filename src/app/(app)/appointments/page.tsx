@@ -15,7 +15,7 @@ type ApptType = Database["public"]["Enums"]["appointment_type"]
 const STATUS_CONFIG: Record<ApptStatus, { label: string; cls: string }> = {
   scheduled: { label: "Agendada",      cls: "border-blue-500/40 text-blue-400" },
   confirmed: { label: "Confirmada",    cls: "border-emerald-500/40 text-emerald-400" },
-  completed: { label: "Completada",    cls: "border-zinc-500/40 text-zinc-400" },
+  completed: { label: "Completada",    cls: "border-zinc-500/40 text-gray-500" },
   cancelled: { label: "Cancelada",     cls: "border-red-500/40 text-red-400" },
   no_show:   { label: "No se presentó", cls: "border-amber-500/40 text-amber-400" },
 }
@@ -105,9 +105,9 @@ export default async function AppointmentsPage({
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-100">Citas</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Citas</h1>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-600">{count ?? appts.length} total</span>
+          <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
           {brandId && <NewAppointmentButton brandId={brandId} leads={leadsForModal} />}
         </div>
       </div>
@@ -120,7 +120,7 @@ export default async function AppointmentsPage({
               key={tab.label}
               href={tab.value ? `/appointments?status=${tab.value}` : "/appointments"}
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
@@ -129,20 +129,20 @@ export default async function AppointmentsPage({
         })}
       </div>
 
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg px-4 py-2">
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {appts.length === 0 ? (
-          <p className="text-sm text-zinc-600 py-8 text-center">Sin citas con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">Sin citas con estos filtros.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800/60">
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Fecha / Hora</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Tipo</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
-                <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Servicio</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Fecha / Hora</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Tipo</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Servicio</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
                 )}
               </tr>
             </thead>
@@ -150,21 +150,21 @@ export default async function AppointmentsPage({
               {appts.map((a) => {
                 const cfg = STATUS_CONFIG[a.status]
                 return (
-                  <tr key={a.id} className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
+                  <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
-                      <span className="text-zinc-300 text-xs tabular-nums">{fmtDate(a.scheduled_at)}</span>
+                      <span className="text-gray-700 text-xs tabular-nums">{fmtDate(a.scheduled_at)}</span>
                     </td>
                     <td className="py-3 pr-4">
                       {a.lead ? (
-                        <Link href={`/leads/${a.lead.id}`} className="text-zinc-200 hover:text-white font-medium transition-colors">
+                        <Link href={`/leads/${a.lead.id}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">
                           {a.lead.first_name} {a.lead.last_name ?? ""}
                         </Link>
                       ) : (
-                        <span className="text-zinc-600">—</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-zinc-500">{TYPE_LABEL[a.type]}</span>
+                      <span className="text-xs text-gray-400">{TYPE_LABEL[a.type]}</span>
                     </td>
                     <td className="py-3 pr-4">
                       <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg.cls}`}>
@@ -172,11 +172,11 @@ export default async function AppointmentsPage({
                       </Badge>
                     </td>
                     <td className="py-3 pr-4 hidden sm:table-cell">
-                      <span className="text-xs text-zinc-500">{a.service ?? "—"}</span>
+                      <span className="text-xs text-gray-400">{a.service ?? "—"}</span>
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 hidden lg:table-cell">
-                        <span className="text-xs text-zinc-500">{a.rep?.name ?? "—"}</span>
+                        <span className="text-xs text-gray-400">{a.rep?.name ?? "—"}</span>
                       </td>
                     )}
                   </tr>

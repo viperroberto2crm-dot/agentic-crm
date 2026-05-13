@@ -32,7 +32,7 @@ export function AgentSummaryCard({
 
   return (
     <Card
-      className="bg-zinc-900 border-zinc-800/60 border-l-2"
+      className="bg-white border-gray-200 border-l-2"
       style={{ borderLeftColor: "var(--brand)" }}
     >
       <CardContent className="p-4">
@@ -43,14 +43,14 @@ export function AgentSummaryCard({
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
                 Agente · Resumen diario
               </p>
               {summary && (
                 <form action={regenerateAgentSummary}>
                   <button
                     type="submit"
-                    className="text-zinc-600 hover:text-zinc-400 transition-colors cursor-pointer"
+                    className="text-gray-400 hover:text-zinc-400 transition-colors cursor-pointer"
                     title="Regenerar resumen"
                   >
                     <RotateCcw className="w-3 h-3" />
@@ -58,7 +58,7 @@ export function AgentSummaryCard({
                 </form>
               )}
             </div>
-            <p className="text-sm text-zinc-300 leading-relaxed">{body}</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{body}</p>
             {/* PHASE B plug-in: pending agent actions for this user */}
           </div>
         </div>
@@ -68,7 +68,7 @@ export function AgentSummaryCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[11px] border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 rounded-md px-3"
+              className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
               asChild
             >
               <Link href="/leads?filter=stale">Ver leads stale</Link>
@@ -76,7 +76,7 @@ export function AgentSummaryCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[11px] border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 rounded-md px-3"
+              className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
               asChild
             >
               <Link href="/calls">Registrar llamada</Link>
@@ -84,7 +84,7 @@ export function AgentSummaryCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[11px] border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 rounded-md px-3"
+              className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
               asChild
             >
               <Link href="/appointments">Ver citas</Link>

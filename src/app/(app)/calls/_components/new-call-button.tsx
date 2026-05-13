@@ -14,13 +14,13 @@ type Lead = { id: string; first_name: string; last_name: string | null; phone: s
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400">{label}</label>
+      <label className="text-xs font-medium text-gray-500">{label}</label>
       {children}
     </div>
   )
 }
 
-const inputCls = "bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 h-9"
+const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
 export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead[] }) {
   const router = useRouter()
@@ -69,20 +69,20 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
       </Button>
 
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
-        <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-lg">
+        <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Registrar llamada</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <Field label="Lead (opcional)">
               <Select value={form.lead_id} onValueChange={(v) => setForm((p) => ({ ...p, lead_id: v }))}>
-                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                   <SelectValue placeholder="Sin lead" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 max-h-52 overflow-y-auto">
-                  <SelectItem value="none" className="text-zinc-500">Sin lead</SelectItem>
+                <SelectContent className="bg-white border-gray-200 max-h-52 overflow-y-auto">
+                  <SelectItem value="none" className="text-gray-400">Sin lead</SelectItem>
                   {leads.map((l) => (
-                    <SelectItem key={l.id} value={l.id} className="text-zinc-200">
+                    <SelectItem key={l.id} value={l.id} className="text-gray-800">
                       {l.first_name} {l.last_name ?? ""} — {l.phone}
                     </SelectItem>
                   ))}
@@ -93,12 +93,12 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
             <div className="grid grid-cols-2 gap-3">
               <Field label="Dirección">
                 <Select value={form.direction} onValueChange={(v) => setForm((p) => ({ ...p, direction: v as typeof form.direction }))}>
-                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                  <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    <SelectItem value="outbound" className="text-zinc-200">Saliente</SelectItem>
-                    <SelectItem value="inbound" className="text-zinc-200">Entrante</SelectItem>
+                  <SelectContent className="bg-white border-gray-200">
+                    <SelectItem value="outbound" className="text-gray-800">Saliente</SelectItem>
+                    <SelectItem value="inbound" className="text-gray-800">Entrante</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -115,18 +115,18 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
 
             <Field label="Resultado">
               <Select value={form.outcome} onValueChange={(v) => setForm((p) => ({ ...p, outcome: v }))}>
-                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="none" className="text-zinc-500">Sin resultado</SelectItem>
-                  <SelectItem value="connected" className="text-zinc-200">Conectado</SelectItem>
-                  <SelectItem value="voicemail" className="text-zinc-200">Buzón de voz</SelectItem>
-                  <SelectItem value="no_answer" className="text-zinc-200">Sin respuesta</SelectItem>
-                  <SelectItem value="appointment_set" className="text-zinc-200">Cita agendada</SelectItem>
-                  <SelectItem value="callback_requested" className="text-zinc-200">Solicitó devolución</SelectItem>
-                  <SelectItem value="not_interested" className="text-zinc-200">No interesado</SelectItem>
-                  <SelectItem value="wrong_number" className="text-zinc-200">Número equivocado</SelectItem>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="none" className="text-gray-400">Sin resultado</SelectItem>
+                  <SelectItem value="connected" className="text-gray-800">Conectado</SelectItem>
+                  <SelectItem value="voicemail" className="text-gray-800">Buzón de voz</SelectItem>
+                  <SelectItem value="no_answer" className="text-gray-800">Sin respuesta</SelectItem>
+                  <SelectItem value="appointment_set" className="text-gray-800">Cita agendada</SelectItem>
+                  <SelectItem value="callback_requested" className="text-gray-800">Solicitó devolución</SelectItem>
+                  <SelectItem value="not_interested" className="text-gray-800">No interesado</SelectItem>
+                  <SelectItem value="wrong_number" className="text-gray-800">Número equivocado</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -136,7 +136,7 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
                 rows={3}
                 value={form.notes}
                 onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
                 placeholder="Resumen de la llamada…"
               />
             </Field>
@@ -149,7 +149,7 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
               <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
                 {isPending ? "Guardando…" : "Guardar llamada"}
               </Button>
-              <Button variant="ghost" className="text-zinc-500 hover:text-zinc-300" onClick={() => setOpen(false)} disabled={isPending}>
+              <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={() => setOpen(false)} disabled={isPending}>
                 Cancelar
               </Button>
             </div>

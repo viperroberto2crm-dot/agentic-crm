@@ -10,7 +10,7 @@ const STATUS_CONFIG: Record<
   LeadStatus,
   { label: string; className: string }
 > = {
-  new: { label: "Nuevo", className: "border-zinc-700 text-zinc-400" },
+  new: { label: "Nuevo", className: "border-gray-300 text-gray-500" },
   contacted: { label: "Contactado", className: "border-blue-500/40 text-blue-400" },
   qualified: { label: "Calificado", className: "border-violet-500/40 text-violet-400" },
   appointment_set: { label: "Cita", className: "border-amber-500/40 text-amber-400" },
@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<
 }
 
 function StatusBadge({ status }: { status: LeadStatus }) {
-  const cfg = STATUS_CONFIG[status] ?? { label: status, className: "border-zinc-700 text-zinc-400" }
+  const cfg = STATUS_CONFIG[status] ?? { label: status, className: "border-gray-300 text-gray-500" }
   return (
     <Badge
       variant="outline"
@@ -32,15 +32,15 @@ function StatusBadge({ status }: { status: LeadStatus }) {
 }
 
 function ScoreBar({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-zinc-700 text-xs">—</span>
+  if (score === null) return <span className="text-gray-300 text-xs">—</span>
   const color =
     score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500"
   return (
     <div className="flex items-center gap-1.5">
-      <div className="w-10 h-1 bg-zinc-800 rounded-full overflow-hidden">
+      <div className="w-10 h-1 bg-gray-200 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
       </div>
-      <span className="text-[10px] text-zinc-600 tabular-nums">{score}</span>
+      <span className="text-[10px] text-gray-400 tabular-nums">{score}</span>
     </div>
   )
 }
@@ -51,9 +51,9 @@ export function LeadsTable({ leads, logQuickCall }: {
 }) {
   if (leads.length === 0) {
     return (
-      <div className="text-center py-16 text-sm text-zinc-600">
+      <div className="text-center py-16 text-sm text-gray-400">
         No hay leads con estos filtros.{" "}
-        <Link href="/leads/new" className="text-zinc-400 underline underline-offset-2 hover:text-white">
+        <Link href="/leads/new" className="text-gray-500 underline underline-offset-2 hover:text-gray-900">
           Crear uno nuevo
         </Link>
       </div>
@@ -64,20 +64,20 @@ export function LeadsTable({ leads, logQuickCall }: {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-zinc-800/60">
-            <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">
+          <tr className="border-b border-gray-200">
+            <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">
               Lead
             </th>
-            <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4">
+            <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
               Status
             </th>
-            <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">
+            <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">
               Rep
             </th>
-            <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">
+            <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">
               Último contacto
             </th>
-            <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">
+            <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">
               Score
             </th>
             <th className="pb-2 w-8" />
@@ -87,17 +87,17 @@ export function LeadsTable({ leads, logQuickCall }: {
           {leads.map((lead) => (
             <tr
               key={lead.id}
-              className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors group"
+              className="border-b border-gray-100 hover:bg-gray-50 transition-colors group"
             >
               {/* Name + phone */}
               <td className="py-3 pr-4">
                 <Link
                   href={`/leads/${lead.id}`}
-                  className="font-medium text-zinc-200 hover:text-white transition-colors block leading-tight"
+                  className="font-medium text-gray-800 hover:text-gray-900 transition-colors block leading-tight"
                 >
                   {lead.first_name} {lead.last_name ?? ""}
                 </Link>
-                <span className="text-[11px] text-zinc-600 font-mono">
+                <span className="text-[11px] text-gray-400 font-mono">
                   {lead.phone}
                 </span>
               </td>
@@ -109,14 +109,14 @@ export function LeadsTable({ leads, logQuickCall }: {
 
               {/* Rep */}
               <td className="py-3 pr-4 hidden md:table-cell">
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-gray-400">
                   {lead.rep?.name ?? "—"}
                 </span>
               </td>
 
               {/* Last contact */}
               <td className="py-3 pr-4 hidden sm:table-cell">
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-gray-400">
                   {daysAgo(lead.last_contacted_at)}
                 </span>
               </td>
@@ -132,7 +132,7 @@ export function LeadsTable({ leads, logQuickCall }: {
                   <button
                     type="submit"
                     title="Registrar llamada rápida"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 cursor-pointer"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-zinc-300 cursor-pointer"
                   >
                     <Phone className="w-3.5 h-3.5" />
                   </button>

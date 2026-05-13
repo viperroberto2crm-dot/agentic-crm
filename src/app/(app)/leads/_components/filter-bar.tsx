@@ -73,12 +73,12 @@ export function LeadFilterBar({
     <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
       {/* Search */}
       <div className="relative flex-1 min-w-0">
-        <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+        <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
         <Input
           type="text"
           placeholder="Nombre, teléfono, email…"
           defaultValue={search}
-          className="pl-8 h-9 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 text-sm focus-visible:ring-zinc-700"
+          className="pl-8 h-9 bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 text-sm focus-visible:ring-zinc-700"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             const v = e.target.value
             if (v.length === 0 || v.length >= 2) update("search", v || null)
@@ -88,26 +88,26 @@ export function LeadFilterBar({
 
       {/* Status filter */}
       <Select value={status} onValueChange={(v: string) => update("status", v)}>
-        <SelectTrigger className="h-9 w-[160px] bg-zinc-900 border-zinc-800 text-zinc-300 text-sm">
+        <SelectTrigger className="h-9 w-[160px] bg-white border-gray-200 text-gray-700 text-sm">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
-        <SelectContent className="bg-zinc-900 border-zinc-800">
-          <SelectItem value="all" className="text-zinc-400 text-sm">Todos los status</SelectItem>
+        <SelectContent className="bg-white border-gray-200">
+          <SelectItem value="all" className="text-gray-500 text-sm">Todos los status</SelectItem>
           {(Object.entries(STATUS_LABELS) as [LeadStatus, string][]).map(([v, label]) => (
-            <SelectItem key={v} value={v} className="text-zinc-200 text-sm">{label}</SelectItem>
+            <SelectItem key={v} value={v} className="text-gray-800 text-sm">{label}</SelectItem>
           ))}
         </SelectContent>
       </Select>
 
       {/* Source filter */}
       <Select value={source} onValueChange={(v: string) => update("source", v)}>
-        <SelectTrigger className="h-9 w-[160px] bg-zinc-900 border-zinc-800 text-zinc-300 text-sm">
+        <SelectTrigger className="h-9 w-[160px] bg-white border-gray-200 text-gray-700 text-sm">
           <SelectValue placeholder="Fuente" />
         </SelectTrigger>
-        <SelectContent className="bg-zinc-900 border-zinc-800">
-          <SelectItem value="all" className="text-zinc-400 text-sm">Todas las fuentes</SelectItem>
+        <SelectContent className="bg-white border-gray-200">
+          <SelectItem value="all" className="text-gray-500 text-sm">Todas las fuentes</SelectItem>
           {(Object.entries(SOURCE_LABELS) as [LeadSource, string][]).map(([v, label]) => (
-            <SelectItem key={v} value={v} className="text-zinc-200 text-sm">{label}</SelectItem>
+            <SelectItem key={v} value={v} className="text-gray-800 text-sm">{label}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -118,7 +118,7 @@ export function LeadFilterBar({
           onClick={() => {
             startTransition(() => router.replace(pathname))
           }}
-          className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors px-1 whitespace-nowrap"
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-500 transition-colors px-1 whitespace-nowrap"
         >
           <X className="w-3 h-3" />
           Limpiar
@@ -126,7 +126,7 @@ export function LeadFilterBar({
       )}
 
       {/* Count + pending indicator */}
-      <span className={`text-xs whitespace-nowrap ${isPending ? "text-zinc-600" : "text-zinc-500"} ml-auto pl-2`}>
+      <span className={`text-xs whitespace-nowrap ${isPending ? "text-gray-400" : "text-gray-400"} ml-auto pl-2`}>
         {isPending ? "…" : `${total} lead${total !== 1 ? "s" : ""}`}
       </span>
     </div>

@@ -87,19 +87,19 @@ export function ActivityTimeline({
     <div className="space-y-3">
       {/* Lead notes */}
       {notes && (
-        <div className="flex gap-3 pb-3 border-b border-zinc-800/50">
-          <div className="mt-0.5 w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-            <StickyNote className="w-3 h-3 text-zinc-500" />
+        <div className="flex gap-3 pb-3 border-b border-gray-200">
+          <div className="mt-0.5 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+            <StickyNote className="w-3 h-3 text-gray-400" />
           </div>
           <div>
-            <p className="text-xs text-zinc-600 mb-1">Notas del lead</p>
-            <p className="text-sm text-zinc-400 leading-relaxed">{notes}</p>
+            <p className="text-xs text-gray-400 mb-1">Notas del lead</p>
+            <p className="text-sm text-gray-500 leading-relaxed">{notes}</p>
           </div>
         </div>
       )}
 
       {activities.length === 0 && (
-        <p className="text-sm text-zinc-600 py-4 text-center">
+        <p className="text-sm text-gray-400 py-4 text-center">
           Sin actividad registrada aún.
         </p>
       )}
@@ -109,27 +109,27 @@ export function ActivityTimeline({
           const c = act.data
           return (
             <div key={c.id} className="flex gap-3">
-              <div className="mt-0.5 w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center shrink-0">
-                <Phone className="w-3 h-3 text-zinc-500" />
+              <div className="mt-0.5 w-6 h-6 rounded-full bg-gray-100/80 flex items-center justify-center shrink-0">
+                <Phone className="w-3 h-3 text-gray-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-zinc-300">
+                  <span className="text-sm text-gray-700">
                     {c.direction === "outbound" ? "Llamada saliente" : "Llamada entrante"}
                   </span>
                   {c.outcome && (
-                    <span className="text-[10px] text-zinc-600">
+                    <span className="text-[10px] text-gray-400">
                       · {OUTCOME_LABELS[c.outcome] ?? c.outcome}
                     </span>
                   )}
                   {formatDuration(c.duration_seconds) && (
-                    <span className="text-[10px] text-zinc-700 tabular-nums">
+                    <span className="text-[10px] text-gray-300 tabular-nums">
                       {formatDuration(c.duration_seconds)}
                     </span>
                   )}
                 </div>
-                {c.notes && <p className="text-xs text-zinc-600 mt-0.5">{c.notes}</p>}
-                <p className="text-[10px] text-zinc-700 mt-0.5">{formatDate(c.called_at)}</p>
+                {c.notes && <p className="text-xs text-gray-400 mt-0.5">{c.notes}</p>}
+                <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(c.called_at)}</p>
               </div>
             </div>
           )
@@ -139,18 +139,18 @@ export function ActivityTimeline({
           const a = act.data
           return (
             <div key={a.id} className="flex gap-3">
-              <div className="mt-0.5 w-6 h-6 rounded-full bg-zinc-800/80 flex items-center justify-center shrink-0">
-                <Calendar className="w-3 h-3 text-zinc-500" />
+              <div className="mt-0.5 w-6 h-6 rounded-full bg-gray-100/80 flex items-center justify-center shrink-0">
+                <Calendar className="w-3 h-3 text-gray-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-zinc-300">Cita — {a.type}</span>
-                  <span className="text-[10px] text-zinc-600">
+                  <span className="text-sm text-gray-700">Cita — {a.type}</span>
+                  <span className="text-[10px] text-gray-400">
                     · {APPT_STATUS_LABELS[a.status] ?? a.status}
                   </span>
                 </div>
-                {a.service && <p className="text-xs text-zinc-600 mt-0.5">{a.service}</p>}
-                <p className="text-[10px] text-zinc-700 mt-0.5">{formatDate(a.scheduled_at)}</p>
+                {a.service && <p className="text-xs text-gray-400 mt-0.5">{a.service}</p>}
+                <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(a.scheduled_at)}</p>
               </div>
             </div>
           )
@@ -169,12 +169,12 @@ export function ActivityTimeline({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-zinc-300">Venta — {amount}</span>
-                  <span className="text-[10px] text-zinc-600">
+                  <span className="text-sm text-gray-700">Venta — {amount}</span>
+                  <span className="text-[10px] text-gray-400">
                     · {s.payment_status === "paid" ? "Pagada" : "Pendiente"} · {s.payment_method}
                   </span>
                 </div>
-                <p className="text-[10px] text-zinc-700 mt-0.5">{formatDate(s.created_at)}</p>
+                <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(s.created_at)}</p>
               </div>
             </div>
           )

@@ -54,7 +54,7 @@ type Rep = { id: string; name: string }
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400">
+      <label className="text-xs font-medium text-gray-500">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       {children}
@@ -62,7 +62,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-const inputCls = "bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 h-9"
+const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
 export function EditLeadModal({
   open, onClose, lead, reps,
@@ -109,7 +109,7 @@ export function EditLeadModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">Editar lead</DialogTitle>
         </DialogHeader>
@@ -149,12 +149,12 @@ export function EditLeadModal({
           <div className="grid grid-cols-2 gap-3">
             <Field label="Status">
               <Select value={form.status} onValueChange={(v: string) => setForm((p) => ({ ...p, status: v as LeadStatus }))}>
-                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectContent className="bg-white border-gray-200">
                   {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value} className="text-zinc-200">{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value} className="text-gray-800">{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -164,13 +164,13 @@ export function EditLeadModal({
                 value={form.source ?? "none"}
                 onValueChange={(v: string) => setForm((p) => ({ ...p, source: v === "none" ? null : v as LeadSource }))}
               >
-                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="none" className="text-zinc-500">Sin fuente</SelectItem>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="none" className="text-gray-400">Sin fuente</SelectItem>
                   {SOURCE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value} className="text-zinc-200">{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value} className="text-gray-800">{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -184,13 +184,13 @@ export function EditLeadModal({
                 value={form.assigned_rep_id ?? "none"}
                 onValueChange={(v: string) => set("assigned_rep_id", v === "none" ? null : v)}
               >
-                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-zinc-300">
+                <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="none" className="text-zinc-500">Sin asignar</SelectItem>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="none" className="text-gray-400">Sin asignar</SelectItem>
                   {reps.map((r) => (
-                    <SelectItem key={r.id} value={r.id} className="text-zinc-200">{r.name}</SelectItem>
+                    <SelectItem key={r.id} value={r.id} className="text-gray-800">{r.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -215,7 +215,7 @@ export function EditLeadModal({
               rows={3}
               value={form.notes ?? ""}
               onChange={(e) => set("notes", e.target.value)}
-              className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
+              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
             />
           </Field>
 
@@ -229,7 +229,7 @@ export function EditLeadModal({
             <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
               {isPending ? "Guardando…" : "Guardar cambios"}
             </Button>
-            <Button variant="ghost" className="text-zinc-500 hover:text-zinc-300" onClick={onClose} disabled={isPending}>
+            <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={onClose} disabled={isPending}>
               Cancelar
             </Button>
           </div>

@@ -57,14 +57,14 @@ export default async function LeadsPage({
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-zinc-100">Leads</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Leads</h1>
         <div className="flex items-center gap-2">
           {role !== "rep" && (
             <Button
               asChild
               size="sm"
               variant="outline"
-              className="h-9 text-xs gap-1.5 cursor-pointer border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
+              className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
             >
               <Link href="/leads/import">
                 <Upload className="w-3.5 h-3.5" />
@@ -90,13 +90,13 @@ export default async function LeadsPage({
       <LeadFilterBar total={total} showRepFilter={role !== "rep"} />
 
       {/* Table */}
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg px-4 py-2">
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         <LeadsTable leads={leads} logQuickCall={logQuickCall} />
       </div>
 
       {/* Pagination */}
       {total > LIMIT && (
-        <div className="flex items-center justify-between text-xs text-zinc-600">
+        <div className="flex items-center justify-between text-xs text-gray-400">
           <span>
             Mostrando {offset + 1}–{Math.min(offset + leads.length, total)} de {total}
           </span>
@@ -109,7 +109,7 @@ export default async function LeadsPage({
                   ...(search ? { search } : {}),
                   offset: String(offset - LIMIT),
                 })}`}
-                className="px-3 py-1 border border-zinc-800 rounded hover:border-zinc-700 transition-colors"
+                className="px-3 py-1 border border-gray-200 rounded hover:border-gray-300 transition-colors"
               >
                 ← Anterior
               </Link>
@@ -122,7 +122,7 @@ export default async function LeadsPage({
                   ...(search ? { search } : {}),
                   offset: String(offset + LIMIT),
                 })}`}
-                className="px-3 py-1 border border-zinc-800 rounded hover:border-zinc-700 transition-colors"
+                className="px-3 py-1 border border-gray-200 rounded hover:border-gray-300 transition-colors"
               >
                 Siguiente →
               </Link>

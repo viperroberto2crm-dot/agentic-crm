@@ -120,9 +120,9 @@ export default async function DashboardPage() {
 
       {/* Section 1: Greeting + pivot stats */}
       <div>
-        <p className="text-sm text-zinc-500">{greeting}</p>
-        <h1 className="text-2xl font-semibold text-zinc-100 mt-0.5">{name}</h1>
-        <p className="text-[11px] text-zinc-600 mt-1.5 leading-snug">{pivotText}</p>
+        <p className="text-sm text-gray-400">{greeting}</p>
+        <h1 className="text-2xl font-semibold text-gray-900 mt-0.5">{name}</h1>
+        <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">{pivotText}</p>
       </div>
 
       {/* PHASE B plug-in: pending agent actions for this user */}

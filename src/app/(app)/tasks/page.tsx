@@ -16,8 +16,8 @@ type TaskStatus = Database["public"]["Enums"]["task_status"]
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; cls: string }> = {
   urgent: { label: "Urgente", cls: "border-red-500/40 text-red-400" },
   high:   { label: "Alta",    cls: "border-orange-500/40 text-orange-400" },
-  normal: { label: "Normal",  cls: "border-zinc-600 text-zinc-400" },
-  low:    { label: "Baja",    cls: "border-zinc-700 text-zinc-600" },
+  normal: { label: "Normal",  cls: "border-zinc-600 text-gray-500" },
+  low:    { label: "Baja",    cls: "border-gray-300 text-gray-400" },
 }
 
 function fmtDue(d: string | null) {
@@ -99,9 +99,9 @@ export default async function TasksPage({
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-100">Tareas</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Tareas</h1>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-600">{count ?? tasks.length} total</span>
+          <span className="text-xs text-gray-400">{count ?? tasks.length} total</span>
           <NewTaskButton brandId={brandId} reps={reps} currentUserId={user.id} />
         </div>
       </div>
@@ -114,14 +114,14 @@ export default async function TasksPage({
               key={tab.value}
               href={`/tasks?status=${tab.value}${priorityFilter ? `&priority=${priorityFilter}` : ""}`}
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
             </Link>
           )
         })}
-        <span className="text-zinc-800">|</span>
+        <span className="text-gray-300">|</span>
         {([
           { value: null,     label: "Todas" },
           { value: "urgent", label: "Urgente" },
@@ -137,7 +137,7 @@ export default async function TasksPage({
                 : `/tasks?status=${statusFilter}`
               }
               className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
               {tab.label}
@@ -146,9 +146,9 @@ export default async function TasksPage({
         })}
       </div>
 
-      <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg divide-y divide-zinc-800/40">
+      <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
         {tasks.length === 0 ? (
-          <p className="text-sm text-zinc-600 py-8 text-center">Sin tareas con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">Sin tareas con estos filtros.</p>
         ) : (
           tasks.map((task) => {
             const pCfg = PRIORITY_CONFIG[task.priority]
@@ -156,34 +156,34 @@ export default async function TasksPage({
             const isDone = task.status === "done"
 
             return (
-              <div key={task.id} className={`flex items-start gap-3 px-4 py-3 hover:bg-zinc-800/20 transition-colors ${isDone ? "opacity-50" : ""}`}>
+              <div key={task.id} className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${isDone ? "opacity-50" : ""}`}>
                 <div className="pt-0.5">
                   <TaskStatusToggle id={task.id} status={task.status} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm text-zinc-200 font-medium leading-snug ${isDone ? "line-through text-zinc-500" : ""}`}>
+                  <p className={`text-sm text-gray-800 font-medium leading-snug ${isDone ? "line-through text-gray-400" : ""}`}>
                     {task.title}
                   </p>
                   {task.description && (
-                    <p className="text-xs text-zinc-600 mt-0.5 truncate">{task.description}</p>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{task.description}</p>
                   )}
                   <div className="flex items-center gap-3 mt-1.5">
                     <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${pCfg.cls}`}>
                       {pCfg.label}
                     </Badge>
                     {task.lead && (
-                      <Link href={`/leads/${task.lead.id}`} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                      <Link href={`/leads/${task.lead.id}`} className="text-xs text-gray-400 hover:text-gray-500 transition-colors">
                         {task.lead.first_name} {task.lead.last_name ?? ""}
                       </Link>
                     )}
                     {role !== "rep" && task.rep && (
-                      <span className="text-xs text-zinc-700">{task.rep.name}</span>
+                      <span className="text-xs text-gray-300">{task.rep.name}</span>
                     )}
                   </div>
                 </div>
                 {due && (
                   <span className={`text-xs tabular-nums shrink-0 pt-0.5 ${
-                    due.overdue ? "text-red-400" : due.soon ? "text-amber-400" : "text-zinc-600"
+                    due.overdue ? "text-red-400" : due.soon ? "text-amber-400" : "text-gray-400"
                   }`}>
                     {due.label}
                   </span>

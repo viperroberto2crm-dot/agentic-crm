@@ -77,7 +77,7 @@ export function LeadActions({
         <Button
           size="sm"
           variant="outline"
-          className="h-9 gap-1.5 cursor-pointer border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
+          className="h-9 gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
           onClick={() => setEditOpen(true)}
         >
           <Pencil className="w-3.5 h-3.5" />
@@ -91,12 +91,12 @@ export function LeadActions({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-9 px-2 cursor-pointer border-zinc-700 text-zinc-500 hover:text-white hover:bg-zinc-800"
+                className="h-9 px-2 cursor-pointer border-gray-300 text-gray-400 hover:text-gray-900 hover:bg-gray-100"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800">
+            <DropdownMenuContent align="end" className="bg-white border-gray-200">
               <DropdownMenuItem
                 className="text-red-400 hover:text-red-300 focus:text-red-300 focus:bg-red-400/10 cursor-pointer gap-2"
                 onClick={() => setDeleteOpen(true)}
@@ -123,18 +123,18 @@ export function LeadActions({
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
+        <AlertDialogContent className="bg-white border-gray-200 text-gray-900">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-zinc-100">
+            <AlertDialogTitle className="text-gray-900">
               ¿Borrar a {lead.first_name} {lead.last_name ?? ""}?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-500">
-              Esta acción borra <strong className="text-zinc-300">TODO</strong> el historial: llamadas,
-              citas, ventas, suscripciones. <strong className="text-zinc-300">No se puede deshacer.</strong>
+            <AlertDialogDescription className="text-gray-400">
+              Esta acción borra <strong className="text-gray-700">TODO</strong> el historial: llamadas,
+              citas, ventas, suscripciones. <strong className="text-gray-700">No se puede deshacer.</strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-zinc-700 text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-zinc-800">
+            <AlertDialogCancel className="border-gray-300 text-gray-500 hover:text-gray-800 bg-transparent hover:bg-gray-100">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction

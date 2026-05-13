@@ -7,7 +7,7 @@ export { formatCurrency }
 function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
-    <div className="mt-2.5 h-[3px] w-full bg-zinc-800 rounded-full overflow-hidden">
+    <div className="mt-2.5 h-[3px] w-full bg-gray-200 rounded-full overflow-hidden">
       <div
         className="h-full rounded-full transition-all duration-500"
         style={{ width: `${pct}%`, background: "var(--brand)" }}
@@ -28,15 +28,15 @@ function KpiShell({
   children?: React.ReactNode
 }) {
   return (
-    <Card className="bg-zinc-900 border-zinc-800/60">
+    <Card className="bg-white border-gray-200">
       <CardContent className="p-4">
-        <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold mb-2">
+        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-2">
           {label}
         </p>
-        <p className="text-2xl font-semibold text-zinc-100 tabular-nums leading-none">
+        <p className="text-2xl font-semibold text-gray-900 tabular-nums leading-none">
           {value}
         </p>
-        <p className="text-[11px] text-zinc-600 mt-1.5 leading-snug">{sub}</p>
+        <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">{sub}</p>
         {children}
       </CardContent>
     </Card>
@@ -53,7 +53,7 @@ export function CallsKpiCard({ data }: { data: CallsKpi }) {
     <>
       {data.total}
       {data.goal !== null && (
-        <span className="text-zinc-600 text-lg font-normal"> / {data.goal}</span>
+        <span className="text-gray-400 text-lg font-normal"> / {data.goal}</span>
       )}
     </>
   )

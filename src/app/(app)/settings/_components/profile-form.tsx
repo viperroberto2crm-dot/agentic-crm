@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateProfile } from "../actions"
 
-const inputCls = "bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 h-9"
+const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400">{label}</label>
+      <label className="text-xs font-medium text-gray-500">{label}</label>
       {children}
     </div>
   )
@@ -62,7 +62,7 @@ export function ProfileForm({
           value={email}
           disabled
         />
-        <p className="text-[11px] text-zinc-600 mt-1">El email se gestiona a través de Supabase Auth</p>
+        <p className="text-[11px] text-gray-400 mt-1">El email se gestiona a través de Supabase Auth</p>
       </Field>
 
       <Field label="Teléfono celular">

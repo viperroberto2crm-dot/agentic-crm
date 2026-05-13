@@ -92,8 +92,8 @@ function StepIndicator({ step }: { step: Step }) {
         const active = idx === current || (step === "importing" && s.key === "preview")
         return (
           <span key={s.key} className="flex items-center gap-1">
-            {i > 0 && <span className="text-zinc-700 mx-1">›</span>}
-            <span className={done ? "text-zinc-400" : active ? "text-zinc-100 font-medium" : "text-zinc-700"}>
+            {i > 0 && <span className="text-gray-300 mx-1">›</span>}
+            <span className={done ? "text-gray-500" : active ? "text-gray-900 font-medium" : "text-gray-300"}>
               {s.label}
             </span>
           </span>
@@ -206,17 +206,17 @@ export default function ImportLeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Link href="/leads" className="text-zinc-600 hover:text-zinc-400 transition-colors">
+          <Link href="/leads" className="text-gray-400 hover:text-gray-500 transition-colors">
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <h1 className="text-lg font-semibold text-zinc-100">Importar leads</h1>
+          <h1 className="text-lg font-semibold text-gray-900">Importar leads</h1>
         </div>
         <StepIndicator step={step} />
       </div>
 
       {/* Brand indicator */}
       {activeBrand && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-gray-400">
           <span className="w-2 h-2 rounded-full" style={{ background: activeBrand.brand_color ?? "#3B82F6" }} />
           {activeBrand.name}
         </div>
@@ -231,14 +231,14 @@ export default function ImportLeadsPage() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer ${
-              dragOver ? "border-zinc-500 bg-zinc-800/30" : "border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/30"
+              dragOver ? "border-zinc-500 bg-gray-50" : "border-gray-200 hover:border-gray-300 hover:bg-white"
             }`}
             onClick={() => document.getElementById("file-input")?.click()}
           >
-            <Upload className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-            <p className="text-sm text-zinc-400 font-medium">Arrastra tu archivo aquí</p>
-            <p className="text-xs text-zinc-600 mt-1">o haz click para seleccionar</p>
-            <p className="text-[11px] text-zinc-700 mt-3">Acepta .xlsx y .csv · Máximo 10 MB</p>
+            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-3" />
+            <p className="text-sm text-gray-500 font-medium">Arrastra tu archivo aquí</p>
+            <p className="text-xs text-gray-400 mt-1">o haz click para seleccionar</p>
+            <p className="text-[11px] text-gray-300 mt-3">Acepta .xlsx y .csv · Máximo 10 MB</p>
             <input
               id="file-input"
               type="file"
@@ -249,15 +249,15 @@ export default function ImportLeadsPage() {
           </div>
 
           {/* Download template */}
-          <div className="flex items-center justify-between p-4 bg-zinc-900/40 border border-zinc-800/60 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
             <div>
-              <p className="text-sm text-zinc-300 font-medium">Plantilla Excel</p>
-              <p className="text-xs text-zinc-600">Descarga el formato con las columnas correctas</p>
+              <p className="text-sm text-gray-700 font-medium">Plantilla Excel</p>
+              <p className="text-xs text-gray-400">Descarga el formato con las columnas correctas</p>
             </div>
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5 border-zinc-700 text-zinc-300 hover:text-white cursor-pointer"
+              className="gap-1.5 border-gray-300 text-gray-700 hover:text-gray-900 cursor-pointer"
               onClick={downloadTemplate}
             >
               <Download className="w-3.5 h-3.5" />
@@ -270,25 +270,25 @@ export default function ImportLeadsPage() {
       {/* ── STEP: MAP ── */}
       {step === "map" && (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">
-            Archivo cargado con <strong className="text-zinc-200">{rawRows.length}</strong> filas y{" "}
-            <strong className="text-zinc-200">{headers.length}</strong> columnas.
+          <p className="text-sm text-gray-500">
+            Archivo cargado con <strong className="text-gray-800">{rawRows.length}</strong> filas y{" "}
+            <strong className="text-gray-800">{headers.length}</strong> columnas.
             Asigna cada columna del Excel a un campo del lead.
           </p>
 
-          <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800/60">
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest px-4 py-2.5">Columna del archivo</th>
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest px-4 py-2.5">Campo del lead</th>
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest px-4 py-2.5">Muestra</th>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">Columna del archivo</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">Campo del lead</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">Muestra</th>
                 </tr>
               </thead>
               <tbody>
                 {mappings.map((m, i) => (
-                  <tr key={m.header} className="border-b border-zinc-800/30">
-                    <td className="px-4 py-2.5 text-zinc-300 font-mono text-xs">{m.header}</td>
+                  <tr key={m.header} className="border-b border-gray-100">
+                    <td className="px-4 py-2.5 text-gray-700 font-mono text-xs">{m.header}</td>
                     <td className="px-4 py-2.5">
                       <Select
                         value={m.field ?? "skip"}
@@ -298,20 +298,20 @@ export default function ImportLeadsPage() {
                           ))
                         }
                       >
-                        <SelectTrigger className="h-8 bg-zinc-900 border-zinc-800 text-zinc-300 text-xs w-44">
+                        <SelectTrigger className="h-8 bg-white border-gray-200 text-gray-700 text-xs w-44">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-zinc-800">
-                          <SelectItem value="skip" className="text-zinc-500 text-xs">— Omitir —</SelectItem>
+                        <SelectContent className="bg-white border-gray-200">
+                          <SelectItem value="skip" className="text-gray-400 text-xs">— Omitir —</SelectItem>
                           {LEAD_FIELDS.map((f) => (
-                            <SelectItem key={f.value} value={f.value} className="text-zinc-200 text-xs">
+                            <SelectItem key={f.value} value={f.value} className="text-gray-800 text-xs">
                               {f.label}{f.required ? " *" : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-zinc-600 truncate max-w-[140px]">
+                    <td className="px-4 py-2.5 text-xs text-gray-400 truncate max-w-[140px]">
                       {String(rawRows[0]?.[m.header] ?? "—")}
                     </td>
                   </tr>
@@ -324,7 +324,7 @@ export default function ImportLeadsPage() {
             <Button onClick={buildPreview} className="cursor-pointer" style={{ background: "var(--brand)" }}>
               Ver preview →
             </Button>
-            <Button variant="ghost" className="text-zinc-500" onClick={() => setStep("upload")}>
+            <Button variant="ghost" className="text-gray-400" onClick={() => setStep("upload")}>
               ← Volver
             </Button>
           </div>
@@ -335,8 +335,8 @@ export default function ImportLeadsPage() {
       {step === "preview" && (
         <div className="space-y-4">
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-zinc-300">
-              <strong className="text-zinc-100">{previewRows.length}</strong> filas listas para importar
+            <span className="text-gray-700">
+              <strong className="text-gray-900">{previewRows.length}</strong> filas listas para importar
             </span>
             {validationErrors.length > 0 && (
               <span className="flex items-center gap-1 text-amber-400">
@@ -347,13 +347,13 @@ export default function ImportLeadsPage() {
           </div>
 
           {/* Preview table */}
-          <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg overflow-x-auto">
+          <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800/60">
-                  <th className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest px-3 py-2">#</th>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-3 py-2">#</th>
                   {LEAD_FIELDS.filter((f) => mappings.some((m) => m.field === f.value)).map((f) => (
-                    <th key={f.value} className="text-left text-[10px] text-zinc-600 font-semibold uppercase tracking-widest px-3 py-2">
+                    <th key={f.value} className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-3 py-2">
                       {f.label}
                     </th>
                   ))}
@@ -364,10 +364,10 @@ export default function ImportLeadsPage() {
                 {previewRows.slice(0, 10).map((row, i) => {
                   const rowErr = validationErrors.find((e) => e.startsWith(`Fila ${i + 1}:`))
                   return (
-                    <tr key={i} className={`border-b border-zinc-800/30 ${rowErr ? "bg-red-400/5" : ""}`}>
-                      <td className="px-3 py-2 text-[10px] text-zinc-700 tabular-nums">{i + 1}</td>
+                    <tr key={i} className={`border-b border-gray-100 ${rowErr ? "bg-red-400/5" : ""}`}>
+                      <td className="px-3 py-2 text-[10px] text-gray-300 tabular-nums">{i + 1}</td>
                       {LEAD_FIELDS.filter((f) => mappings.some((m) => m.field === f.value)).map((f) => (
-                        <td key={f.value} className="px-3 py-2 text-xs text-zinc-300 truncate max-w-[120px]">
+                        <td key={f.value} className="px-3 py-2 text-xs text-gray-700 truncate max-w-[120px]">
                           {String(row[f.value] ?? "—")}
                         </td>
                       ))}
@@ -384,7 +384,7 @@ export default function ImportLeadsPage() {
               </tbody>
             </table>
             {previewRows.length > 10 && (
-              <p className="text-[11px] text-zinc-700 px-3 py-2">
+              <p className="text-[11px] text-gray-300 px-3 py-2">
                 +{previewRows.length - 10} filas más no mostradas
               </p>
             )}
@@ -393,7 +393,7 @@ export default function ImportLeadsPage() {
           {/* Validation errors list */}
           {validationErrors.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-zinc-400">Errores encontrados:</p>
+              <p className="text-xs font-medium text-gray-500">Errores encontrados:</p>
               <div className="max-h-32 overflow-y-auto space-y-1">
                 {validationErrors.slice(0, 20).map((err, i) => (
                   <p key={i} className="text-xs text-red-400 flex items-start gap-1.5">
@@ -402,13 +402,13 @@ export default function ImportLeadsPage() {
                   </p>
                 ))}
                 {validationErrors.length > 20 && (
-                  <p className="text-xs text-zinc-600">+{validationErrors.length - 20} más…</p>
+                  <p className="text-xs text-gray-400">+{validationErrors.length - 20} más…</p>
                 )}
               </div>
 
               {/* Skip vs cancel */}
               <div className="flex items-center gap-3 pt-1">
-                <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={skipErrors}
@@ -434,7 +434,7 @@ export default function ImportLeadsPage() {
                 `Importar ${skipErrors ? previewRows.length - validationErrors.length : previewRows.length} leads`
               )}
             </Button>
-            <Button variant="ghost" className="text-zinc-500" onClick={() => setStep("map")}>
+            <Button variant="ghost" className="text-gray-400" onClick={() => setStep("map")}>
               ← Volver
             </Button>
           </div>
@@ -444,8 +444,8 @@ export default function ImportLeadsPage() {
       {/* ── STEP: IMPORTING ── */}
       {step === "importing" && (
         <div className="flex flex-col items-center gap-4 py-16">
-          <Loader2 className="w-8 h-8 text-zinc-400 animate-spin" />
-          <p className="text-sm text-zinc-400">Importando leads…</p>
+          <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
+          <p className="text-sm text-gray-500">Importando leads…</p>
         </div>
       )}
 
@@ -454,21 +454,21 @@ export default function ImportLeadsPage() {
         <div className="space-y-6">
           <div className="flex flex-col items-center gap-3 py-8">
             <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-            <p className="text-xl font-semibold text-zinc-100">
+            <p className="text-xl font-semibold text-gray-900">
               {importResult.imported > 0
                 ? `Importados ${importResult.imported} lead${importResult.imported !== 1 ? "s" : ""}`
                 : "Sin leads importados"}
             </p>
             {importResult.skipped > 0 && (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-gray-400">
                 {importResult.skipped} saltado{importResult.skipped !== 1 ? "s" : ""} por errores
               </p>
             )}
           </div>
 
           {importResult.errors.length > 0 && (
-            <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-medium text-zinc-400">Filas con error:</p>
+            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
+              <p className="text-xs font-medium text-gray-500">Filas con error:</p>
               {importResult.errors.slice(0, 10).map((err, i) => (
                 <p key={i} className="text-xs text-red-400">Fila {err.row}: {err.message}</p>
               ))}
@@ -485,7 +485,7 @@ export default function ImportLeadsPage() {
             </Button>
             <Button
               variant="ghost"
-              className="text-zinc-500"
+              className="text-gray-400"
               onClick={() => {
                 setStep("upload")
                 setRawRows([])
