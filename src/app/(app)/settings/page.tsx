@@ -7,6 +7,7 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { ProfileForm } from "./_components/profile-form"
 import { BrandForm } from "./_components/brand-form"
+import { UsersTab, type UserRow } from "./_components/users-tab"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -46,10 +47,27 @@ export default async function SettingsPage({
     brand = data as BrandData | null
   }
 
-  const tabs = [
-    { value: "perfil", label: "Perfil" },
-    ...(role === "admin" ? [{ value: "marca", label: "Marca" }] : []),
-  ]
+  let brandUsers: UserRow[] = []
+  if (role === "admin" && brandId) {
+    const { data: ubRows } = await sb
+      .from("user_brands")
+      .select("user_id")
+      .eq("brand_id", brandId)
+    const ids = (ubRows ?? []).map((r) => r.user_id)
+    if (ids.length) {
+      const { data: usersData } = await sb
+        .from("users")
+        .select("id, name, email, role, cell_phone, active, created_at")
+        .in("id", ids)
+        .order("name")
+      brandUsers = (usersData ?? []) as UserRow[]
+    }
+  }
+
+  const adminTabs = role === "admin"
+    ? [{ value: "marca", label: "Marca" }, { value: "usuarios", label: "Usuarios" }]
+    : []
+  const tabs = [{ value: "perfil", label: "Perfil" }, ...adminTabs]
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
@@ -93,6 +111,11 @@ export default async function SettingsPage({
         )}
         {tab === "marca" && !brand && role === "admin" && (
           <p className="text-sm text-zinc-600">Selecciona una marca primero desde el selector en el sidebar.</p>
+        )}
+        {tab === "usuarios" && role === "admin" && (
+          brandId
+            ? <UsersTab users={brandUsers} brandId={brandId} currentUserId={user.id} />
+            : <p className="text-sm text-muted-foreground">Selecciona una marca primero desde el selector en el sidebar.</p>
         )}
       </div>
 
