@@ -89,7 +89,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
 
     const admin = createAdminClient()
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentic-crm-sigma.vercel.app"
-    const { error } = await admin.auth.admin.inviteUserByEmail(input.email, {
+    const { data: inviteData, error } = await admin.auth.admin.inviteUserByEmail(input.email, {
       redirectTo: `${siteUrl}/auth/confirm?next=/dashboard`,
       data: {
         name: input.name,
@@ -99,7 +99,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
     })
 
     if (error) {
-      // User already exists — still update their record in case role/name changed
+      // User already exists — update their record in case role/name changed
       if (error.message.toLowerCase().includes("already") || error.code === "email_exists") {
         const { error: updateErr } = await admin
           .from("users")
@@ -108,6 +108,23 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
         if (updateErr) return { ok: false, error: updateErr.message }
       } else {
         return { ok: false, error: error.message }
+      }
+    } else if (inviteData?.user) {
+      // Explicitly upsert the user record so the role is always correct
+      await admin.from("users").upsert({
+        id: inviteData.user.id,
+        email: input.email,
+        name: input.name,
+        role: input.role as UserRole,
+        active: true,
+      }, { onConflict: "id" })
+
+      // Add to brand
+      if (input.brand_id) {
+        await admin.from("user_brands").upsert({
+          user_id: inviteData.user.id,
+          brand_id: input.brand_id,
+        }, { onConflict: "user_id,brand_id" })
       }
     }
 
