@@ -88,7 +88,9 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
     if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden invitar usuarios" }
 
     const admin = createAdminClient()
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentic-crm-sigma.vercel.app"
     const { error } = await admin.auth.admin.inviteUserByEmail(input.email, {
+      redirectTo: `${siteUrl}/auth/confirm?next=/dashboard`,
       data: {
         name: input.name,
         role: input.role,
