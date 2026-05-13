@@ -1,11 +1,13 @@
-import { login } from "./actions";
+import { getTranslations } from "next-intl/server"
+import { login } from "./actions"
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string }>
 }) {
-  const { error } = await searchParams;
+  const { error } = await searchParams
+  const t = await getTranslations("auth")
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
@@ -14,13 +16,13 @@ export default async function LoginPage({
         className="w-full max-w-sm space-y-4 bg-zinc-900 border border-zinc-800 rounded-lg p-6"
       >
         <div>
-          <h1 className="text-xl font-semibold text-white">Agentic CRM</h1>
-          <p className="text-sm text-zinc-400 mt-1">Inicia sesión para continuar.</p>
+          <h1 className="text-xl font-semibold text-white">{t("title")}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t("subtitle")}</p>
         </div>
 
         <div>
           <label htmlFor="email" className="block text-sm text-zinc-300 mb-1">
-            Email
+            {t("email")}
           </label>
           <input
             id="email"
@@ -34,7 +36,7 @@ export default async function LoginPage({
 
         <div>
           <label htmlFor="password" className="block text-sm text-zinc-300 mb-1">
-            Contraseña
+            {t("password")}
           </label>
           <input
             id="password"
@@ -48,9 +50,7 @@ export default async function LoginPage({
 
         {error && (
           <p className="text-sm text-rose-400">
-            {error === "invalid"
-              ? "Email o contraseña inválidos."
-              : "No se pudo iniciar sesión. Intenta de nuevo."}
+            {error === "invalid" ? t("invalidCredentials") : t("signInError")}
           </p>
         )}
 
@@ -58,9 +58,9 @@ export default async function LoginPage({
           type="submit"
           className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded py-2 font-medium transition"
         >
-          Entrar
+          {t("signIn")}
         </button>
       </form>
     </main>
-  );
+  )
 }

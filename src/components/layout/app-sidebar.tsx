@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import {
   LayoutDashboard,
   Users,
@@ -45,28 +46,17 @@ export type AppSidebarProps = {
   onOpenCommand: () => void
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  {
-    label: "Leads",
-    href: "/leads",
-    icon: Users,
-    badgeTooltip: "Leads activos asignados a ti",
-  },
-  { label: "Llamadas", href: "/calls", icon: Phone },
-  { label: "Citas", href: "/appointments", icon: CalendarDays },
-  { label: "Ventas", href: "/sales", icon: DollarSign },
-  {
-    label: "Tareas",
-    href: "/tasks",
-    icon: CheckSquare,
-    badgeTooltip: "Tareas abiertas · ! = hay urgentes o de alta prioridad",
-  },
-  // Admin/manager-only items can be added here with roles: ["admin", "manager"]
+const NAV_HREFS = [
+  { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { key: "leads", href: "/leads", icon: Users, hasBadge: true },
+  { key: "calls", href: "/calls", icon: Phone },
+  { key: "appointments", href: "/appointments", icon: CalendarDays },
+  { key: "sales", href: "/sales", icon: DollarSign },
+  { key: "tasks", href: "/tasks", icon: CheckSquare, hasBadge: true },
 ]
 
-const BOTTOM_ITEMS: NavItem[] = [
-  { label: "Settings", href: "/settings", icon: Settings },
+const BOTTOM_HREFS = [
+  { key: "settings", href: "/settings", icon: Settings },
 ]
 
 function NavLink({
@@ -167,23 +157,27 @@ function SidebarContent({
   onOpenCommand,
 }: SidebarContentProps) {
   const pathname = usePathname()
+  const t = useTranslations("nav")
 
-  const navWithCounts = NAV_ITEMS
-    .filter((item) => !item.roles || item.roles.includes(userRole))
-    .map((item) => ({
-      ...item,
-      count:
-        item.href === "/leads" && leadCount > 0
-          ? leadCount
-          : item.href === "/tasks" && taskCount > 0
-          ? taskCount
-          : undefined,
-      urgent: item.href === "/tasks" ? urgentTasks : undefined,
-    }))
+  const navWithCounts: NavItem[] = NAV_HREFS.map((item) => ({
+    label: t(item.key as Parameters<typeof t>[0]),
+    href: item.href,
+    icon: item.icon,
+    count:
+      item.href === "/leads" && leadCount > 0
+        ? leadCount
+        : item.href === "/tasks" && taskCount > 0
+        ? taskCount
+        : undefined,
+    urgent: item.href === "/tasks" ? urgentTasks : undefined,
+    badgeTooltip: undefined,
+  }))
 
-  const visibleBottom = BOTTOM_ITEMS.filter(
-    (item) => !item.roles || item.roles.includes(userRole)
-  )
+  const visibleBottom: NavItem[] = BOTTOM_HREFS.map((item) => ({
+    label: t(item.key as Parameters<typeof t>[0]),
+    href: item.href,
+    icon: item.icon,
+  }))
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -243,7 +237,7 @@ function SidebarContent({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8} className="text-xs">
-                Pregúntale al agente
+                {t("askAgent")}
                 <kbd className="ml-1.5 font-mono bg-white/10 text-teal-200 border border-white/20 rounded px-1 text-[9px]">
                   ⌘K
                 </kbd>
@@ -255,7 +249,7 @@ function SidebarContent({
               className="group flex items-center gap-3 w-full h-9 px-2.5 rounded-md text-sm text-teal-100/70 hover:text-white hover:bg-white/10 transition-all"
             >
               <Sparkles className="w-4 h-4 shrink-0 text-teal-200/50 group-hover:text-[hsl(var(--accent))] transition-colors" />
-              <span className="flex-1 text-left truncate">Pregúntale al agente</span>
+              <span className="flex-1 text-left truncate">{t("askAgent")}</span>
               <kbd className="text-[9px] text-teal-300/60 font-mono bg-white/5 border border-white/10 rounded px-1 py-0.5 leading-none">
                 ⌘K
               </kbd>

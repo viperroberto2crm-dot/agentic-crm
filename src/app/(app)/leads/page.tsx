@@ -11,6 +11,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { LeadFilterBar } from "./_components/filter-bar"
 import { LeadsTable } from "./_components/leads-table"
 import { logQuickCall } from "./actions"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -24,6 +25,8 @@ export default async function LeadsPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("leads")
+  const tCommon = await getTranslations("common")
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
@@ -42,95 +45,64 @@ export default async function LeadsPage({
   const offset = typeof sp.offset === "string" ? parseInt(sp.offset, 10) : 0
 
   const { leads, total } = await fetchLeads(sb, user.id, role, {
-    brandId,
-    status,
-    source,
-    search,
-    limit: 50,
-    offset,
+    brandId, status, source, search, limit: 50, offset,
   })
 
   const LIMIT = 50
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
-
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-gray-900">Leads</h1>
+        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-2">
           {role !== "rep" && (
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
+            <Button asChild size="sm" variant="outline"
               className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
             >
               <Link href="/leads/import">
                 <Upload className="w-3.5 h-3.5" />
-                Importar
+                {t("importLeads")}
               </Link>
             </Button>
           )}
-          <Button
-            asChild
-            size="sm"
-            className="h-9 text-xs gap-1.5 cursor-pointer"
-            style={{ background: "var(--brand)" }}
-          >
+          <Button asChild size="sm" className="h-9 text-xs gap-1.5 cursor-pointer" style={{ background: "var(--brand)" }}>
             <Link href="/leads/new">
               <Plus className="w-3.5 h-3.5" />
-              Nuevo lead
+              {t("newLead")}
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Filter bar (client component) */}
       <LeadFilterBar total={total} showRepFilter={role !== "rep"} />
 
-      {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         <LeadsTable leads={leads} logQuickCall={logQuickCall} />
       </div>
 
-      {/* Pagination */}
       {total > LIMIT && (
         <div className="flex items-center justify-between text-xs text-gray-400">
           <span>
-            Mostrando {offset + 1}–{Math.min(offset + leads.length, total)} de {total}
+            {t("showing", { from: offset + 1, to: Math.min(offset + leads.length, total), total })}
           </span>
           <div className="flex gap-2">
             {offset > 0 && (
-              <Link
-                href={`/leads?${new URLSearchParams({
-                  ...(status ? { status } : {}),
-                  ...(source ? { source } : {}),
-                  ...(search ? { search } : {}),
-                  offset: String(offset - LIMIT),
-                })}`}
+              <Link href={`/leads?${new URLSearchParams({ ...(status ? { status } : {}), ...(source ? { source } : {}), ...(search ? { search } : {}), offset: String(offset - LIMIT) })}`}
                 className="px-3 py-1 border border-gray-200 rounded hover:border-gray-300 transition-colors"
               >
-                ← Anterior
+                ← {tCommon("previous")}
               </Link>
             )}
             {offset + LIMIT < total && (
-              <Link
-                href={`/leads?${new URLSearchParams({
-                  ...(status ? { status } : {}),
-                  ...(source ? { source } : {}),
-                  ...(search ? { search } : {}),
-                  offset: String(offset + LIMIT),
-                })}`}
+              <Link href={`/leads?${new URLSearchParams({ ...(status ? { status } : {}), ...(source ? { source } : {}), ...(search ? { search } : {}), offset: String(offset + LIMIT) })}`}
                 className="px-3 py-1 border border-gray-200 rounded hover:border-gray-300 transition-colors"
               >
-                Siguiente →
+                {tCommon("next")} →
               </Link>
             )}
           </div>
         </div>
       )}
-
     </div>
   )
 }
