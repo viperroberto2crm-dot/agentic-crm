@@ -157,6 +157,32 @@ export async function updateUser(raw: UpdateUserInput) {
   revalidatePath("/dashboard")
 }
 
+export async function deleteUser(userId: string, brandId: string) {
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+  if (profile?.role !== "admin") throw new Error("Solo admins pueden eliminar usuarios")
+
+  if (userId === user.id) throw new Error("No puedes eliminar tu propia cuenta")
+
+  const { data: membership } = await supabase
+    .from("user_brands")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("brand_id", brandId)
+    .single()
+  if (!membership) throw new Error("No autorizado: el usuario no pertenece a esta marca")
+
+  const admin = createAdminClient()
+  const { error: authErr } = await admin.auth.admin.deleteUser(userId)
+  if (authErr) throw new Error(authErr.message)
+
+  revalidatePath("/settings")
+  revalidatePath("/dashboard")
+}
+
 // ── Products ───────────────────────────────────────────────────────────────────
 
 const CADENCE_DAYS: Record<string, number> = { weekly: 7, monthly: 30, annual: 365 }

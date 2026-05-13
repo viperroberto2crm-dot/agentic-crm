@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { updateUser } from "../actions"
+import { Trash2 } from "lucide-react"
+import { updateUser, deleteUser } from "../actions"
 import { Field, inputCls } from "./form-primitives"
 import type { UserRow } from "./users-tab"
 
@@ -31,10 +32,26 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
   })
 
   const isSelf = user.id === currentUserId
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   function handleClose() {
     setError(null)
+    setConfirmDelete(false)
     onClose()
+  }
+
+  function handleDelete() {
+    setError(null)
+    startTransition(async () => {
+      try {
+        await deleteUser(user.id, brandId)
+        router.refresh()
+        onClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error al eliminar")
+        setConfirmDelete(false)
+      }
+    })
   }
 
   function handleSave() {
@@ -115,23 +132,62 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
             </p>
           )}
 
-          <div className="flex gap-3 pt-1">
-            <Button
-              onClick={handleSave}
-              disabled={isPending || !form.name}
-              className="cursor-pointer h-9 text-sm"
-              style={{ background: "var(--brand)" }}
-            >
-              {isPending ? "Guardando…" : "Guardar cambios"}
-            </Button>
-            <Button
-              variant="ghost"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={handleClose}
-              disabled={isPending}
-            >
-              Cancelar
-            </Button>
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSave}
+                disabled={isPending || !form.name}
+                className="cursor-pointer h-9 text-sm"
+                style={{ background: "var(--brand)" }}
+              >
+                {isPending ? "Guardando…" : "Guardar cambios"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleClose}
+                disabled={isPending}
+              >
+                Cancelar
+              </Button>
+            </div>
+
+            {!isSelf && (
+              confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-500">¿Eliminar definitivamente?</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={handleDelete}
+                    disabled={isPending}
+                  >
+                    {isPending ? "Eliminando…" : "Sí, eliminar"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={isPending}
+                  >
+                    No
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 gap-1.5"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={isPending}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Eliminar
+                </Button>
+              )
+            )}
           </div>
         </div>
       </DialogContent>
