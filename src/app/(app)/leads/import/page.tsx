@@ -161,7 +161,7 @@ export default function ImportLeadsPage() {
         source: null, notes: null, city: null, state: null,
       }
       mappings.forEach(({ header, field }) => {
-        if (field) lead[field] = (row[header] as string)?.trim() || null
+        if (field) lead[field] = row[header] != null ? String(row[header]).trim() || null : null
       })
       return lead as unknown as ImportRow
     })
