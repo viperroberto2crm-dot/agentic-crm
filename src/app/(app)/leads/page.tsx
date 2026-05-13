@@ -59,17 +59,19 @@ export default async function LeadsPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-zinc-100">Leads</h1>
         <div className="flex items-center gap-2">
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="h-9 text-xs gap-1.5 cursor-pointer border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
-          >
-            <Link href="/leads/import">
-              <Upload className="w-3.5 h-3.5" />
-              Importar
-            </Link>
-          </Button>
+          {role !== "rep" && (
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs gap-1.5 cursor-pointer border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
+            >
+              <Link href="/leads/import">
+                <Upload className="w-3.5 h-3.5" />
+                Importar
+              </Link>
+            </Button>
+          )}
           <Button
             asChild
             size="sm"

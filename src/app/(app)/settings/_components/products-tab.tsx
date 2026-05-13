@@ -13,6 +13,7 @@ type Props = {
   products: ProductRow[]
   brandId: string
   categories: string[]
+  readonly?: boolean
 }
 
 const CADENCE_LABELS: Record<string, string> = {
@@ -29,7 +30,7 @@ function storageKey(brandId: string) {
   return `crm_product_names_${brandId}`
 }
 
-export function ProductsTab({ products, brandId, categories }: Props) {
+export function ProductsTab({ products, brandId, categories, readonly = false }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<ProductRow | null>(null)
   const existingNames = products.map((p) => p.name)
@@ -66,8 +67,8 @@ export function ProductsTab({ products, brandId, categories }: Props) {
   return (
     <div className="space-y-5">
 
-      {/* ── Nombres de productos ────────────────────────────────────────── */}
-      <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
+      {/* ── Nombres de productos (admin only) ──────────────────────────── */}
+      {!readonly && <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
         <p className="text-xs font-medium text-muted-foreground">
           Nombres de productos disponibles
         </p>
@@ -110,26 +111,30 @@ export function ProductsTab({ products, brandId, categories }: Props) {
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── Header tabla ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {products.length} producto{products.length !== 1 ? "s" : ""}
         </p>
-        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-          <Plus className="w-3.5 h-3.5" />
-          Nuevo producto
-        </Button>
+        {!readonly && (
+          <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" />
+            Nuevo producto
+          </Button>
+        )}
       </div>
 
       {/* ── Tabla ────────────────────────────────────────────────────────── */}
       {products.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border py-10 text-center">
           <p className="text-sm text-muted-foreground">Aún no hay productos.</p>
-          <Button variant="ghost" size="sm" className="mt-2 text-primary" onClick={() => setCreateOpen(true)}>
-            Crear el primero
-          </Button>
+          {!readonly && (
+            <Button variant="ghost" size="sm" className="mt-2 text-primary" onClick={() => setCreateOpen(true)}>
+              Crear el primero
+            </Button>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
@@ -207,13 +212,15 @@ export function ProductsTab({ products, brandId, categories }: Props) {
                     )}
                   </td>
                   <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => setEditProduct(p)}
-                      className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
+                    {!readonly && (
+                      <button
+                        onClick={() => setEditProduct(p)}
+                        className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

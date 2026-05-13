@@ -10,15 +10,21 @@ async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
 }
 
+const VALID_SOURCES = ["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "other"] as const
+type LeadSource = typeof VALID_SOURCES[number]
+
 const ImportRowSchema = z.object({
   first_name: z.string().min(1, "Nombre requerido"),
   last_name: z.string().nullable(),
   phone: z.string().min(6, "Teléfono inválido"),
   email: z.string().email("Email inválido").nullable().or(z.literal("").transform(() => null)),
-  source: z
-    .enum(["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "other"])
-    .nullable()
-    .optional(),
+  source: z.preprocess(
+    (v) => {
+      if (!v || v === "") return null
+      return (VALID_SOURCES as readonly string[]).includes(v as string) ? v : "other"
+    },
+    z.enum(VALID_SOURCES).nullable().optional()
+  ),
   notes: z.string().nullable(),
   city: z.string().nullable(),
   state: z.string().nullable(),

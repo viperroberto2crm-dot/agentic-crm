@@ -38,8 +38,8 @@ export default async function SettingsPage({
   const sp = params as Record<string, string | string[] | undefined>
   const tab = typeof sp.tab === "string" ? sp.tab : "perfil"
 
-  // Reps can only access their profile tab
-  if (role === "rep" && tab !== "perfil") redirect("/settings?tab=perfil")
+  // Reps can only access their profile and products tabs
+  if (role === "rep" && tab !== "perfil" && tab !== "productos") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -53,7 +53,7 @@ export default async function SettingsPage({
   }
 
   let products: ProductRow[] = []
-  if (role === "admin" && brandId) {
+  if ((role === "admin" || role === "rep") && brandId) {
     try {
       const admin = createAdminClient()
       const { data: productsData, error: prodErr } = await admin
@@ -90,11 +90,14 @@ export default async function SettingsPage({
   const adminTabs = role === "admin"
     ? [
         { value: "marca", label: "Marca" },
-        { value: "productos", label: "Productos" },
         { value: "usuarios", label: "Usuarios" },
       ]
     : []
-  const tabs = [{ value: "perfil", label: "Perfil" }, ...adminTabs]
+  const tabs = [
+    { value: "perfil", label: "Perfil" },
+    { value: "productos", label: "Productos" },
+    ...adminTabs,
+  ]
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
@@ -139,9 +142,9 @@ export default async function SettingsPage({
         {tab === "marca" && !brand && role === "admin" && (
           <p className="text-sm text-zinc-600">Selecciona una marca primero desde el selector en el sidebar.</p>
         )}
-        {tab === "productos" && role === "admin" && (
+        {tab === "productos" && (role === "admin" || role === "rep") && (
           brandId
-            ? <ProductsTab products={products} brandId={brandId} categories={categories} />
+            ? <ProductsTab products={products} brandId={brandId} categories={categories} readonly={role !== "admin"} />
             : <p className="text-sm text-muted-foreground">Selecciona una marca primero desde el selector en el sidebar.</p>
         )}
         {tab === "usuarios" && role === "admin" && (
