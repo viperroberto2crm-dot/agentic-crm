@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { X, Plus } from "lucide-react"
+
 import { Field, inputCls } from "./form-primitives"
 import { createProduct, updateProduct } from "../actions"
 import type { Database } from "@/types/database"
@@ -31,7 +32,6 @@ type Props = {
   product?: ProductRow
   brandId: string
   categories: string[]
-  productNames: string[]
   open: boolean
   onClose: () => void
 }
@@ -187,49 +187,14 @@ export function ProductDialog({ mode, product, brandId, categories, productNames
 
         <div className="space-y-4 pt-1">
           <Field label="Nombre" required>
-            {productNames.length > 0 && form.name !== "__custom__" ? (
-              <>
-                <Select
-                  value={form.name}
-                  onValueChange={(v) => {
-                    if (v === "__custom__") set("name", "")
-                    else set("name", v)
-                  }}
-                >
-                  <SelectTrigger className={inputCls}>
-                    <SelectValue placeholder="Selecciona un nombre…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productNames.map((n) => (
-                      <SelectItem key={n} value={n}>{n}</SelectItem>
-                    ))}
-                    <SelectItem value="__custom__">✏️ Escribir otro…</SelectItem>
-                  </SelectContent>
-                </Select>
-              </>
-            ) : (
-              <div className="flex gap-2">
-                <Input
-                  className={`${inputCls} flex-1`}
-                  value={form.name === "__custom__" ? "" : form.name}
-                  onChange={(e) => set("name", e.target.value)}
-                  placeholder="Escribe el nombre del producto…"
-                  onKeyDown={(e) => e.key === "Enter" && canSave && handleSave()}
-                  autoFocus
-                />
-                {productNames.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 border-border text-xs"
-                    onClick={() => set("name", productNames[0])}
-                  >
-                    ← Lista
-                  </Button>
-                )}
-              </div>
-            )}
+            <Input
+              className={inputCls}
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder="Escribe el nombre del producto…"
+              onKeyDown={(e) => e.key === "Enter" && canSave && handleSave()}
+              autoFocus
+            />
           </Field>
 
           <Field label="Categoría" required>

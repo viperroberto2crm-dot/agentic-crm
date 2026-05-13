@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Plus, Pencil, CheckCircle2, X } from "lucide-react"
+import { Plus, Pencil, CheckCircle2 } from "lucide-react"
 import { ProductDialog } from "./product-dialog"
 import type { Database } from "@/types/database"
 
@@ -26,92 +25,13 @@ function formatPrice(cents: number) {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function storageKey(brandId: string) {
-  return `crm_product_names_${brandId}`
-}
 
 export function ProductsTab({ products, brandId, categories, readonly = false }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<ProductRow | null>(null)
-  const existingNames = products.map((p) => p.name)
-
-  // ── Nombres de productos ───────────────────────────────────────────────────
-  const [names, setNames] = useState<string[]>([])
-  const [nameInput, setNameInput] = useState("")
-  const nameRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey(brandId))
-      if (saved) setNames(JSON.parse(saved))
-    } catch {}
-  }, [brandId])
-
-  function saveNames(updated: string[]) {
-    setNames(updated)
-    try { localStorage.setItem(storageKey(brandId), JSON.stringify(updated)) } catch {}
-  }
-
-  function addName() {
-    const val = nameInput.trim()
-    if (!val || names.includes(val)) return
-    saveNames([...names, val])
-    setNameInput("")
-    nameRef.current?.focus()
-  }
-
-  function removeName(i: number) {
-    saveNames(names.filter((_, idx) => idx !== i))
-  }
 
   return (
     <div className="space-y-5">
-
-      {/* ── Nombres de productos (admin only) ──────────────────────────── */}
-      {!readonly && <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
-        <p className="text-xs font-medium text-muted-foreground">
-          Nombres de productos disponibles
-        </p>
-        <div className="flex gap-2">
-          <Input
-            ref={nameRef}
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addName() } }}
-            placeholder="Plan Básico, Botox, Medicamentos…"
-            className="h-8 text-sm bg-white border-border text-foreground placeholder:text-muted-foreground flex-1"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addName}
-            disabled={!nameInput.trim()}
-            className="h-8 border-border shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-        {names.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {names.map((n, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 text-xs bg-white text-foreground border border-border rounded-full px-2.5 py-1"
-              >
-                {n}
-                <button
-                  type="button"
-                  onClick={() => removeName(i)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>}
 
       {/* ── Header tabla ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
@@ -233,7 +153,6 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
         mode="create"
         brandId={brandId}
         categories={categories}
-        productNames={[...new Set([...names, ...existingNames])]}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
@@ -245,7 +164,6 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
           product={editProduct}
           brandId={brandId}
           categories={categories}
-          productNames={[...new Set([...names, ...existingNames])]}
           open={!!editProduct}
           onClose={() => setEditProduct(null)}
         />
