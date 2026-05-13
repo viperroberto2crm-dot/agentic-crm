@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useTransition, useState } from "react"
+import { useTransition, useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { createLead } from "../actions"
+import { fetchProducts } from "../[id]/actions"
 import { useBrand } from "@/context/brand-context"
+
+type ProductOption = { id: string; name: string; price_cents: number; cadence: string }
 
 const SOURCE_OPTIONS = [
   { value: "inbound_call", label: "Llamada entrante" },
@@ -37,7 +40,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400">
+      <label className="text-xs font-medium text-muted-foreground">
         {label}
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
@@ -46,12 +49,31 @@ function Field({
   )
 }
 
+const CADENCE_LABELS: Record<string, string> = {
+  weekly: "sem", monthly: "mes", annual: "año", one_time: "único",
+}
+
+function fmtProduct(p: ProductOption) {
+  const price = (p.price_cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+  const cadence = CADENCE_LABELS[p.cadence] ?? p.cadence
+  return `${p.name} — ${price}/${cadence}`
+}
+
 export default function NewLeadPage() {
   const router = useRouter()
   const { activeBrand } = useBrand()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [source, setSource] = useState<string>("")
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [productInterest, setProductInterest] = useState<string>("")
+
+  useEffect(() => {
+    if (!activeBrand?.id) { setProducts([]); return }
+    fetchProducts(activeBrand.id)
+      .then((data) => setProducts(data as ProductOption[]))
+      .catch(() => setProducts([]))
+  }, [activeBrand?.id])
 
   function handleSubmit(formData: FormData) {
     if (!activeBrand) {
@@ -60,6 +82,16 @@ export default function NewLeadPage() {
     }
     formData.set("brand_id", activeBrand.id)
     if (source) formData.set("source", source)
+
+    // Prepend product interest to notes if selected
+    if (productInterest) {
+      const selected = products.find((p) => p.id === productInterest)
+      if (selected) {
+        const existing = (formData.get("notes") as string | null)?.trim() ?? ""
+        const productLine = `Interesado en: ${fmtProduct(selected)}`
+        formData.set("notes", existing ? `${productLine}\n\n${existing}` : productLine)
+      }
+    }
 
     setError(null)
     startTransition(async () => {
@@ -79,16 +111,16 @@ export default function NewLeadPage() {
       <div className="flex items-center gap-2">
         <Link
           href="/leads"
-          className="text-zinc-600 hover:text-zinc-400 transition-colors"
+          className="text-muted-foreground hover:text-muted-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
-        <h1 className="text-lg font-semibold text-zinc-100">Nuevo lead</h1>
+        <h1 className="text-lg font-semibold text-foreground">Nuevo lead</h1>
       </div>
 
       {/* Brand indicator */}
       {activeBrand && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span
             className="w-2 h-2 rounded-full"
             style={{ background: activeBrand.brand_color ?? "#3B82F6" }}
@@ -107,14 +139,14 @@ export default function NewLeadPage() {
               name="first_name"
               required
               placeholder="Pedro"
-              className="bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600"
+              className="bg-white border-border text-foreground placeholder:text-muted-foreground"
             />
           </Field>
           <Field label="Apellido">
             <Input
               name="last_name"
               placeholder="Ramírez"
-              className="bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600"
+              className="bg-white border-border text-foreground placeholder:text-muted-foreground"
             />
           </Field>
         </div>
@@ -127,7 +159,7 @@ export default function NewLeadPage() {
               type="tel"
               required
               placeholder="+52 999 123 4567"
-              className="bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 font-mono"
+              className="bg-white border-border text-foreground placeholder:text-muted-foreground font-mono"
             />
           </Field>
           <Field label="Email">
@@ -135,7 +167,7 @@ export default function NewLeadPage() {
               name="email"
               type="email"
               placeholder="pedro@mail.com"
-              className="bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600"
+              className="bg-white border-border text-foreground placeholder:text-muted-foreground"
             />
           </Field>
         </div>
@@ -143,12 +175,12 @@ export default function NewLeadPage() {
         {/* Source */}
         <Field label="Fuente">
           <Select value={source} onValueChange={setSource}>
-            <SelectTrigger className="bg-zinc-900 border-zinc-800 text-zinc-300">
+            <SelectTrigger className="bg-white border-border text-foreground">
               <SelectValue placeholder="¿De dónde viene este lead?" />
             </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-800">
+            <SelectContent className="bg-white border-border">
               {SOURCE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value} className="text-zinc-200">
+                <SelectItem key={opt.value} value={opt.value} className="text-foreground">
                   {opt.label}
                 </SelectItem>
               ))}
@@ -156,13 +188,32 @@ export default function NewLeadPage() {
           </Select>
         </Field>
 
+        {/* Product interest */}
+        {products.length > 0 && (
+          <Field label="Producto de interés">
+            <Select value={productInterest} onValueChange={setProductInterest}>
+              <SelectTrigger className="bg-white border-border text-foreground">
+                <SelectValue placeholder="¿Qué producto le interesa?" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-border">
+                <SelectItem value="none" className="text-muted-foreground">Sin especificar</SelectItem>
+                {products.map((p) => (
+                  <SelectItem key={p.id} value={p.id} className="text-foreground">
+                    {fmtProduct(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+
         {/* Notes */}
         <Field label="Notas">
           <textarea
             name="notes"
             rows={3}
             placeholder="Contexto inicial, síntomas, interés expresado…"
-            className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
+            className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30 resize-none"
           />
         </Field>
 
@@ -186,7 +237,7 @@ export default function NewLeadPage() {
           <Button
             type="button"
             variant="ghost"
-            className="text-zinc-500 hover:text-zinc-300"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => router.back()}
           >
             Cancelar
@@ -194,7 +245,7 @@ export default function NewLeadPage() {
         </div>
 
         {!activeBrand && (
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-muted-foreground">
             Selecciona una marca desde el menú para continuar.
           </p>
         )}

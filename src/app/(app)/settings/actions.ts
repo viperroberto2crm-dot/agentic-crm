@@ -139,3 +139,95 @@ export async function updateUser(raw: UpdateUserInput) {
   revalidatePath("/settings")
   revalidatePath("/dashboard")
 }
+
+// ── Products ───────────────────────────────────────────────────────────────────
+
+const CADENCE_DAYS: Record<string, number> = { weekly: 7, monthly: 30, annual: 365 }
+
+const ProductSchema = z.object({
+  brand_id: z.string().uuid(),
+  name: z.string().min(1, "Nombre requerido"),
+  category: z.string().min(1, "Categoría requerida"),
+  sku: z.string().nullable(),
+  description: z.string().nullable(),
+  price_cents: z.number().int().min(0),
+  display_price_cents: z.number().int().min(0).nullable(),
+  display_unit: z.string().nullable(),
+  cadence: z.enum(["weekly", "monthly", "annual"]),
+  recurring: z.boolean(),
+  best_value: z.boolean(),
+  active: z.boolean(),
+  included_services: z.array(z.string()),
+})
+
+export type ProductInput = z.infer<typeof ProductSchema>
+
+async function assertAdmin(supabase: SupabaseClient<Database>, userId: string) {
+  const { data } = await supabase.from("users").select("role").eq("id", userId).single()
+  if (data?.role !== "admin") throw new Error("Solo admins pueden gestionar productos")
+}
+
+export async function createProduct(raw: ProductInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = ProductSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar productos" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("products")
+      .insert({
+        ...input,
+        billing_cycle_days: CADENCE_DAYS[input.cadence],
+        sort_order: 0,
+      })
+
+    if (error) {
+      console.error("[createProduct]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[createProduct] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+const UpdateProductSchema = ProductSchema.extend({ id: z.string().uuid() })
+export type UpdateProductInput = z.infer<typeof UpdateProductSchema>
+
+export async function updateProduct(raw: UpdateProductInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { id, ...input } = UpdateProductSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar productos" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("products")
+      .update({ ...input, billing_cycle_days: CADENCE_DAYS[input.cadence] })
+      .eq("id", id)
+      .eq("brand_id", input.brand_id)
+
+    if (error) {
+      console.error("[updateProduct]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[updateProduct] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}

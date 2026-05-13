@@ -42,6 +42,9 @@ export default async function LeadDetailPage({
 
   const role = (profileRes.data?.role ?? "rep") as string
 
+  // Reps can only view leads assigned to them
+  if (role === "rep" && lead.assigned_rep_id !== user.id) notFound()
+
   // Fetch reps for assign dropdown (managers/admins only)
   let reps: { id: string; name: string }[] = []
   if (role === "admin" || role === "manager") {
@@ -84,13 +87,13 @@ export default async function LeadDetailPage({
 
       <LeadActions lead={lead} role={role} reps={reps} />
 
-      <Separator className="bg-zinc-800/50" />
+      <Separator className="bg-border" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-3">
-          <Card className="bg-zinc-900 border-zinc-800/60">
+          <Card className="bg-white border-border/60">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs text-zinc-500 uppercase tracking-widest font-semibold">
+              <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
                 Resumen
               </CardTitle>
             </CardHeader>
@@ -103,8 +106,8 @@ export default async function LeadDetailPage({
               {lead.source && <Stat label="Fuente" value={lead.source} />}
               {lead.ai_score_reason && (
                 <div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Razón del score</p>
-                  <p className="text-xs text-zinc-500 leading-relaxed">{lead.ai_score_reason}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Razón del score</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{lead.ai_score_reason}</p>
                 </div>
               )}
             </CardContent>
@@ -112,9 +115,9 @@ export default async function LeadDetailPage({
         </div>
 
         <div className="lg:col-span-2">
-          <Card className="bg-zinc-900 border-zinc-800/60">
+          <Card className="bg-white border-border/60">
             <CardHeader className="pb-3">
-              <CardTitle className="text-xs text-zinc-500 uppercase tracking-widest font-semibold">
+              <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
                 Actividad
               </CardTitle>
             </CardHeader>
@@ -136,8 +139,8 @@ export default async function LeadDetailPage({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex justify-between items-baseline">
-      <span className="text-xs text-zinc-600">{label}</span>
-      <span className="text-sm text-zinc-300 font-medium tabular-nums">{value}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm text-foreground font-medium tabular-nums">{value}</span>
     </div>
   )
 }

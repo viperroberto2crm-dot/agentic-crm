@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import Link from "next/link"
@@ -8,6 +9,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { ProfileForm } from "./_components/profile-form"
 import { BrandForm } from "./_components/brand-form"
 import { UsersTab, type UserRow } from "./_components/users-tab"
+import { ProductsTab, type ProductRow } from "./_components/products-tab"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -36,6 +38,9 @@ export default async function SettingsPage({
   const sp = params as Record<string, string | string[] | undefined>
   const tab = typeof sp.tab === "string" ? sp.tab : "perfil"
 
+  // Reps can only access their profile tab
+  if (role === "rep" && tab !== "perfil") redirect("/settings?tab=perfil")
+
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
   if (role === "admin" && brandId) {
@@ -46,6 +51,24 @@ export default async function SettingsPage({
       .single()
     brand = data as BrandData | null
   }
+
+  let products: ProductRow[] = []
+  if (role === "admin" && brandId) {
+    try {
+      const admin = createAdminClient()
+      const { data: productsData, error: prodErr } = await admin
+        .from("products")
+        .select("*")
+        .eq("brand_id", brandId)
+        .order("sort_order")
+        .order("name")
+      if (prodErr) console.error("[settings] products query error:", prodErr.message)
+      products = (productsData ?? []) as ProductRow[]
+    } catch (e) {
+      console.error("[settings] products fetch threw:", e)
+    }
+  }
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))]
 
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
@@ -65,7 +88,11 @@ export default async function SettingsPage({
   }
 
   const adminTabs = role === "admin"
-    ? [{ value: "marca", label: "Marca" }, { value: "usuarios", label: "Usuarios" }]
+    ? [
+        { value: "marca", label: "Marca" },
+        { value: "productos", label: "Productos" },
+        { value: "usuarios", label: "Usuarios" },
+      ]
     : []
   const tabs = [{ value: "perfil", label: "Perfil" }, ...adminTabs]
 
@@ -111,6 +138,11 @@ export default async function SettingsPage({
         )}
         {tab === "marca" && !brand && role === "admin" && (
           <p className="text-sm text-zinc-600">Selecciona una marca primero desde el selector en el sidebar.</p>
+        )}
+        {tab === "productos" && role === "admin" && (
+          brandId
+            ? <ProductsTab products={products} brandId={brandId} categories={categories} />
+            : <p className="text-sm text-muted-foreground">Selecciona una marca primero desde el selector en el sidebar.</p>
         )}
         {tab === "usuarios" && role === "admin" && (
           brandId

@@ -1,0 +1,248 @@
+"use client"
+
+import { useState, useEffect, useRef } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Plus, Pencil, CheckCircle2, X } from "lucide-react"
+import { ProductDialog } from "./product-dialog"
+import type { Database } from "@/types/database"
+
+export type ProductRow = Database["public"]["Tables"]["products"]["Row"]
+
+type Props = {
+  products: ProductRow[]
+  brandId: string
+  categories: string[]
+}
+
+const CADENCE_LABELS: Record<string, string> = {
+  weekly: "Semanal",
+  monthly: "Mensual",
+  annual: "Anual",
+}
+
+function formatPrice(cents: number) {
+  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function storageKey(brandId: string) {
+  return `crm_product_names_${brandId}`
+}
+
+export function ProductsTab({ products, brandId, categories }: Props) {
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editProduct, setEditProduct] = useState<ProductRow | null>(null)
+  const existingNames = products.map((p) => p.name)
+
+  // ── Nombres de productos ───────────────────────────────────────────────────
+  const [names, setNames] = useState<string[]>([])
+  const [nameInput, setNameInput] = useState("")
+  const nameRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey(brandId))
+      if (saved) setNames(JSON.parse(saved))
+    } catch {}
+  }, [brandId])
+
+  function saveNames(updated: string[]) {
+    setNames(updated)
+    try { localStorage.setItem(storageKey(brandId), JSON.stringify(updated)) } catch {}
+  }
+
+  function addName() {
+    const val = nameInput.trim()
+    if (!val || names.includes(val)) return
+    saveNames([...names, val])
+    setNameInput("")
+    nameRef.current?.focus()
+  }
+
+  function removeName(i: number) {
+    saveNames(names.filter((_, idx) => idx !== i))
+  }
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Nombres de productos ────────────────────────────────────────── */}
+      <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
+        <p className="text-xs font-medium text-muted-foreground">
+          Nombres de productos disponibles
+        </p>
+        <div className="flex gap-2">
+          <Input
+            ref={nameRef}
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addName() } }}
+            placeholder="Plan Básico, Botox, Medicamentos…"
+            className="h-8 text-sm bg-white border-border text-foreground placeholder:text-muted-foreground flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addName}
+            disabled={!nameInput.trim()}
+            className="h-8 border-border shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+        {names.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {names.map((n, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 text-xs bg-white text-foreground border border-border rounded-full px-2.5 py-1"
+              >
+                {n}
+                <button
+                  type="button"
+                  onClick={() => removeName(i)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Header tabla ────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {products.length} producto{products.length !== 1 ? "s" : ""}
+        </p>
+        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+          <Plus className="w-3.5 h-3.5" />
+          Nuevo producto
+        </Button>
+      </div>
+
+      {/* ── Tabla ────────────────────────────────────────────────────────── */}
+      {products.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border py-10 text-center">
+          <p className="text-sm text-muted-foreground">Aún no hay productos.</p>
+          <Button variant="ghost" size="sm" className="mt-2 text-primary" onClick={() => setCreateOpen(true)}>
+            Crear el primero
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/40">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Nombre</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">Categoría</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Precio</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">Cadencia</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden lg:table-cell">Servicios</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">Recurrente</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Estado</th>
+                <th className="px-3 py-2 w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20 transition-colors">
+                  <td className="px-3 py-2.5 text-foreground font-medium">
+                    <span className="flex items-center gap-1.5">
+                      {p.name}
+                      {p.best_value && (
+                        <span className="text-[10px] bg-accent/15 text-accent border border-accent/25 rounded-full px-1.5 py-0.5 font-medium">
+                          ★ Best
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">{p.category}</td>
+                  <td className="px-3 py-2.5 text-right text-foreground tabular-nums">
+                    <span>{formatPrice(p.price_cents)}</span>
+                    {p.display_price_cents && p.display_price_cents > p.price_cents && (
+                      <span className="ml-1.5 text-xs text-muted-foreground line-through">
+                        {formatPrice(p.display_price_cents)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">
+                    {CADENCE_LABELS[p.cadence] ?? p.cadence}
+                  </td>
+                  <td className="px-3 py-2.5 hidden lg:table-cell">
+                    {Array.isArray(p.included_services) && p.included_services.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {(p.included_services as string[]).slice(0, 3).map((s, i) => (
+                          <span key={i} className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                            {s}
+                          </span>
+                        ))}
+                        {(p.included_services as string[]).length > 3 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            +{(p.included_services as string[]).length - 3}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 hidden md:table-cell">
+                    <span className={`text-xs font-medium ${p.recurring ? "text-emerald-600" : "text-muted-foreground"}`}>
+                      {p.recurring ? "Sí" : "No"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {p.active ? (
+                      <span className="inline-flex items-center text-xs bg-emerald-400/10 text-emerald-600 border border-emerald-400/20 rounded-full px-2 py-0.5 font-medium">
+                        Activo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-xs bg-zinc-400/10 text-zinc-400 border border-zinc-400/20 rounded-full px-2 py-0.5 font-medium">
+                        Inactivo
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      onClick={() => setEditProduct(p)}
+                      className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <ProductDialog
+        mode="create"
+        brandId={brandId}
+        categories={categories}
+        productNames={[...new Set([...names, ...existingNames])]}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+      />
+
+      {editProduct && (
+        <ProductDialog
+          key={editProduct.id}
+          mode="edit"
+          product={editProduct}
+          brandId={brandId}
+          categories={categories}
+          productNames={[...new Set([...names, ...existingNames])]}
+          open={!!editProduct}
+          onClose={() => setEditProduct(null)}
+        />
+      )}
+    </div>
+  )
+}
