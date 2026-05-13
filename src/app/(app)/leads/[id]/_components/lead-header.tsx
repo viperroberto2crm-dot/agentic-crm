@@ -49,7 +49,7 @@ export function LeadHeader({ lead }: Props) {
       {/* Name + status */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100 leading-tight">
+          <h1 className="text-2xl font-semibold text-foreground leading-tight">
             {lead.first_name} {lead.last_name ?? ""}
           </h1>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -88,7 +88,7 @@ export function LeadHeader({ lead }: Props) {
       <div className="flex flex-wrap gap-4 text-sm text-zinc-400">
         <a
           href={`tel:${lead.phone}`}
-          className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors"
+          className="flex items-center gap-1.5 hover:text-foreground transition-colors"
         >
           <Phone className="w-3.5 h-3.5" />
           <span className="font-mono">{lead.phone}</span>
@@ -96,7 +96,7 @@ export function LeadHeader({ lead }: Props) {
         {lead.phone_alt && (
           <a
             href={`tel:${lead.phone_alt}`}
-            className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors"
+            className="flex items-center gap-1.5 hover:text-foreground transition-colors"
           >
             <Phone className="w-3.5 h-3.5 opacity-50" />
             <span className="font-mono">{lead.phone_alt}</span>
@@ -105,7 +105,7 @@ export function LeadHeader({ lead }: Props) {
         {lead.email && (
           <a
             href={`mailto:${lead.email}`}
-            className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors"
+            className="flex items-center gap-1.5 hover:text-foreground transition-colors"
           >
             <Mail className="w-3.5 h-3.5" />
             {lead.email}
