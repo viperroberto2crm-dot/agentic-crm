@@ -180,7 +180,7 @@ export function ProductDialog({ mode, product, brandId, categories, productNames
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md bg-white border-border max-h-[90vh] overflow-y-auto">
+      <DialogContent className="light-surface max-w-md bg-white border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">{title}</DialogTitle>
         </DialogHeader>

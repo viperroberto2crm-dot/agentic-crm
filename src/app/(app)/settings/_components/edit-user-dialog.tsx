@@ -69,7 +69,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="bg-white border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="light-surface bg-white border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">Editar usuario</DialogTitle>
         </DialogHeader>

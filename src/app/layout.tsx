@@ -23,7 +23,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={`${geist.variable} ${geistMono.variable}`}>
+    <html lang="es" className={`dark ${geist.variable} ${geistMono.variable}`}>
       <body className="bg-background text-foreground antialiased font-sans">
         {children}
       </body>
