@@ -590,5 +590,11 @@
     "openMenu": "Open menu",
     "notifications": "Notifications",
     "language": "Language"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllAsRead": "Mark all as read",
+    "empty": "You're all caught up.",
+    "viewAll": "View all"
   }
 }
