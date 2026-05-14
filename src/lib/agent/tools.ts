@@ -246,15 +246,16 @@ export async function executeGetSalesKpi(
   const overall = aggregate(rows)
 
   if (input.scope === "all") {
-    const brandIds = Array.from(new Set(rows.map((r) => r.brand_id))).filter(Boolean) as string[]
+    // Traer TODAS las marcas activas, incluso las que no tuvieron ventas en el período
     const { data: brandsData } = await sb
       .from("brands")
       .select("id, name")
-      .in("id", brandIds)
-    const nameById = new Map((brandsData ?? []).map((b) => [b.id, b.name]))
-    const byBrand = brandIds.map((id) => {
-      const sample = rows.filter((r) => r.brand_id === id)
-      return { brand_id: id, brand_name: nameById.get(id) ?? "Unknown", ...aggregate(sample) }
+      .eq("active", true)
+      .order("name")
+    const allBrands = brandsData ?? []
+    const byBrand = allBrands.map((b) => {
+      const sample = rows.filter((r) => r.brand_id === b.id)
+      return { brand_id: b.id, brand_name: b.name, ...aggregate(sample) }
     })
     return { period: input.period ?? "month", scope: "all", overall, by_brand: byBrand }
   }
