@@ -47,6 +47,42 @@ export type Database = {
           { foreignKeyName: "agent_actions_run_id_fkey"; columns: ["run_id"]; referencedRelation: "agent_runs"; referencedColumns: ["id"] }
         ]
       }
+      agent_compactions: {
+        Row: {
+          id: string
+          user_id: string
+          brand_id: string | null
+          summary: string
+          up_to_run_id: string | null
+          tokens_input: number | null
+          tokens_output: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          brand_id?: string | null
+          summary: string
+          up_to_run_id?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          brand_id?: string | null
+          summary?: string
+          up_to_run_id?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "agent_compactions_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "agent_compactions_up_to_run_id_fkey"; columns: ["up_to_run_id"]; referencedRelation: "agent_runs"; referencedColumns: ["id"] }
+        ]
+      }
       agent_goals: {
         Row: {
           id: string
