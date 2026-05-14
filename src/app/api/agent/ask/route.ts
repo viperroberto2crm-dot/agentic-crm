@@ -15,6 +15,7 @@ import {
   executeGetSalesKpi,
   executeGetCallsSummary,
   executeGetTasksOpen,
+  executeListBrands,
 } from "@/lib/agent/tools"
 import { CRM_SYSTEM_PROMPT } from "@/lib/agent/prompts"
 
@@ -172,6 +173,9 @@ export async function POST(req: NextRequest) {
               user.id,
               input as Parameters<typeof executeGetTasksOpen>[2]
             )
+            break
+          case "list_brands":
+            result = await executeListBrands(sb)
             break
           default:
             result = { error: "Tool no encontrado" }

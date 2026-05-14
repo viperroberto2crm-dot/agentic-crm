@@ -5,23 +5,28 @@ type DB = SupabaseClient<Database>
 
 // ── Tool input types ──────────────────────────────────────────────────────────
 
+export type Scope = "current" | "all"
+
 export type GetLeadsInput = {
   status?: string
   days_without_contact?: number
   limit?: number
+  scope?: Scope
 }
 
 export type GetScheduleInput = {
-  date?: string // ISO date, defaults to today
+  date?: string
 }
 
 export type GetSalesKpiInput = {
   period?: "today" | "week" | "month"
+  scope?: Scope
 }
 
 export type GetCallsInput = {
   period?: "today" | "week" | "month"
   limit?: number
+  scope?: Scope
 }
 
 export type GetTasksInput = {
@@ -29,9 +34,23 @@ export type GetTasksInput = {
   limit?: number
 }
 
+export type ListBrandsInput = Record<string, never>
+
 // ── Tool definitions (Anthropic format) ──────────────────────────────────────
 
+const SCOPE_DESC =
+  "Use 'current' (default) to scope to the active brand only. Use 'all' when the user asks about ALL brands or compares brands."
+
 export const AGENT_TOOLS = [
+  {
+    name: "list_brands",
+    description:
+      "List every brand (compañía/marca) in this CRM. Use this when the user asks how many companies/brands exist or to confirm names before reporting metrics.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
   {
     name: "get_leads",
     description: "Get leads from the CRM. Can filter by status or days without contact.",
@@ -48,6 +67,11 @@ export const AGENT_TOOLS = [
           description: "Only return leads not contacted in this many days",
         },
         limit: { type: "number", description: "Max results, default 10" },
+        scope: {
+          type: "string",
+          enum: ["current", "all"],
+          description: SCOPE_DESC,
+        },
       },
     },
   },
@@ -63,7 +87,8 @@ export const AGENT_TOOLS = [
   },
   {
     name: "get_sales_kpi",
-    description: "Get sales KPIs: total revenue, pending, count, average ticket.",
+    description:
+      "Get sales KPIs (revenue, pending, count, avg ticket). When scope='all', also returns a per-brand breakdown so you can compare brands.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -71,6 +96,11 @@ export const AGENT_TOOLS = [
           type: "string",
           enum: ["today", "week", "month"],
           description: "Time period, default month",
+        },
+        scope: {
+          type: "string",
+          enum: ["current", "all"],
+          description: SCOPE_DESC,
         },
       },
     },
@@ -87,6 +117,11 @@ export const AGENT_TOOLS = [
           description: "Time period, default week",
         },
         limit: { type: "number", description: "Max results for detail list" },
+        scope: {
+          type: "string",
+          enum: ["current", "all"],
+          description: SCOPE_DESC,
+        },
       },
     },
   },
@@ -123,17 +158,25 @@ function periodRange(period = "month"): { gte: string } {
   return { gte: start.toISOString() }
 }
 
+export async function executeListBrands(sb: DB) {
+  const { data } = await sb
+    .from("brands")
+    .select("id, name, slug, active")
+    .order("name")
+  return data ?? []
+}
+
 export async function executeGetLeads(
   sb: DB, userId: string, brandId: string | null, input: GetLeadsInput
 ) {
   const limit = input.limit ?? 10
   let query = sb
     .from("leads")
-    .select("id, first_name, last_name, phone, status, score, last_contacted_at, source")
+    .select("id, first_name, last_name, phone, status, score, last_contacted_at, source, brand_id")
     .order("score", { ascending: false })
     .limit(limit)
 
-  if (brandId) query = query.eq("brand_id", brandId)
+  if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
   if (input.status) query = query.eq("status", input.status as Database["public"]["Enums"]["lead_status"])
   if (input.days_without_contact) {
     const cutoff = new Date()
@@ -178,26 +221,45 @@ export async function executeGetSalesKpi(
   const { gte } = periodRange(input.period ?? "month")
   let query = sb
     .from("sales")
-    .select("amount_cents, payment_status")
+    .select("amount_cents, payment_status, brand_id")
     .gte("created_at", gte)
 
-  if (brandId) query = query.eq("brand_id", brandId)
+  if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
 
   const { data } = await query
   const rows = data ?? []
-  const paid = rows.filter((r) => r.payment_status === "paid")
-  const pending = rows.filter((r) => r.payment_status === "pending")
-  const totalPaid = paid.reduce((s, r) => s + r.amount_cents, 0)
-  const totalPending = pending.reduce((s, r) => s + r.amount_cents, 0)
 
-  return {
-    period: input.period ?? "month",
-    total_paid_usd: (totalPaid / 100).toFixed(2),
-    total_pending_usd: (totalPending / 100).toFixed(2),
-    paid_count: paid.length,
-    pending_count: pending.length,
-    avg_ticket_usd: paid.length > 0 ? (totalPaid / paid.length / 100).toFixed(2) : "0.00",
+  function aggregate(sample: typeof rows) {
+    const paid = sample.filter((r) => r.payment_status === "paid")
+    const pending = sample.filter((r) => r.payment_status === "pending")
+    const totalPaid = paid.reduce((s, r) => s + r.amount_cents, 0)
+    const totalPending = pending.reduce((s, r) => s + r.amount_cents, 0)
+    return {
+      total_paid_usd: (totalPaid / 100).toFixed(2),
+      total_pending_usd: (totalPending / 100).toFixed(2),
+      paid_count: paid.length,
+      pending_count: pending.length,
+      avg_ticket_usd: paid.length > 0 ? (totalPaid / paid.length / 100).toFixed(2) : "0.00",
+    }
   }
+
+  const overall = aggregate(rows)
+
+  if (input.scope === "all") {
+    const brandIds = Array.from(new Set(rows.map((r) => r.brand_id))).filter(Boolean) as string[]
+    const { data: brandsData } = await sb
+      .from("brands")
+      .select("id, name")
+      .in("id", brandIds)
+    const nameById = new Map((brandsData ?? []).map((b) => [b.id, b.name]))
+    const byBrand = brandIds.map((id) => {
+      const sample = rows.filter((r) => r.brand_id === id)
+      return { brand_id: id, brand_name: nameById.get(id) ?? "Unknown", ...aggregate(sample) }
+    })
+    return { period: input.period ?? "month", scope: "all", overall, by_brand: byBrand }
+  }
+
+  return { period: input.period ?? "month", scope: "current", ...overall }
 }
 
 export async function executeGetCallsSummary(
@@ -206,12 +268,12 @@ export async function executeGetCallsSummary(
   const { gte } = periodRange(input.period ?? "week")
   let query = sb
     .from("calls")
-    .select("id, outcome, direction, duration_seconds, called_at")
+    .select("id, outcome, direction, duration_seconds, called_at, brand_id")
     .gte("called_at", gte)
     .order("called_at", { ascending: false })
     .limit(input.limit ?? 50)
 
-  if (brandId) query = query.eq("brand_id", brandId)
+  if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
 
   const { data } = await query
   const rows = data ?? []
@@ -220,6 +282,7 @@ export async function executeGetCallsSummary(
 
   return {
     period: input.period ?? "week",
+    scope: input.scope ?? "current",
     total_calls: rows.length,
     connected,
     connection_rate: rows.length > 0 ? `${Math.round((connected / rows.length) * 100)}%` : "0%",
