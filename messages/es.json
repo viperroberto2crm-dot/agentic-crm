@@ -617,7 +617,13 @@
       "recurringToggle": "Pago recurrente",
       "bestValueToggle": "Destacar como mejor valor",
       "activeToggle": "Activo",
-      "unknownError": "Error desconocido"
+      "unknownError": "Error desconocido",
+      "deleteBtn": "Eliminar producto",
+      "confirmDeleteBtn": "Sí, eliminar",
+      "confirmDeleteQuestion": "¿Eliminar definitivamente?",
+      "deleteNo": "No",
+      "deleting": "Eliminando…",
+      "deleteInUse": "Este producto ya está vinculado a ventas. Desactívalo en lugar de borrarlo."
     }
   },
   "brands": {
@@ -638,7 +644,13 @@
     "status": "Estado",
     "saveSuccess": "Marca guardada",
     "brandSingular": "marca",
-    "brandPlural": "marcas"
+    "brandPlural": "marcas",
+    "deleteBtn": "Eliminar marca",
+    "confirmDeleteBtn": "Sí, eliminar",
+    "confirmDeleteQuestion": "¿Eliminar definitivamente?",
+    "deleteNo": "No",
+    "deleting": "Eliminando…",
+    "deleteInUse": "Esta marca tiene leads, productos, ventas o citas registradas. Desactívala en lugar de borrarla."
   },
   "clinics": {
     "title": "Clínicas",
@@ -661,7 +673,13 @@
     "inactive": "Inactiva",
     "saveSuccess": "Clínica guardada",
     "clinicSingular": "clínica",
-    "clinicPlural": "clínicas"
+    "clinicPlural": "clínicas",
+    "deleteBtn": "Eliminar clínica",
+    "confirmDeleteBtn": "Sí, eliminar",
+    "confirmDeleteQuestion": "¿Eliminar definitivamente?",
+    "deleteNo": "No",
+    "deleting": "Eliminando…",
+    "deleteInUse": "Esta clínica tiene citas agendadas. Desactívala en lugar de borrarla."
   },
   "activity": {
     "call": "Llamada",

@@ -334,6 +334,65 @@ export async function updateProduct(raw: UpdateProductInput): Promise<{ ok: true
   }
 }
 
+const DeleteProductSchema = z.object({
+  id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+})
+export type DeleteProductInput = z.infer<typeof DeleteProductSchema>
+
+export async function deleteProduct(
+  raw: DeleteProductInput,
+): Promise<{ ok: true } | { ok: false; error: string; inUse?: boolean }> {
+  try {
+    const input = DeleteProductSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar productos" }
+
+    const admin = createAdminClient()
+
+    // Check if product is referenced by any sale_items — if so, refuse hard delete
+    // and let the caller deactivate instead.
+    const { count, error: countErr } = await admin
+      .from("sale_items")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", input.id)
+
+    if (countErr) {
+      console.error("[deleteProduct] count check failed:", countErr.message)
+      return { ok: false, error: countErr.message }
+    }
+
+    if ((count ?? 0) > 0) {
+      return {
+        ok: false,
+        error: "PRODUCT_IN_USE",
+        inUse: true,
+      }
+    }
+
+    const { error } = await admin
+      .from("products")
+      .delete()
+      .eq("id", input.id)
+      .eq("brand_id", input.brand_id)
+
+    if (error) {
+      console.error("[deleteProduct]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[deleteProduct] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
 // ── Clinics ────────────────────────────────────────────────────────────────────
 
 const ClinicSchema = z.object({
@@ -407,6 +466,60 @@ export async function updateClinic(raw: UpdateClinicInput): Promise<{ ok: true }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error("[updateClinic] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+const DeleteClinicSchema = z.object({
+  id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+})
+export type DeleteClinicInput = z.infer<typeof DeleteClinicSchema>
+
+export async function deleteClinic(
+  raw: DeleteClinicInput,
+): Promise<{ ok: true } | { ok: false; error: string; inUse?: boolean }> {
+  try {
+    const input = DeleteClinicSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar clínicas" }
+
+    const admin = createAdminClient()
+
+    // Refuse hard-delete if clinic is referenced by appointments.
+    const { count, error: countErr } = await admin
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", input.id)
+
+    if (countErr) {
+      console.error("[deleteClinic] count check failed:", countErr.message)
+      return { ok: false, error: countErr.message }
+    }
+
+    if ((count ?? 0) > 0) {
+      return { ok: false, error: "CLINIC_IN_USE", inUse: true }
+    }
+
+    const { error } = await admin
+      .from("clinics")
+      .delete()
+      .eq("id", input.id)
+      .eq("brand_id", input.brand_id)
+
+    if (error) {
+      console.error("[deleteClinic]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[deleteClinic] threw:", msg)
     return { ok: false, error: msg }
   }
 }
@@ -590,6 +703,52 @@ export async function updateBrandFull(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error("[updateBrandFull] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+export async function deleteBrand(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string; inUse?: boolean }> {
+  try {
+    if (!id) return { ok: false, error: "Parámetros inválidos" }
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar marcas" }
+
+    const admin = createAdminClient()
+
+    // Refuse hard-delete if brand has any leads, products, sales, or appointments.
+    // Para protegerse de borrar data importante, cualquier referencia bloquea.
+    for (const tbl of ["leads", "products", "sales", "appointments", "clinics"] as const) {
+      const { count, error } = await admin
+        .from(tbl)
+        .select("id", { count: "exact", head: true })
+        .eq("brand_id", id)
+      if (error) {
+        console.error(`[deleteBrand] check ${tbl} failed:`, error.message)
+        return { ok: false, error: error.message }
+      }
+      if ((count ?? 0) > 0) {
+        return { ok: false, error: "BRAND_IN_USE", inUse: true }
+      }
+    }
+
+    // user_brands tiene CASCADE → se borra solo. Borramos la brand.
+    const { error } = await admin.from("brands").delete().eq("id", id)
+    if (error) {
+      console.error("[deleteBrand]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    revalidatePath("/dashboard")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[deleteBrand] threw:", msg)
     return { ok: false, error: msg }
   }
 }

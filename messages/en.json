@@ -617,7 +617,13 @@
       "recurringToggle": "Recurring payment",
       "bestValueToggle": "Highlight as best value",
       "activeToggle": "Active",
-      "unknownError": "Unknown error"
+      "unknownError": "Unknown error",
+      "deleteBtn": "Delete product",
+      "confirmDeleteBtn": "Yes, delete",
+      "confirmDeleteQuestion": "Delete permanently?",
+      "deleteNo": "No",
+      "deleting": "Deleting…",
+      "deleteInUse": "This product is already linked to sales. Deactivate it instead of deleting."
     }
   },
   "brands": {
@@ -638,7 +644,13 @@
     "status": "Status",
     "saveSuccess": "Brand saved",
     "brandSingular": "brand",
-    "brandPlural": "brands"
+    "brandPlural": "brands",
+    "deleteBtn": "Delete brand",
+    "confirmDeleteBtn": "Yes, delete",
+    "confirmDeleteQuestion": "Delete permanently?",
+    "deleteNo": "No",
+    "deleting": "Deleting…",
+    "deleteInUse": "This brand has leads, products, sales or appointments. Deactivate it instead of deleting."
   },
   "clinics": {
     "title": "Clinics",
@@ -661,7 +673,13 @@
     "inactive": "Inactive",
     "saveSuccess": "Clinic saved",
     "clinicSingular": "clinic",
-    "clinicPlural": "clinics"
+    "clinicPlural": "clinics",
+    "deleteBtn": "Delete clinic",
+    "confirmDeleteBtn": "Yes, delete",
+    "confirmDeleteQuestion": "Delete permanently?",
+    "deleteNo": "No",
+    "deleting": "Deleting…",
+    "deleteInUse": "This clinic has appointments scheduled. Deactivate it instead of deleting."
   },
   "activity": {
     "call": "Call",

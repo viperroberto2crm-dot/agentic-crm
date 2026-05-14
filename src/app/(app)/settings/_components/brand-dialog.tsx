@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Trash2 } from "lucide-react"
 
 import { Field, inputCls } from "./form-primitives"
-import { createBrand, updateBrandFull } from "../actions"
+import { createBrand, updateBrandFull, deleteBrand } from "../actions"
 import type { Database } from "@/types/database"
 
 type BrandRow = Database["public"]["Tables"]["brands"]["Row"]
@@ -81,13 +82,35 @@ export function BrandDialog({ mode, brand, open, onClose }: Props) {
   const [form, setForm] = useState<FormState>(() => defaultForm(brand))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     if (open) {
       setForm(defaultForm(brand))
       setError(null)
+      setConfirmDelete(false)
     }
   }, [open, brand])
+
+  async function handleDelete() {
+    if (!brand) return
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await deleteBrand(brand.id)
+      if (!result.ok) {
+        setError(result.inUse ? t("deleteInUse") : result.error)
+        setConfirmDelete(false)
+        return
+      }
+      router.refresh()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -237,13 +260,52 @@ export function BrandDialog({ mode, brand, open, onClose }: Props) {
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
-              {tCommon("cancel")}
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={loading || !canSave}>
-              {loading ? tCommon("saving") : mode === "create" ? tCommon("create") : tCommon("save")}
-            </Button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            {mode === "edit" ? (
+              confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-500">{t("confirmDeleteQuestion")}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={handleDelete}
+                    disabled={loading}
+                  >
+                    {loading ? t("deleting") : t("confirmDeleteBtn")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={loading}
+                  >
+                    {t("deleteNo")}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 gap-1.5"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={loading}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {t("deleteBtn")}
+                </Button>
+              )
+            ) : <span />}
+
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
+                {tCommon("cancel")}
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={loading || !canSave}>
+                {loading ? tCommon("saving") : mode === "create" ? tCommon("create") : tCommon("save")}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
