@@ -114,7 +114,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
       }
     } else if (createData?.user) {
       // Upsert user record with correct role
-      await admin.from("users").upsert({
+      const { error: profileErr } = await admin.from("users").upsert({
         id: createData.user.id,
         email: input.email,
         name: input.name,
@@ -122,12 +122,16 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
         active: true,
       }, { onConflict: "id" })
 
+      if (profileErr) return { ok: false, error: profileErr.message }
+
       // Add to brand
       if (input.brand_id) {
-        await admin.from("user_brands").upsert({
+        const { error: brandErr } = await admin.from("user_brands").upsert({
           user_id: createData.user.id,
           brand_id: input.brand_id,
         }, { onConflict: "user_id,brand_id" })
+
+        if (brandErr) return { ok: false, error: brandErr.message }
       }
     }
 
