@@ -12,6 +12,7 @@ import { LeadFilterBar } from "./_components/filter-bar"
 import { LeadsTable } from "./_components/leads-table"
 import { logQuickCall } from "./actions"
 import { getTranslations } from "next-intl/server"
+import { ExportButton } from "@/components/exports/export-button"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -55,6 +56,10 @@ export default async function LeadsPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-2">
+          <ExportButton
+            entity="leads"
+            extraParams={{ status, source, search }}
+          />
           {role !== "rep" && (
             <Button asChild size="sm" variant="outline"
               className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"

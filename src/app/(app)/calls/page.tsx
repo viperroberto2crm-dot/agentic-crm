@@ -8,6 +8,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewCallButton } from "./_components/new-call-button"
 import { getTranslations } from "next-intl/server"
+import { ExportButton } from "@/components/exports/export-button"
 
 type TypedClient = SupabaseClient<Database>
 type CallOutcome = Database["public"]["Enums"]["call_outcome"]
@@ -118,6 +119,10 @@ export default async function CallsPage({
         <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{count ?? calls.length} total</span>
+          <ExportButton
+            entity="calls"
+            extraParams={{ outcome: outcomeFilter, direction: dirFilter }}
+          />
           {brandId && <NewCallButton brandId={brandId} leads={leadsForModal} />}
         </div>
       </div>

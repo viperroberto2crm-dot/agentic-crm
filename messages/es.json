@@ -590,5 +590,26 @@
     "openMenu": "Abrir menú",
     "notifications": "Notificaciones",
     "language": "Idioma"
+  },
+  "exports": {
+    "exportButton": "Exportar",
+    "dateRange": {
+      "title": "Exportar por rango de fechas",
+      "selectRange": "Elige un preset o selecciona un rango personalizado.",
+      "from": "Desde",
+      "to": "Hasta",
+      "cancel": "Cancelar",
+      "export": "Exportar",
+      "rangeSummary": "{from} → {to}",
+      "presets": {
+        "today": "Hoy",
+        "thisWeek": "Esta semana",
+        "thisMonth": "Este mes",
+        "lastMonth": "Mes pasado",
+        "thisQuarter": "Este trimestre",
+        "thisYear": "Este año",
+        "custom": "Personalizado"
+      }
+    }
   }
 }
