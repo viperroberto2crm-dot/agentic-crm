@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import {
   Dialog,
   DialogContent,
@@ -100,19 +101,21 @@ function defaultForm(product?: ProductRow): FormState {
   }
 }
 
-const CADENCE_LABELS: Record<string, string> = {
-  weekly: "Semanal",
-  monthly: "Mensual",
-  annual: "Anual",
-}
-
 export function ProductDialog({ mode, product, brandId, categories, open, onClose }: Props) {
+  const t = useTranslations("settings.productDialog")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [form, setForm] = useState<FormState>(() => defaultForm(product))
   const [serviceInput, setServiceInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const serviceRef = useRef<HTMLInputElement>(null)
+
+  const CADENCE_LABELS: Record<string, string> = {
+    weekly: t("cadenceWeekly"),
+    monthly: t("cadenceMonthly"),
+    annual: t("cadenceAnnual"),
+  }
 
   useEffect(() => {
     if (open) {
@@ -169,13 +172,13 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
       router.refresh()
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido")
+      setError(e instanceof Error ? e.message : t("unknownError"))
     } finally {
       setLoading(false)
     }
   }
 
-  const title = mode === "create" ? "Nuevo producto" : "Editar producto"
+  const title = mode === "create" ? t("titleCreate") : t("titleEdit")
   const canSave = form.name.trim() && form.category.trim() && form.price
 
   return (
@@ -186,23 +189,23 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
-          <Field label="Nombre" required>
+          <Field label={t("name")} required>
             <Input
               className={inputCls}
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
-              placeholder="Escribe el nombre del producto…"
+              placeholder={t("namePlaceholder")}
               onKeyDown={(e) => e.key === "Enter" && canSave && handleSave()}
               autoFocus
             />
           </Field>
 
-          <Field label="Categoría" required>
+          <Field label={t("category")} required>
             <Input
               className={inputCls}
               value={form.category}
               onChange={(e) => set("category", e.target.value)}
-              placeholder={categories.length ? "Elige o escribe nueva…" : "Suscripción, Botox, Medicamentos…"}
+              placeholder={categories.length ? t("categoryPlaceholder") : t("categoryPlaceholderEmpty")}
               list="product-categories"
             />
             {categories.length > 0 && (
@@ -215,7 +218,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Precio (USD)" required>
+            <Field label={t("price")} required>
               <Input
                 className={inputCls}
                 value={form.price}
@@ -226,7 +229,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
                 step="0.01"
               />
             </Field>
-            <Field label="Precio tachado (USD)">
+            <Field label={t("displayPrice")}>
               <Input
                 className={inputCls}
                 value={form.display_price}
@@ -240,7 +243,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Cadencia" required>
+            <Field label={t("cadence")} required>
               <Select
                 value={form.cadence}
                 onValueChange={(v) => set("cadence", v as "weekly" | "monthly" | "annual")}
@@ -255,17 +258,17 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Unidad de display">
+            <Field label={t("displayUnit")}>
               <Input
                 className={inputCls}
                 value={form.display_unit}
                 onChange={(e) => set("display_unit", e.target.value)}
-                placeholder="mes, año…"
+                placeholder={t("displayUnitPlaceholder")}
               />
             </Field>
           </div>
 
-          <Field label="SKU">
+          <Field label={t("sku")}>
             <Input
               className={inputCls}
               value={form.sku}
@@ -274,18 +277,18 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
             />
           </Field>
 
-          <Field label="Descripción">
+          <Field label={t("description")}>
             <textarea
               className={`${inputCls} w-full rounded-md border px-3 py-2 text-sm resize-none`}
               rows={3}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
-              placeholder="Descripción breve del producto…"
+              placeholder={t("descriptionPlaceholder")}
             />
           </Field>
 
           {/* Servicios incluidos */}
-          <Field label="Servicios incluidos">
+          <Field label={t("includedServices")}>
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
@@ -293,7 +296,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
                   className={`${inputCls} flex-1`}
                   value={serviceInput}
                   onChange={(e) => setServiceInput(e.target.value)}
-                  placeholder="Botox, Consulta médica, Medicamentos…"
+                  placeholder={t("includedServicesPlaceholder")}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault()
@@ -338,11 +341,11 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
           <div className="space-y-2">
             {(
               [
-                { key: "recurring", label: "Pago recurrente" },
-                { key: "best_value", label: "Destacar como mejor valor" },
-                { key: "active", label: "Activo" },
+                { key: "recurring", labelKey: "recurringToggle" },
+                { key: "best_value", labelKey: "bestValueToggle" },
+                { key: "active", labelKey: "activeToggle" },
               ] as const
-            ).map(({ key, label }) => (
+            ).map(({ key, labelKey }) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -350,7 +353,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
                   onChange={(e) => set(key, e.target.checked)}
                   className="accent-primary w-4 h-4"
                 />
-                <span className="text-sm text-foreground">{label}</span>
+                <span className="text-sm text-foreground">{t(labelKey)}</span>
               </label>
             ))}
           </div>
@@ -359,14 +362,14 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
 
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
-              Cancelar
+              {tc("cancel")}
             </Button>
             <Button
               size="sm"
               onClick={handleSave}
               disabled={loading || !canSave}
             >
-              {loading ? "Guardando…" : mode === "create" ? "Crear" : "Guardar"}
+              {loading ? tc("saving") : mode === "create" ? tc("create") : tc("save")}
             </Button>
           </div>
         </div>
