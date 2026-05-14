@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/agent/reflect", "schedule": "0 7 * * *" }
+  ]
+}

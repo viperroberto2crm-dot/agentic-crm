@@ -22,6 +22,11 @@ import {
   executeWriteTool,
   isWriteToolName,
 } from "@/lib/agent/write-tools"
+import {
+  RAG_TOOLS,
+  RAG_TOOL_NAMES,
+  executeRagTool,
+} from "@/lib/agent/rag-tools"
 import { resolveAutonomy } from "@/lib/agent/policies"
 import { createPendingAction } from "@/lib/agent/pending-actions"
 import { CRM_SYSTEM_PROMPT } from "@/lib/agent/prompts"
@@ -133,7 +138,7 @@ export async function POST(req: NextRequest) {
   try {
     // Combinamos read tools + write tools. Las write tools pasan por el
     // pipeline de aprobación humana (default: approve_required).
-    const allTools = [...AGENT_TOOLS, ...WRITE_TOOLS]
+    const allTools = [...AGENT_TOOLS, ...WRITE_TOOLS, ...RAG_TOOLS]
 
     // ---------- 3) Primera llamada a Claude ----------
     let response = await anthropic.messages.create({
@@ -157,7 +162,34 @@ export async function POST(req: NextRequest) {
         const input = block.input as Record<string, unknown>
         let result: unknown
 
-        // ── WRITE TOOLS: pasan por aprobación humana según policy ──
+        // ── RAG TOOLS: lectura semántica de llamadas ──
+        if (RAG_TOOL_NAMES.includes(block.name)) {
+          result = await executeRagTool(block.name, sb, { brandId }, input)
+          if (runId) {
+            await sb
+              .from("agent_actions")
+              .insert({
+                run_id: runId,
+                action_type: block.name,
+                payload: {
+                  args: input,
+                  result: result as Database["public"]["Tables"]["agent_actions"]["Insert"]["payload"],
+                } as Database["public"]["Tables"]["agent_actions"]["Insert"]["payload"],
+                executed: true,
+                executed_at: new Date().toISOString(),
+              })
+              .then(({ error }) => {
+                if (error) console.error("[agent/ask] agent_actions(rag) insert:", error)
+              })
+          }
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+          continue
+        }
+
         if (isWriteToolName(block.name)) {
           // El bot puede incluir `reasoning` dentro del input (lo pide el
           // system prompt). Lo extraemos sin pasarlo al ejecutor para

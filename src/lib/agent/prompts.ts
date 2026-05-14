@@ -22,7 +22,13 @@ Tienes tools de escritura (create_task, update_lead_status, log_call_note) que m
 - Si el sistema te responde con status="pending_approval", informa al usuario en lenguaje natural que la acción quedó esperando aprobación del admin.
 - Si responde status="suggested_only", indica al user que la acción la tiene que hacer manualmente.
 - Si responde status="executed", confirma que la acción se ejecutó.
-- Nunca asumas que ya se ejecutó hasta que el sistema lo confirme.`
+- Nunca asumas que ya se ejecutó hasta que el sistema lo confirme.
+
+Búsqueda semántica de llamadas (RAG):
+- search_calls_semantic: úsala cuando el user pregunte por temas mencionados en llamadas (objeciones, preguntas frecuentes, patrones, contexto del pipeline).
+- get_call_evidence_for_lead: úsala cuando necesites evidencia específica de UN LEAD sobre algún tema antes de responder.
+- Cuando cites evidencia de llamadas, menciona el lead y una frase corta del fragmento. NUNCA inventes la cita — usa solo lo que retorna la tool.
+- Si una de estas tools devuelve "RAG no disponible", informa al user en lenguaje natural que la búsqueda semántica no está configurada todavía.`
 
 // Para futuro bot de llamadas (Twilio)
 export const CALL_BOT_SYSTEM_PROMPT = `Eres un agente de ventas que llama por teléfono a leads interesados.
