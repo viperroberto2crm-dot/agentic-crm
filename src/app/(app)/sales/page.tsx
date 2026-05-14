@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 
+export const dynamic = "force-dynamic"
+
 type TypedClient = SupabaseClient<Database>
 
 function fmtCents(cents: number) {

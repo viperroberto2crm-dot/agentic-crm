@@ -219,6 +219,24 @@ export async function createPaymentPlan(raw: CreatePlanInput) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
+  // 1) Crear la sale "partial" para que aparezca en /sales y KPIs
+  const { data: saleRow, error: saleErr } = await supabase
+    .from("sales")
+    .insert({
+      brand_id: input.brand_id,
+      lead_id: input.lead_id,
+      rep_id: user.id,
+      amount_cents: input.total_amount_cents,
+      payment_method: "cash",
+      payment_status: "partial",
+      notes: `Auto-generado desde Payment Plan: ${input.product_name}`,
+    })
+    .select("id")
+    .single()
+
+  if (saleErr || !saleRow) throw new Error(saleErr?.message ?? "Error creando venta vinculada")
+
+  // 2) Crear el payment_plan vinculado a la sale
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("payment_plans")
@@ -233,13 +251,55 @@ export async function createPaymentPlan(raw: CreatePlanInput) {
       frequency_days: input.frequency_days ?? null,
       first_due_date: input.first_due_date ?? null,
       created_by: user.id,
+      sale_id: saleRow.id,
     })
     .select("id")
     .single()
 
   if (error) throw new Error(error.message)
   revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
   return data.id as string
+}
+
+async function refreshPlanSaleStatus(
+  supabase: SupabaseClient<Database>,
+  planId: string,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: plan } = await sb
+    .from("payment_plans")
+    .select("sale_id, total_amount_cents")
+    .eq("id", planId)
+    .single()
+
+  if (!plan?.sale_id) return
+
+  const { data: abonos } = await sb
+    .from("abonos")
+    .select("amount_cents")
+    .eq("plan_id", planId)
+
+  const paid = (abonos ?? []).reduce(
+    (s: number, a: { amount_cents: number }) => s + a.amount_cents,
+    0,
+  )
+  const total = plan.total_amount_cents as number
+
+  let newStatus: "pending" | "partial" | "paid"
+  if (paid <= 0) newStatus = "pending"
+  else if (paid >= total) newStatus = "paid"
+  else newStatus = "partial"
+
+  await sb
+    .from("sales")
+    .update({
+      payment_status: newStatus,
+      paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+    })
+    .eq("id", plan.sale_id)
 }
 
 const AddAbonoSchema = z.object({
@@ -275,7 +335,12 @@ export async function addAbono(raw: AddAbonoInput) {
     })
 
   if (error) throw new Error(error.message)
+
+  await refreshPlanSaleStatus(supabase, input.plan_id)
+
   revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
 }
 
 export async function deleteAbono(abonoId: string, leadId: string) {
@@ -284,13 +349,29 @@ export async function deleteAbono(abonoId: string, leadId: string) {
   if (!user) throw new Error("Unauthorized")
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const sb = supabase as any
+
+  // Capturar plan_id antes del delete para poder recalcular
+  const { data: abonoRow } = await sb
+    .from("abonos")
+    .select("plan_id")
+    .eq("id", abonoId)
+    .single()
+
+  const { error } = await sb
     .from("abonos")
     .delete()
     .eq("id", abonoId)
 
   if (error) throw new Error(error.message)
+
+  if (abonoRow?.plan_id) {
+    await refreshPlanSaleStatus(supabase, abonoRow.plan_id as string)
+  }
+
   revalidatePath(`/leads/${leadId}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
 }
 
 export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> {
