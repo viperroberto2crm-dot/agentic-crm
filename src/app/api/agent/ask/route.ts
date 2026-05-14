@@ -34,6 +34,10 @@ import {
   loadHistoryWithCompaction,
   maybeCompact,
 } from "@/lib/agent/compaction"
+import {
+  selectActiveSkills,
+  formatSkillsForPrompt,
+} from "@/lib/agent/skills-registry"
 
 type DB = SupabaseClient<Database>
 
@@ -122,6 +126,20 @@ export async function POST(req: NextRequest) {
       cache_control: { type: "ephemeral" },
     },
   ]
+  // ── Capa 5: Skills auto-generadas relevantes al query actual ──
+  // Si la marca tiene patrones aprendidos promovidos a skills (status='production'),
+  // seleccionamos las 3 más similares semánticamente al query y las inyectamos al
+  // system. Best-effort: si OPENAI_API_KEY no está o falla la búsqueda, sigue sin skills.
+  const relevantSkills = await selectActiveSkills(sb, query, brandId, 3).catch(() => [])
+  const skillsBlock = formatSkillsForPrompt(relevantSkills)
+  if (skillsBlock) {
+    systemBlocks.push({
+      type: "text",
+      text: skillsBlock,
+      cache_control: { type: "ephemeral" },
+    })
+  }
+
   if (priorSummary) {
     systemBlocks.push({
       type: "text",
@@ -428,6 +446,26 @@ export async function POST(req: NextRequest) {
       .then(({ error }) => {
         if (error) console.error("[agent/ask] agent_runs update:", error)
       })
+
+    // Persistir skills aplicadas a este run para análisis de efectividad (Capa 5)
+    if (relevantSkills.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sbAny = sb as any
+      for (const skill of relevantSkills) {
+        await sbAny
+          .from("skill_applications")
+          .insert({
+            skill_id: skill.skill_id,
+            agent_run_id: runId,
+            brand_id: brandId,
+            user_id: user.id,
+            similarity: skill.similarity,
+          })
+          .then(({ error }: { error: unknown }) => {
+            if (error) console.error("[agent/ask] skill_applications insert:", error)
+          })
+      }
+    }
   }
 
   // ---------- 7) Respuesta al cliente ----------
