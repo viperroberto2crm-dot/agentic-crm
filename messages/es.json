@@ -590,5 +590,11 @@
     "openMenu": "Abrir menú",
     "notifications": "Notificaciones",
     "language": "Idioma"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "markAllAsRead": "Marcar todas como leídas",
+    "empty": "No tienes notificaciones por ahora.",
+    "viewAll": "Ver todas"
   }
 }
