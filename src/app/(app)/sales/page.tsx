@@ -100,16 +100,62 @@ export default async function SalesPage({
 
   const sales = (salesRaw ?? []) as unknown as SaleItem[]
 
-  const totalPaidCents = sales
-    .filter((s) => s.payment_status === "paid")
-    .reduce((sum, s) => sum + s.amount_cents, 0)
+  // Para sales 'partial', cargamos los abonos vinculados via payment_plans
+  const partialSaleIds = sales
+    .filter((s) => s.payment_status === "partial")
+    .map((s) => s.id)
 
-  const totalPendingCents = sales
-    .filter((s) => s.payment_status === "pending")
-    .reduce((sum, s) => sum + s.amount_cents, 0)
+  const collectedByPartialSale = new Map<string, number>()
+  if (partialSaleIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: planRows } = await (sb as any)
+      .from("payment_plans")
+      .select("id, sale_id")
+      .in("sale_id", partialSaleIds)
+    const planToSale = new Map<string, string>(
+      (planRows ?? []).map((p: { id: string; sale_id: string }) => [p.id, p.sale_id]),
+    )
+    const planIds = Array.from(planToSale.keys())
 
-  const paidCount = sales.filter((s) => s.payment_status === "paid").length
-  const pendingCount = sales.filter((s) => s.payment_status === "pending").length
+    if (planIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: abonosRows } = await (sb as any)
+        .from("abonos")
+        .select("plan_id, amount_cents")
+        .in("plan_id", planIds)
+      for (const a of (abonosRows ?? []) as Array<{ plan_id: string; amount_cents: number }>) {
+        const saleId = planToSale.get(a.plan_id)
+        if (!saleId) continue
+        collectedByPartialSale.set(
+          saleId,
+          (collectedByPartialSale.get(saleId) ?? 0) + a.amount_cents,
+        )
+      }
+    }
+  }
+
+  // Collected = paid total + abonos cobrados de partials
+  const paidSales = sales.filter((s) => s.payment_status === "paid")
+  const partialSales = sales.filter((s) => s.payment_status === "partial")
+  const pendingSales = sales.filter((s) => s.payment_status === "pending")
+
+  const paidFullCents = paidSales.reduce((sum, s) => sum + s.amount_cents, 0)
+  const collectedFromPartialsCents = partialSales.reduce(
+    (sum, s) => sum + (collectedByPartialSale.get(s.id) ?? 0),
+    0,
+  )
+  const totalPaidCents = paidFullCents + collectedFromPartialsCents
+
+  // Outstanding = pending total + (partial total - abonos cobrados)
+  const pendingFullCents = pendingSales.reduce((sum, s) => sum + s.amount_cents, 0)
+  const outstandingFromPartialsCents = partialSales.reduce((sum, s) => {
+    const collected = collectedByPartialSale.get(s.id) ?? 0
+    return sum + Math.max(0, s.amount_cents - collected)
+  }, 0)
+  const totalPendingCents = pendingFullCents + outstandingFromPartialsCents
+
+  const paidCount = paidSales.length
+  const pendingCount = pendingSales.length + partialSales.length
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
