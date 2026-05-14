@@ -19,6 +19,7 @@ type AppShellProps = {
   taskCount: number
   urgentTasks: boolean
   unreadCount: number
+  pendingCount: number
 }
 
 export function AppShell({
@@ -29,6 +30,7 @@ export function AppShell({
   taskCount,
   urgentTasks,
   unreadCount,
+  pendingCount,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
@@ -51,6 +53,7 @@ export function AppShell({
           <TopBar
             user={user}
             unreadCount={unreadCount}
+            pendingCount={pendingCount}
             onOpenMobile={() => setMobileOpen(true)}
             onOpenCommand={() => setCommandOpen(true)}
           />

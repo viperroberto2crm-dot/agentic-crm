@@ -6,6 +6,7 @@ import { Menu } from "lucide-react"
 import { useBrand } from "@/context/brand-context"
 import { BrandSelector } from "./brand-selector"
 import { NotificationBell } from "./notification-bell"
+import { AgentPendingTray } from "./agent-pending-tray"
 import { AvatarMenu } from "./avatar-menu"
 import { setLocale } from "@/app/actions/locale"
 
@@ -17,11 +18,12 @@ type TopBarProps = {
     avatar_url: string | null
   }
   unreadCount: number
+  pendingCount: number
   onOpenMobile: () => void
   onOpenCommand: () => void
 }
 
-export function TopBar({ user, unreadCount, onOpenMobile, onOpenCommand }: TopBarProps) {
+export function TopBar({ user, unreadCount, pendingCount, onOpenMobile, onOpenCommand }: TopBarProps) {
   const { activeBrand, brands, setActiveBrand } = useBrand()
   const locale = useLocale()
   const [, startTransition] = useTransition()
@@ -65,6 +67,10 @@ export function TopBar({ user, unreadCount, onOpenMobile, onOpenCommand }: TopBa
 
       {/* Right utilities */}
       <NotificationBell count={unreadCount} />
+      <AgentPendingTray
+        initialCount={pendingCount}
+        visible={user.role === "admin" || user.role === "manager"}
+      />
       <AvatarMenu user={user} />
     </header>
   )

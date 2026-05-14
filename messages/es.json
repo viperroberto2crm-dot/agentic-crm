@@ -697,6 +697,20 @@
     "empty": "No tienes notificaciones por ahora.",
     "viewAll": "Ver todas"
   },
+  "agentPending": {
+    "title": "Acciones del agente",
+    "empty": "No hay acciones pendientes de aprobar.",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "rejectReasonPlaceholder": "Motivo (opcional)…",
+    "proposed": "Propuesta del agente",
+    "awaitingApproval": "Esperando aprobación",
+    "actions": {
+      "create_task": "Crear tarea: {title}",
+      "update_lead_status": "Cambiar status a {status}",
+      "log_call_note": "Registrar llamada: {outcome}"
+    }
+  },
   "exports": {
     "exportButton": "Exportar",
     "dateRange": {

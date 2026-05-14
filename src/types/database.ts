@@ -132,8 +132,8 @@ export type Database = {
           reasoning: string | null
           related_user_id: string | null
           related_lead_id: string | null
-          status: string
-          approval_required_role: string
+          status: Database["public"]["Enums"]["pending_status"]
+          approval_required_role: Database["public"]["Enums"]["user_role"]
           approved_by: string | null
           approved_at: string | null
           rejected_reason: string | null
@@ -151,8 +151,8 @@ export type Database = {
           reasoning?: string | null
           related_user_id?: string | null
           related_lead_id?: string | null
-          status?: string
-          approval_required_role: string
+          status?: Database["public"]["Enums"]["pending_status"]
+          approval_required_role: Database["public"]["Enums"]["user_role"]
           approved_by?: string | null
           approved_at?: string | null
           rejected_reason?: string | null
@@ -170,8 +170,8 @@ export type Database = {
           reasoning?: string | null
           related_user_id?: string | null
           related_lead_id?: string | null
-          status?: string
-          approval_required_role?: string
+          status?: Database["public"]["Enums"]["pending_status"]
+          approval_required_role?: Database["public"]["Enums"]["user_role"]
           approved_by?: string | null
           approved_at?: string | null
           rejected_reason?: string | null
@@ -194,7 +194,7 @@ export type Database = {
           brand_id: string | null
           scope_user_id: string | null
           action_type: string
-          autonomy: string
+          autonomy: Database["public"]["Enums"]["autonomy_level"]
           conditions: Json | null
           active: boolean
           created_by: string | null
@@ -206,7 +206,7 @@ export type Database = {
           brand_id?: string | null
           scope_user_id?: string | null
           action_type: string
-          autonomy: string
+          autonomy: Database["public"]["Enums"]["autonomy_level"]
           conditions?: Json | null
           active?: boolean
           created_by?: string | null
@@ -218,7 +218,7 @@ export type Database = {
           brand_id?: string | null
           scope_user_id?: string | null
           action_type?: string
-          autonomy?: string
+          autonomy?: Database["public"]["Enums"]["autonomy_level"]
           conditions?: Json | null
           active?: boolean
           created_by?: string | null
@@ -1547,12 +1547,14 @@ export type Database = {
     Enums: {
       appointment_status: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show"
       appointment_type: "clinic" | "home" | "telehealth"
+      autonomy_level: "suggest_only" | "approve_required" | "auto_with_audit"
       call_direction: "inbound" | "outbound"
       call_outcome: "no_answer" | "voicemail" | "connected" | "appointment_set" | "not_interested" | "callback_requested" | "wrong_number"
       lead_source: "inbound_call" | "web_form" | "referral" | "whatsapp" | "walk_in" | "social" | "other"
       lead_status: "new" | "contacted" | "qualified" | "appointment_set" | "sold" | "lost" | "on_hold"
       payment_method: "cash" | "card" | "stripe"
       payment_status: "pending" | "paid" | "failed" | "refunded" | "partial"
+      pending_status: "pending" | "approved" | "rejected" | "executed" | "expired"
       task_priority: "low" | "normal" | "high" | "urgent"
       task_status: "open" | "done" | "snoozed" | "cancelled"
       user_role: "admin" | "manager" | "rep"

@@ -697,6 +697,20 @@
     "empty": "You're all caught up.",
     "viewAll": "View all"
   },
+  "agentPending": {
+    "title": "Agent actions",
+    "empty": "No actions awaiting approval.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectReasonPlaceholder": "Reason (optional)…",
+    "proposed": "Agent proposal",
+    "awaitingApproval": "Awaiting approval",
+    "actions": {
+      "create_task": "Create task: {title}",
+      "update_lead_status": "Change status to {status}",
+      "log_call_note": "Log call: {outcome}"
+    }
+  },
   "exports": {
     "exportButton": "Export",
     "dateRange": {
