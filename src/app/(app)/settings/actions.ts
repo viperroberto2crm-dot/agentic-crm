@@ -410,3 +410,175 @@ export async function toggleClinicActive(
     return { ok: false, error: msg }
   }
 }
+
+// ── Brands (CRUD multi-marca) ─────────────────────────────────────────────────
+
+const emptyToNull = (v: string | null | undefined) => {
+  if (v === null || v === undefined) return null
+  const t = v.trim()
+  return t === "" ? null : t
+}
+
+const BrandSchema = z.object({
+  name: z.string().min(1, "Nombre requerido"),
+  slug: z
+    .string()
+    .min(1, "Slug requerido")
+    .regex(/^[a-z0-9-]+$/, "Solo minúsculas, números y guiones"),
+  brand_color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, "Color inválido (usa formato #RRGGBB)")
+    .nullable()
+    .or(z.literal("").transform(() => null)),
+  logo_url: z.string().url("URL inválida").nullable().or(z.literal("").transform(() => null)),
+  reply_email: z.string().email("Email inválido").nullable().or(z.literal("").transform(() => null)),
+  whatsapp_number: z.string().nullable().or(z.literal("").transform(() => null)),
+  active: z.boolean().default(true),
+})
+
+export type BrandInput = z.infer<typeof BrandSchema>
+
+export async function createBrand(
+  raw: BrandInput,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const input = BrandSchema.parse({
+      ...raw,
+      logo_url: emptyToNull(raw.logo_url as string | null),
+      reply_email: emptyToNull(raw.reply_email as string | null),
+      whatsapp_number: emptyToNull(raw.whatsapp_number as string | null),
+      brand_color: emptyToNull(raw.brand_color as string | null),
+    })
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar marcas" }
+
+    const admin = createAdminClient()
+    const { data: inserted, error } = await admin
+      .from("brands")
+      .insert({
+        name: input.name,
+        slug: input.slug,
+        brand_color: input.brand_color,
+        logo_url: input.logo_url,
+        reply_email: input.reply_email,
+        whatsapp_number: input.whatsapp_number,
+        active: input.active,
+      })
+      .select("id")
+      .single()
+
+    if (error || !inserted) {
+      console.error("[createBrand]", error?.message, error?.code)
+      return { ok: false, error: error?.message ?? "No se pudo crear la marca" }
+    }
+
+    // Asocia al admin creador con la nueva marca para que aparezca en el selector global
+    const { error: ubErr } = await admin
+      .from("user_brands")
+      .upsert(
+        { user_id: user.id, brand_id: inserted.id },
+        { onConflict: "user_id,brand_id" },
+      )
+    if (ubErr) {
+      console.error("[createBrand:user_brands]", ubErr.message, ubErr.code)
+      // No abortamos: la marca se creó; solo logueamos el warning
+    }
+
+    revalidatePath("/settings")
+    revalidatePath("/dashboard")
+    return { ok: true, id: inserted.id }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[createBrand] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+const UpdateBrandFullSchema = BrandSchema.extend({ id: z.string().uuid() })
+export type UpdateBrandFullInput = z.infer<typeof UpdateBrandFullSchema>
+
+export async function updateBrandFull(
+  raw: UpdateBrandFullInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const parsed = UpdateBrandFullSchema.parse({
+      ...raw,
+      logo_url: emptyToNull(raw.logo_url as string | null),
+      reply_email: emptyToNull(raw.reply_email as string | null),
+      whatsapp_number: emptyToNull(raw.whatsapp_number as string | null),
+      brand_color: emptyToNull(raw.brand_color as string | null),
+    })
+    const { id, ...input } = parsed
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar marcas" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("brands")
+      .update({
+        name: input.name,
+        slug: input.slug,
+        brand_color: input.brand_color,
+        logo_url: input.logo_url,
+        reply_email: input.reply_email,
+        whatsapp_number: input.whatsapp_number,
+        active: input.active,
+      })
+      .eq("id", id)
+
+    if (error) {
+      console.error("[updateBrandFull]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    revalidatePath("/dashboard")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[updateBrandFull] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+export async function toggleBrandActive(
+  id: string,
+  active: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    if (!id || typeof active !== "boolean") {
+      return { ok: false, error: "Parámetros inválidos" }
+    }
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar marcas" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("brands")
+      .update({ active })
+      .eq("id", id)
+
+    if (error) {
+      console.error("[toggleBrandActive]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    revalidatePath("/dashboard")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[toggleBrandActive] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
