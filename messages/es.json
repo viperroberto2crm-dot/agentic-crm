@@ -6,6 +6,7 @@
     "appointments": "Citas",
     "sales": "Ventas",
     "tasks": "Tareas",
+    "paymentsDue": "Pagos pendientes",
     "settings": "Ajustes",
     "askAgent": "Pregúntale al agente",
     "navigation": "Navegación"
@@ -651,7 +652,38 @@
     "transfer": "Transferencia",
     "check": "Cheque",
     "other": "Otro",
-    "deleteAbono": "Eliminar"
+    "deleteAbono": "Eliminar",
+    "schedule": {
+      "title": "Schedule de pagos",
+      "enable": "Plan con pagos programados",
+      "installmentCount": "Número de pagos",
+      "installmentAmount": "Monto por pago (USD)",
+      "frequency": "Frecuencia",
+      "frequencyWeekly": "Semanal",
+      "frequencyBiweekly": "Quincenal",
+      "frequencyMonthly": "Mensual",
+      "firstDueDate": "Primer pago",
+      "nextDue": "Próximo pago",
+      "remaining": "Restantes",
+      "paidLabel": "Pagado",
+      "pendingLabel": "Próximo",
+      "overdueLabel": "Vencido",
+      "futureLabel": "Futuro"
+    }
+  },
+  "paymentsDue": {
+    "title": "Pagos pendientes",
+    "filterOverdue": "Vencidos",
+    "filterThisWeek": "Esta semana",
+    "filterNext30": "Próximos 30 días",
+    "nextPaymentAmount": "Monto siguiente",
+    "dueOn": "Fecha prevista",
+    "daysRemaining": "Días restantes",
+    "daysRemainingShort": "días",
+    "daysOverdue": "días vencido",
+    "product": "Producto",
+    "progress": "Progreso",
+    "empty": "Sin pagos programados pendientes."
   },
   "topbar": {
     "openMenu": "Abrir menú",

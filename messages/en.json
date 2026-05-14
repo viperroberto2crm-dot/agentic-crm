@@ -6,6 +6,7 @@
     "appointments": "Appointments",
     "sales": "Sales",
     "tasks": "Tasks",
+    "paymentsDue": "Payments due",
     "settings": "Settings",
     "askAgent": "Ask the agent",
     "navigation": "Navigation"
@@ -651,7 +652,38 @@
     "transfer": "Transfer",
     "check": "Check",
     "other": "Other",
-    "deleteAbono": "Delete"
+    "deleteAbono": "Delete",
+    "schedule": {
+      "title": "Payment schedule",
+      "enable": "Plan with scheduled payments",
+      "installmentCount": "Number of payments",
+      "installmentAmount": "Amount per payment (USD)",
+      "frequency": "Frequency",
+      "frequencyWeekly": "Weekly",
+      "frequencyBiweekly": "Biweekly",
+      "frequencyMonthly": "Monthly",
+      "firstDueDate": "First payment date",
+      "nextDue": "Next due",
+      "remaining": "Remaining",
+      "paidLabel": "Paid",
+      "pendingLabel": "Next",
+      "overdueLabel": "Overdue",
+      "futureLabel": "Upcoming"
+    }
+  },
+  "paymentsDue": {
+    "title": "Payments due",
+    "filterOverdue": "Overdue",
+    "filterThisWeek": "This week",
+    "filterNext30": "Next 30 days",
+    "nextPaymentAmount": "Next amount",
+    "dueOn": "Due on",
+    "daysRemaining": "Days left",
+    "daysRemainingShort": "days",
+    "daysOverdue": "days overdue",
+    "product": "Product",
+    "progress": "Progress",
+    "empty": "No pending scheduled payments."
   },
   "topbar": {
     "openMenu": "Open menu",

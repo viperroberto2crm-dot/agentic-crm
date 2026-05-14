@@ -192,6 +192,10 @@ export type PaymentPlan = {
   total_amount_cents: number
   notes: string | null
   created_at: string
+  installment_count: number | null
+  installment_amount_cents: number | null
+  frequency_days: number | null
+  first_due_date: string | null
   abonos: Abono[]
 }
 
@@ -201,6 +205,10 @@ const CreatePlanSchema = z.object({
   product_name: z.string().min(1),
   total_amount_cents: z.number().int().min(0),
   notes: z.string().nullable(),
+  installment_count: z.number().int().min(1).max(100).nullable().optional(),
+  installment_amount_cents: z.number().int().min(0).nullable().optional(),
+  frequency_days: z.number().int().min(1).max(365).nullable().optional(),
+  first_due_date: z.string().nullable().optional(),
 })
 
 export type CreatePlanInput = z.infer<typeof CreatePlanSchema>
@@ -220,6 +228,10 @@ export async function createPaymentPlan(raw: CreatePlanInput) {
       product_name: input.product_name,
       total_amount_cents: input.total_amount_cents,
       notes: input.notes,
+      installment_count: input.installment_count ?? null,
+      installment_amount_cents: input.installment_amount_cents ?? null,
+      frequency_days: input.frequency_days ?? null,
+      first_due_date: input.first_due_date ?? null,
       created_by: user.id,
     })
     .select("id")
@@ -293,6 +305,10 @@ export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> 
       total_amount_cents,
       notes,
       created_at,
+      installment_count,
+      installment_amount_cents,
+      frequency_days,
+      first_due_date,
       abonos (
         id,
         amount_cents,
