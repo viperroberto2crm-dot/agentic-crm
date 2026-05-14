@@ -30,10 +30,17 @@ const AUTO_MATCH: Record<string, keyof ImportRow> = {
   // First name
   "first name": "first_name", "first_name": "first_name", "firstname": "first_name",
   nombre: "first_name", "primer nombre": "first_name", "nombres": "first_name",
-  // Facebook full name -> first_name (se divide después en post-procesamiento)
+  // Full name -> first_name (se divide después en post-procesamiento)
+  // Cubre: Facebook (Name/Full Name), WhatsApp Business (saved_name),
+  // contactos exportados (contact_name, display_name).
   "full name": "first_name", "full_name": "first_name", fullname: "first_name",
   "nombre completo": "first_name", "nombre y apellido": "first_name",
   name: "first_name",
+  "saved_name": "first_name", "saved name": "first_name", savedname: "first_name",
+  "contact_name": "first_name", "contact name": "first_name",
+  "display_name": "first_name", "display name": "first_name",
+  "whatsapp_name": "first_name", "whatsapp name": "first_name",
+  "nombre guardado": "first_name", "nombre del contacto": "first_name",
   // Last name
   "last name": "last_name", "last_name": "last_name", lastname: "last_name",
   surname: "last_name", apellido: "last_name", apellidos: "last_name",
@@ -57,7 +64,10 @@ const AUTO_MATCH: Record<string, keyof ImportRow> = {
 }
 
 function autoMatch(header: string): keyof ImportRow | null {
-  return AUTO_MATCH[header.toLowerCase().trim()] ?? null
+  // Limpia BOM (UTF-8 ﻿), espacios, y normaliza a lowercase.
+  // El BOM aparece típicamente en CSV exportados de WhatsApp Business / Excel.
+  const clean = header.replace(/^﻿/, "").toLowerCase().trim()
+  return AUTO_MATCH[clean] ?? null
 }
 
 /**
@@ -197,6 +207,18 @@ export default function ImportLeadsPage() {
   // ── Build preview ─────────────────────────────────────────────────────────
 
   function buildPreview() {
+    // Detecta CSV de Facebook/Meta Lead Ads por presencia de columnas Form/Channel/Stage.
+    // En ese caso, columnas no mapeadas con info útil se anexan automáticamente al campo notes.
+    const headerSet = new Set(headers.map((h) => h.toLowerCase().trim()))
+    const isFacebookLike =
+      (headerSet.has("form") || headerSet.has("channel") || headerSet.has("stage")) &&
+      headerSet.has("name")
+
+    // Columnas que se anexan a notes si tienen valor (case-insensitive lookup)
+    const NOTES_EXTRA_HEADERS = ["Form", "Channel", "Stage", "Created", "Owner", "Labels"]
+    // Columnas que se anexan al phone si phone está vacío (secondary)
+    const PHONE_FALLBACK_HEADERS = ["Secondary phone number", "WhatsApp number"]
+
     const mapped = rawRows.map((row) => {
       const lead: Record<string, string | null> = {
         first_name: null, last_name: null, phone: null, email: null,
@@ -205,8 +227,39 @@ export default function ImportLeadsPage() {
       mappings.forEach(({ header, field }) => {
         if (field) lead[field] = row[header] != null ? String(row[header]).trim() || null : null
       })
-      // Si first_name viene como nombre completo y last_name vacío, divide
-      // automáticamente (caso Facebook Lead Ads: "Name" = "Tamasha Sanders").
+
+      if (isFacebookLike) {
+        // Helper para buscar valor por header case-insensitive
+        const getVal = (name: string): string | null => {
+          const target = name.toLowerCase()
+          for (const k of Object.keys(row)) {
+            if (k.toLowerCase().trim() === target) {
+              const v = row[k]
+              const s = v != null ? String(v).trim() : ""
+              return s || null
+            }
+          }
+          return null
+        }
+        // 1) Si phone está vacío, intenta el secundario
+        if (!lead.phone) {
+          for (const h of PHONE_FALLBACK_HEADERS) {
+            const v = getVal(h)
+            if (v) { lead.phone = v; break }
+          }
+        }
+        // 2) Enriquece notes con Form / Channel / Stage / Created / Owner / Labels
+        const extras: string[] = []
+        for (const h of NOTES_EXTRA_HEADERS) {
+          const v = getVal(h)
+          if (v) extras.push(`${h}: ${v}`)
+        }
+        if (extras.length > 0) {
+          const extraText = extras.join(" | ")
+          lead.notes = lead.notes ? `${lead.notes}\n${extraText}` : extraText
+        }
+      }
+
       return splitFullName(lead as unknown as ImportRow)
     })
 
