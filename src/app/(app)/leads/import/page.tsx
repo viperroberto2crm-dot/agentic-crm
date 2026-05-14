@@ -24,20 +24,59 @@ type FieldMapping = {
   header: string
 }
 
-// Auto-match Excel header → lead field
+// Auto-match Excel/CSV header → lead field
+// Cubre nombres comunes de plantillas (es/en) + variantes de Facebook Lead Ads.
 const AUTO_MATCH: Record<string, keyof ImportRow> = {
-  "first name": "first_name", nombre: "first_name", "primer nombre": "first_name",
-  "last name": "last_name", apellido: "last_name",
-  phone: "phone", teléfono: "phone", telefono: "phone", tel: "phone", celular: "phone",
-  email: "email", correo: "email",
-  source: "source", fuente: "source",
-  notes: "notes", notas: "notes", comentarios: "notes",
+  // First name
+  "first name": "first_name", "first_name": "first_name", "firstname": "first_name",
+  nombre: "first_name", "primer nombre": "first_name", "nombres": "first_name",
+  // Facebook full name -> first_name (se divide después en post-procesamiento)
+  "full name": "first_name", "full_name": "first_name", fullname: "first_name",
+  "nombre completo": "first_name", "nombre y apellido": "first_name",
+  name: "first_name",
+  // Last name
+  "last name": "last_name", "last_name": "last_name", lastname: "last_name",
+  surname: "last_name", apellido: "last_name", apellidos: "last_name",
+  // Phone
+  phone: "phone", "phone_number": "phone", "phone number": "phone",
+  "phone_full_number": "phone", "telephone": "phone", "mobile": "phone",
+  teléfono: "phone", telefono: "phone", "número de teléfono": "phone",
+  "numero de telefono": "phone", "teléfono móvil": "phone", "telefono movil": "phone",
+  tel: "phone", celular: "phone", móvil: "phone", movil: "phone",
+  // Email
+  email: "email", "email address": "email", "e-mail": "email", "correo": "email",
+  "correo electrónico": "email", "correo electronico": "email",
+  // Source
+  source: "source", fuente: "source", origen: "source", "lead source": "source",
+  // Notes
+  notes: "notes", note: "notes", notas: "notes", comentarios: "notes",
+  comentario: "notes", observaciones: "notes",
+  // City / State
   city: "city", ciudad: "city",
-  state: "state", estado: "state",
+  state: "state", estado: "state", "estado/provincia": "state", provincia: "state",
 }
 
 function autoMatch(header: string): keyof ImportRow | null {
   return AUTO_MATCH[header.toLowerCase().trim()] ?? null
+}
+
+/**
+ * Si tras el mapeo first_name viene como nombre completo (contiene espacios)
+ * y last_name está vacío, divide automáticamente.
+ * Ej. "Edith Serafin" → first_name="Edith", last_name="Serafin"
+ *     "Maria de los Angeles Lopez" → first_name="Maria", last_name="de los Angeles Lopez"
+ */
+function splitFullName(row: ImportRow): ImportRow {
+  const first = (row.first_name ?? "").trim()
+  const last = (row.last_name ?? "").trim()
+  if (!first || last) return row
+  const tokens = first.split(/\s+/)
+  if (tokens.length < 2) return row
+  return {
+    ...row,
+    first_name: tokens[0],
+    last_name: tokens.slice(1).join(" "),
+  }
 }
 
 // ── Download template ─────────────────────────────────────────────────────────
@@ -166,7 +205,9 @@ export default function ImportLeadsPage() {
       mappings.forEach(({ header, field }) => {
         if (field) lead[field] = row[header] != null ? String(row[header]).trim() || null : null
       })
-      return lead as unknown as ImportRow
+      // Si first_name viene como nombre completo y last_name vacío, divide
+      // automáticamente (caso Facebook Lead Ads: "Name" = "Tamasha Sanders").
+      return splitFullName(lead as unknown as ImportRow)
     })
 
     const errors: string[] = []
