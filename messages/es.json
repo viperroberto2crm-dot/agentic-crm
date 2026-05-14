@@ -293,7 +293,13 @@
       "completed": "Completada",
       "cancelled": "Cancelada",
       "no_show": "No se presentó"
-    }
+    },
+    "addressFromLead": "Visita en: {address}, {city}, {state} {zip}",
+    "addressMissing": "Este lead no tiene dirección registrada. Agrégala primero.",
+    "addressMissingAction": "Ir a editar lead",
+    "selectClinic": "Selecciona una clínica",
+    "noClinicsAvailable": "No hay clínicas activas. Agrega una en Settings → Clínicas.",
+    "telehealthLink": "Link de videollamada (opcional)"
   },
   "sales": {
     "title": "Ventas",

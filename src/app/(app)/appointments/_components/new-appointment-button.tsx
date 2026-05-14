@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -10,7 +10,27 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createAppointment } from "../actions"
 
-type Lead = { id: string; first_name: string; last_name: string | null; phone: string }
+type Lead = {
+  id: string
+  first_name: string
+  last_name: string | null
+  phone: string
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+}
+
+type ClinicOption = {
+  id: string
+  name: string
+  address_line1: string | null
+  city: string | null
+  state: string | null
+}
+
+type AppointmentType = "clinic" | "home" | "telehealth"
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -25,7 +45,15 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
-export function NewAppointmentButton({ brandId, leads }: { brandId: string; leads: Lead[] }) {
+export function NewAppointmentButton({
+  brandId,
+  leads,
+  clinics,
+}: {
+  brandId: string
+  leads: Lead[]
+  clinics: ClinicOption[]
+}) {
   const t = useTranslations("appointments")
   const tc = useTranslations("common")
   const router = useRouter()
@@ -34,16 +62,73 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     lead_id: "",
-    type: "clinic" as "clinic" | "home" | "telehealth",
+    type: "telehealth" as AppointmentType,
     scheduled_at: "",
     duration_minutes: 30,
     service: "",
     notes: "",
+    clinic_id: "",
+    telehealth_link: "",
   })
+
+  useEffect(() => {
+    setError(null)
+  }, [form.type])
+
+  const selectedLead = useMemo(
+    () => leads.find((l) => l.id === form.lead_id) ?? null,
+    [leads, form.lead_id]
+  )
+
+  const hasLeadAddress =
+    !!selectedLead &&
+    !!selectedLead.address_line1 &&
+    selectedLead.address_line1.trim().length > 0 &&
+    !!selectedLead.city &&
+    selectedLead.city.trim().length > 0
+
+  const hasClinics = clinics.length > 0
+
+  const addressSummary =
+    selectedLead && hasLeadAddress
+      ? t("addressFromLead", {
+          address: selectedLead.address_line1 ?? "",
+          city: selectedLead.city ?? "",
+          state: selectedLead.state ?? "",
+          zip: selectedLead.zip ?? "",
+        })
+      : ""
+
+  const disableSubmit =
+    isPending ||
+    (form.type === "home" && (!selectedLead || !hasLeadAddress)) ||
+    (form.type === "clinic" && (!hasClinics || !form.clinic_id))
+
+  function reset() {
+    setForm({
+      lead_id: "",
+      type: "telehealth",
+      scheduled_at: "",
+      duration_minutes: 30,
+      service: "",
+      notes: "",
+      clinic_id: "",
+      telehealth_link: "",
+    })
+    setError(null)
+  }
 
   function handleSave() {
     if (!form.lead_id || !form.scheduled_at) {
       setError(t("leadAndDateRequired"))
+      return
+    }
+    if (form.type === "home" && !hasLeadAddress) {
+      setError(t("addressMissing"))
+      return
+    }
+    if (form.type === "clinic" && (!hasClinics || !form.clinic_id)) {
+      setError(hasClinics ? t("selectClinic") : t("noClinicsAvailable"))
       return
     }
     setError(null)
@@ -57,10 +142,22 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
           duration_minutes: form.duration_minutes,
           service: form.service || null,
           notes: form.notes || null,
+          clinic_id: form.type === "clinic" ? form.clinic_id || null : null,
+          address_line1:
+            form.type === "home" ? selectedLead?.address_line1 ?? null : null,
+          address_line2:
+            form.type === "home" ? selectedLead?.address_line2 ?? null : null,
+          city: form.type === "home" ? selectedLead?.city ?? null : null,
+          state: form.type === "home" ? selectedLead?.state ?? null : null,
+          zip: form.type === "home" ? selectedLead?.zip ?? null : null,
+          telehealth_link:
+            form.type === "telehealth"
+              ? form.telehealth_link.trim() || null
+              : null,
         })
         router.refresh()
         setOpen(false)
-        setForm({ lead_id: "", type: "clinic", scheduled_at: "", duration_minutes: 30, service: "", notes: "" })
+        reset()
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
       }
@@ -102,14 +199,14 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("type")} required>
-                <Select value={form.type} onValueChange={(v) => setForm((p) => ({ ...p, type: v as typeof form.type }))}>
+                <Select value={form.type} onValueChange={(v) => setForm((p) => ({ ...p, type: v as AppointmentType }))}>
                   <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="clinic" className="text-gray-800">{t("types.clinic")}</SelectItem>
-                    <SelectItem value="home" className="text-gray-800">{t("types.home")}</SelectItem>
                     <SelectItem value="telehealth" className="text-gray-800">{t("types.telehealth")}</SelectItem>
+                    <SelectItem value="home" className="text-gray-800">{t("types.home")}</SelectItem>
+                    <SelectItem value="clinic" className="text-gray-800">{t("types.clinic")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -122,6 +219,62 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
                 />
               </Field>
             </div>
+
+            {form.type === "telehealth" && (
+              <Field label={t("telehealthLink")}>
+                <Input
+                  type="url"
+                  placeholder="https://"
+                  className={inputCls}
+                  value={form.telehealth_link}
+                  onChange={(e) => setForm((p) => ({ ...p, telehealth_link: e.target.value }))}
+                />
+              </Field>
+            )}
+
+            {form.type === "home" && (
+              <div className="space-y-2">
+                {!selectedLead ? (
+                  <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+                    {t("selectLead")}
+                  </div>
+                ) : hasLeadAddress ? (
+                  <div className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+                    {addressSummary}
+                  </div>
+                ) : (
+                  <div className="text-xs text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">
+                    {t("addressMissing")}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {form.type === "clinic" && (
+              <Field label={t("types.clinic")} required>
+                {hasClinics ? (
+                  <Select
+                    value={form.clinic_id}
+                    onValueChange={(v) => setForm((p) => ({ ...p, clinic_id: v }))}
+                  >
+                    <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
+                      <SelectValue placeholder={t("selectClinic")} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200 max-h-52 overflow-y-auto">
+                      {clinics.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-gray-800">
+                          {c.name}{c.city ? ` — ${c.city}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="text-xs text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">
+                    {t("noClinicsAvailable")}
+                  </div>
+                )}
+              </Field>
+            )}
 
             <Field label={t("dateTime")} required>
               <Input
@@ -154,7 +307,7 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
             )}
 
             <div className="flex gap-3 pt-1">
-              <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
+              <Button onClick={handleSave} disabled={disableSubmit} className="cursor-pointer" style={{ background: "var(--brand)" }}>
                 {isPending ? tc("saving") : t("scheduleAppt")}
               </Button>
               <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={() => setOpen(false)} disabled={isPending}>

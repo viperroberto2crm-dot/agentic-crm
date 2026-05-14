@@ -293,7 +293,13 @@
       "completed": "Completed",
       "cancelled": "Cancelled",
       "no_show": "No show"
-    }
+    },
+    "addressFromLead": "Home visit at: {address}, {city}, {state} {zip}",
+    "addressMissing": "This lead has no address on file. Add it first.",
+    "addressMissingAction": "Edit lead",
+    "selectClinic": "Select a clinic",
+    "noClinicsAvailable": "No active clinics. Add one in Settings → Clinics.",
+    "telehealthLink": "Video call link (optional)"
   },
   "sales": {
     "title": "Sales",

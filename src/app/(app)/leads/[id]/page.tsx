@@ -42,6 +42,23 @@ export default async function LeadDetailPage({
       .eq("lead_id", id).order("created_at", { ascending: false }).limit(20),
   ])
 
+  let clinicsForModal: {
+    id: string
+    name: string
+    address_line1: string | null
+    city: string | null
+    state: string | null
+  }[] = []
+  if (lead?.brand_id) {
+    const { data: clinicsData } = await sb
+      .from("clinics")
+      .select("id, name, address_line1, city, state")
+      .eq("brand_id", lead.brand_id)
+      .eq("active", true)
+      .order("name")
+    clinicsForModal = (clinicsData ?? []) as typeof clinicsForModal
+  }
+
   const paymentPlans = await fetchPaymentPlans(id).catch(() => [])
 
   if (!lead) notFound()
@@ -89,7 +106,7 @@ export default async function LeadDetailPage({
 
       <LeadHeader lead={lead} />
 
-      <LeadActions lead={lead} role={role} reps={reps} />
+      <LeadActions lead={lead} role={role} reps={reps} clinics={clinicsForModal} />
 
       <Separator className="bg-border" />
 
