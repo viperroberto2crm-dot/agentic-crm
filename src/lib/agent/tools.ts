@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
 
 type DB = SupabaseClient<Database>
 
@@ -219,48 +220,81 @@ export async function executeGetSalesKpi(
   sb: DB, userId: string, brandId: string | null, input: GetSalesKpiInput
 ) {
   const { gte } = periodRange(input.period ?? "month")
-  let query = sb
-    .from("sales")
-    .select("amount_cents, payment_status, brand_id")
-    .gte("created_at", gte)
+  const paidRange = { startIso: gte, endIso: new Date().toISOString() }
 
-  if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
-
-  const { data } = await query
-  const rows = data ?? []
-
-  function aggregate(sample: typeof rows) {
-    const paid = sample.filter((r) => r.payment_status === "paid")
-    const pending = sample.filter((r) => r.payment_status === "pending")
-    const totalPaid = paid.reduce((s, r) => s + r.amount_cents, 0)
-    const totalPending = pending.reduce((s, r) => s + r.amount_cents, 0)
-    return {
-      total_paid_usd: (totalPaid / 100).toFixed(2),
-      total_pending_usd: (totalPending / 100).toFixed(2),
-      paid_count: paid.length,
-      pending_count: pending.length,
-      avg_ticket_usd: paid.length > 0 ? (totalPaid / paid.length / 100).toFixed(2) : "0.00",
-    }
+  function toUsd(cents: number) {
+    return (cents / 100).toFixed(2)
+  }
+  function avgTicket(collected: number, count: number) {
+    return count > 0 ? (collected / count / 100).toFixed(2) : "0.00"
   }
 
-  const overall = aggregate(rows)
-
   if (input.scope === "all") {
-    // Traer TODAS las marcas activas, incluso las que no tuvieron ventas en el período
     const { data: brandsData } = await sb
       .from("brands")
       .select("id, name")
       .eq("active", true)
       .order("name")
     const allBrands = brandsData ?? []
-    const byBrand = allBrands.map((b) => {
-      const sample = rows.filter((r) => r.brand_id === b.id)
-      return { brand_id: b.id, brand_name: b.name, ...aggregate(sample) }
-    })
-    return { period: input.period ?? "month", scope: "all", overall, by_brand: byBrand }
+
+    const byBrand = await Promise.all(
+      allBrands.map(async (b) => {
+        const br = await getSalesBreakdown(sb, {
+          brandId: b.id,
+          repId: null,
+          paidRange,
+        })
+        return {
+          brand_id: b.id,
+          brand_name: b.name,
+          paid_count: br.paidCount,
+          pending_count: br.openCount,
+          total_paid_usd: toUsd(br.collectedCents),
+          total_pending_usd: toUsd(br.outstandingCents),
+          avg_ticket_usd: avgTicket(br.collectedCents, br.paidCount),
+        }
+      }),
+    )
+
+    const totalPaid = byBrand.reduce(
+      (s, b) => s + Math.round(parseFloat(b.total_paid_usd) * 100),
+      0,
+    )
+    const totalPending = byBrand.reduce(
+      (s, b) => s + Math.round(parseFloat(b.total_pending_usd) * 100),
+      0,
+    )
+    const totalPaidCount = byBrand.reduce((s, b) => s + b.paid_count, 0)
+
+    return {
+      period: input.period ?? "month",
+      scope: "all",
+      overall: {
+        total_paid_usd: toUsd(totalPaid),
+        total_pending_usd: toUsd(totalPending),
+        paid_count: totalPaidCount,
+        pending_count: byBrand.reduce((s, b) => s + b.pending_count, 0),
+        avg_ticket_usd: avgTicket(totalPaid, totalPaidCount),
+      },
+      by_brand: byBrand,
+    }
   }
 
-  return { period: input.period ?? "month", scope: "current", ...overall }
+  // scope === "current"
+  const br = await getSalesBreakdown(sb, {
+    brandId,
+    repId: null,
+    paidRange,
+  })
+  return {
+    period: input.period ?? "month",
+    scope: "current",
+    total_paid_usd: toUsd(br.collectedCents),
+    total_pending_usd: toUsd(br.outstandingCents),
+    paid_count: br.paidCount,
+    pending_count: br.openCount,
+    avg_ticket_usd: avgTicket(br.collectedCents, br.paidCount),
+  }
 }
 
 export async function executeGetCallsSummary(
