@@ -22,8 +22,11 @@ const UpdateLeadSchema = z.object({
   status: z.enum(["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold"]),
   source: z.enum(["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "other"]).nullable(),
   assigned_rep_id: z.string().uuid().nullable(),
+  address_line1: z.string().nullable(),
+  address_line2: z.string().nullable(),
   city: z.string().nullable(),
   state: z.string().nullable(),
+  zip: z.string().nullable(),
   notes: z.string().nullable(),
 })
 

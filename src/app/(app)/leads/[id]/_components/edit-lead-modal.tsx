@@ -25,8 +25,11 @@ type LeadData = {
   status: LeadStatus
   source: LeadSource | null
   assigned_rep_id: string | null
+  address_line1: string | null
+  address_line2: string | null
   city: string | null
   state: string | null
+  zip: string | null
   notes: string | null
 }
 
@@ -90,8 +93,11 @@ export function EditLeadModal({
     status: lead.status,
     source: lead.source,
     assigned_rep_id: lead.assigned_rep_id,
+    address_line1: lead.address_line1,
+    address_line2: lead.address_line2,
     city: lead.city,
     state: lead.state,
+    zip: lead.zip,
     notes: lead.notes,
   })
 
@@ -198,6 +204,17 @@ export function EditLeadModal({
           )}
 
           <div className="grid grid-cols-2 gap-3">
+            <Field label={t("address")}>
+              <Input className={inputCls} value={form.address_line1 ?? ""}
+                onChange={(e) => set("address_line1", e.target.value)} />
+            </Field>
+            <Field label={t("addressLine2")}>
+              <Input className={inputCls} value={form.address_line2 ?? ""}
+                onChange={(e) => set("address_line2", e.target.value)} />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             <Field label={t("city")}>
               <Input className={inputCls} value={form.city ?? ""}
                 onChange={(e) => set("city", e.target.value)} />
@@ -205,6 +222,10 @@ export function EditLeadModal({
             <Field label={t("state")}>
               <Input className={inputCls} value={form.state ?? ""}
                 onChange={(e) => set("state", e.target.value)} />
+            </Field>
+            <Field label={t("zip")}>
+              <Input className={inputCls} value={form.zip ?? ""}
+                onChange={(e) => set("zip", e.target.value)} />
             </Field>
           </div>
 
