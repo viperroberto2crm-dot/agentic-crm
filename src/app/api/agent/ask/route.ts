@@ -17,6 +17,13 @@ import {
   executeGetTasksOpen,
   executeListBrands,
 } from "@/lib/agent/tools"
+import {
+  WRITE_TOOLS,
+  executeWriteTool,
+  isWriteToolName,
+} from "@/lib/agent/write-tools"
+import { resolveAutonomy } from "@/lib/agent/policies"
+import { createPendingAction } from "@/lib/agent/pending-actions"
 import { CRM_SYSTEM_PROMPT } from "@/lib/agent/prompts"
 import {
   loadHistoryWithCompaction,
@@ -124,12 +131,16 @@ export async function POST(req: NextRequest) {
   let failure: Error | null = null
 
   try {
+    // Combinamos read tools + write tools. Las write tools pasan por el
+    // pipeline de aprobación humana (default: approve_required).
+    const allTools = [...AGENT_TOOLS, ...WRITE_TOOLS]
+
     // ---------- 3) Primera llamada a Claude ----------
     let response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: systemBlocks,
-      tools: AGENT_TOOLS,
+      tools: allTools,
       messages,
     })
     tokensIn += response.usage?.input_tokens ?? 0
@@ -145,6 +156,126 @@ export async function POST(req: NextRequest) {
         if (block.type !== "tool_use") continue
         const input = block.input as Record<string, unknown>
         let result: unknown
+
+        // ── WRITE TOOLS: pasan por aprobación humana según policy ──
+        if (isWriteToolName(block.name)) {
+          // El bot puede incluir `reasoning` dentro del input (lo pide el
+          // system prompt). Lo extraemos sin pasarlo al ejecutor para
+          // mantener el payload limpio.
+          const reasoning =
+            typeof input.reasoning === "string" && input.reasoning.trim()
+              ? input.reasoning.trim()
+              : null
+          const cleanInput = { ...input }
+          delete cleanInput.reasoning
+
+          const relatedLeadId =
+            typeof cleanInput.lead_id === "string" ? cleanInput.lead_id : null
+
+          const autonomy = await resolveAutonomy(sb, {
+            actionType: block.name,
+            brandId,
+            userId: user.id,
+          }).catch((err) => {
+            console.error("[agent/ask] resolveAutonomy falló:", err)
+            return "approve_required" as const
+          })
+
+          if (autonomy === "suggest_only") {
+            result = {
+              status: "suggested_only",
+              message:
+                "Esta acción solo está habilitada como sugerencia. Comparte con el rep para que la haga manualmente.",
+            }
+          } else if (autonomy === "auto_with_audit") {
+            const execRes = await executeWriteTool(block.name, sb, cleanInput, {
+              userId: user.id,
+              brandId,
+            })
+            // Persistimos también una fila pending status='executed' para audit
+            try {
+              const expires = new Date()
+              expires.setDate(expires.getDate() + 30)
+              await sb.from("agent_pending_actions").insert({
+                action_type: block.name,
+                payload: cleanInput as Database["public"]["Tables"]["agent_pending_actions"]["Insert"]["payload"],
+                reasoning,
+                agent_run_id: runId,
+                brand_id: brandId,
+                related_user_id: user.id,
+                related_lead_id: relatedLeadId,
+                status: "executed",
+                approval_required_role: "admin",
+                executed_at: new Date().toISOString(),
+                execution_result: (execRes.ok
+                  ? (execRes.result ?? null)
+                  : { error: execRes.error }) as Database["public"]["Tables"]["agent_pending_actions"]["Insert"]["execution_result"],
+                expires_at: expires.toISOString(),
+              })
+            } catch (err) {
+              console.error("[agent/ask] audit insert falló:", err)
+            }
+            result = execRes.ok
+              ? { status: "executed", result: execRes.result }
+              : { status: "error", error: execRes.error }
+          } else {
+            // approve_required (default)
+            try {
+              const pendingId = await createPendingAction(sb, {
+                actionType: block.name,
+                payload: cleanInput,
+                reasoning,
+                runId,
+                brandId,
+                userId: user.id,
+                relatedLeadId,
+              })
+              result = {
+                status: "pending_approval",
+                pending_id: pendingId,
+                message:
+                  "Acción enviada para aprobación humana. El admin será notificado.",
+              }
+            } catch (err) {
+              console.error("[agent/ask] createPendingAction falló:", err)
+              result = {
+                status: "error",
+                error: err instanceof Error ? err.message : "Error guardando pending",
+              }
+            }
+          }
+
+          // Persistir en agent_actions para histórico (no ejecutada todavía
+          // salvo auto_with_audit, pero queda el rastro de la propuesta)
+          if (runId) {
+            const r = result as { status?: string }
+            await sb
+              .from("agent_actions")
+              .insert({
+                run_id: runId,
+                action_type: block.name,
+                reasoning,
+                payload: {
+                  args: cleanInput,
+                  autonomy,
+                  result: result as Database["public"]["Tables"]["agent_actions"]["Insert"]["payload"],
+                } as Database["public"]["Tables"]["agent_actions"]["Insert"]["payload"],
+                executed: r.status === "executed",
+                executed_at:
+                  r.status === "executed" ? new Date().toISOString() : null,
+              })
+              .then(({ error }) => {
+                if (error) console.error("[agent/ask] agent_actions(write) insert:", error)
+              })
+          }
+
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+          continue
+        }
 
         switch (block.name) {
           case "get_leads":
@@ -226,7 +357,7 @@ export async function POST(req: NextRequest) {
         model: MODEL,
         max_tokens: 1024,
         system: systemBlocks,
-        tools: AGENT_TOOLS,
+        tools: allTools,
         messages,
       })
       tokensIn += response.usage?.input_tokens ?? 0

@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { AppShell } from "@/components/layout/app-shell"
 import type { Tables } from "@/types/database"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/database"
+import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { countPendingActions } from "@/lib/agent/pending-actions"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 type UserProfile = Pick<
   Tables<"users">,
@@ -82,6 +88,26 @@ export default async function AppLayout({
     (t) => t.priority === "urgent" || t.priority === "high"
   )
 
+  // Pending agent-actions count (solo admin/manager ven la bandeja)
+  let pendingCount = 0
+  if (profile.role === "admin" || profile.role === "manager") {
+    const cookieStore = await cookies()
+    const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+    const brandId = brandSlug
+      ? await getBrandIdBySlug(brandSlug, supabase as unknown as SupabaseClient<Database>)
+      : null
+    try {
+      const admin = createAdminClient() as unknown as SupabaseClient<Database>
+      pendingCount = await countPendingActions(admin, {
+        brandId,
+        userId: user.id,
+        role: profile.role,
+      })
+    } catch (err) {
+      console.error("[layout] countPendingActions:", err)
+    }
+  }
+
   return (
     <AppShell
       brands={brands}
@@ -95,6 +121,7 @@ export default async function AppLayout({
       taskCount={taskCount}
       urgentTasks={urgentTasks}
       unreadCount={unreadCount ?? 0}
+      pendingCount={pendingCount}
     >
       {children}
     </AppShell>
