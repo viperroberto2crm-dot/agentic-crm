@@ -14,9 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Trash2, Star, Loader2 } from "lucide-react"
-import { fetchProducts, registerSale } from "../actions"
+import { Plus, Trash2, Star, Loader2, Calendar } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { fetchProducts, registerSale, createPaymentPlan } from "../actions"
 import type { RegisterSaleInput } from "../actions"
+
+function todayIso() {
+  return new Date().toISOString().split("T")[0]
+}
 
 type Product = Awaited<ReturnType<typeof fetchProducts>>[number]
 
@@ -181,6 +186,13 @@ export function RegisterSaleModal({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // Payment plan mode
+  const [planMode, setPlanMode] = useState(false)
+  const [planCount, setPlanCount] = useState("4")
+  const [planFrequency, setPlanFrequency] = useState("30") // 7/14/30/custom
+  const [planCustomFreq, setPlanCustomFreq] = useState("")
+  const [planFirstDue, setPlanFirstDue] = useState(todayIso())
+
   useEffect(() => {
     if (!open) return
     setLoadingProducts(true)
@@ -225,12 +237,59 @@ export function RegisterSaleModal({
 
   const total = cart.reduce((s, i) => s + i.line_total_cents, 0)
 
+  const planCountNum = parseInt(planCount, 10) || 0
+  const planFreqDays =
+    planFrequency === "custom"
+      ? parseInt(planCustomFreq, 10) || 0
+      : parseInt(planFrequency, 10)
+  const planPerInstallment =
+    planCountNum > 0 ? Math.round(total / planCountNum) : 0
+
   function handleSubmit() {
     if (cart.length === 0) {
       setError(t("addAtLeastOne"))
       return
     }
     setError(null)
+
+    if (planMode) {
+      if (planCountNum < 1) {
+        setError(t("planErrorCount"))
+        return
+      }
+      if (planFreqDays < 1) {
+        setError(t("planErrorFrequency"))
+        return
+      }
+      if (!planFirstDue) {
+        setError(t("planErrorFirstDue"))
+        return
+      }
+      const productName = cart.map((c) => c.product_name).join(" + ")
+      startTransition(async () => {
+        try {
+          await createPaymentPlan({
+            lead_id: leadId,
+            brand_id: brandId,
+            product_name: productName,
+            total_amount_cents: total,
+            notes: notes.trim() || null,
+            installment_count: planCountNum,
+            installment_amount_cents: planPerInstallment,
+            frequency_days: planFreqDays,
+            first_due_date: planFirstDue,
+          })
+          setCart([])
+          setNotes("")
+          setPlanMode(false)
+          onClose()
+          router.refresh()
+        } catch (e) {
+          setError(e instanceof Error ? e.message : tc("savingError"))
+        }
+      })
+      return
+    }
 
     const payload: RegisterSaleInput = {
       lead_id: leadId,
@@ -341,34 +400,131 @@ export function RegisterSaleModal({
 
             <Separator className="bg-gray-100" />
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-400">{t("paymentMethod")}</label>
-                <Select value={paymentMethod} onValueChange={(v: "cash" | "card" | "stripe") => setPaymentMethod(v)}>
-                  <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="card" className="text-gray-800">{t("card")}</SelectItem>
-                    <SelectItem value="cash" className="text-gray-800">{t("cash")}</SelectItem>
-                    <SelectItem value="stripe" className="text-gray-800">{t("stripe")}</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Payment plan toggle card */}
+            <button
+              type="button"
+              onClick={() => setPlanMode((v) => !v)}
+              className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                planMode
+                  ? "border-zinc-700 bg-zinc-50"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-9 h-9 rounded-md flex items-center justify-center shrink-0 ${
+                    planMode ? "bg-zinc-700 text-white" : "bg-gray-100 text-gray-400"
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{t("planModeTitle")}</p>
+                  <p className="text-[11px] text-gray-400 leading-snug">
+                    {t("planModeHint")}
+                  </p>
+                </div>
+                <div
+                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    planMode ? "border-zinc-700 bg-zinc-700" : "border-gray-300 bg-white"
+                  }`}
+                >
+                  {planMode && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
               </div>
+            </button>
 
-              <div className="space-y-1.5">
-                <label className="text-xs text-gray-400">{t("paymentStatus")}</label>
-                <Select value={paymentStatus} onValueChange={(v: "paid" | "pending") => setPaymentStatus(v)}>
-                  <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="paid" className="text-gray-800">{t("paid")}</SelectItem>
-                    <SelectItem value="pending" className="text-gray-800">{t("pending")}</SelectItem>
-                  </SelectContent>
-                </Select>
+            {planMode ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-4 py-3 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("planCount")} *</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={planCount}
+                      onChange={(e) => setPlanCount(e.target.value)}
+                      className="bg-white border-gray-200 text-gray-800 h-9 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("planPerInstallment")}</label>
+                    <div className="h-9 px-3 rounded-md border border-gray-200 bg-gray-100 text-sm text-gray-700 font-mono tabular-nums flex items-center">
+                      {planCountNum > 0 ? fmtCents(planPerInstallment) : "—"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("planFrequency")} *</label>
+                    <Select value={planFrequency} onValueChange={setPlanFrequency}>
+                      <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200">
+                        <SelectItem value="7" className="text-gray-800">{t("freqWeekly")}</SelectItem>
+                        <SelectItem value="14" className="text-gray-800">{t("freqBiweekly")}</SelectItem>
+                        <SelectItem value="30" className="text-gray-800">{t("freqMonthly")}</SelectItem>
+                        <SelectItem value="custom" className="text-gray-800">{t("freqCustom")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {planFrequency === "custom" && (
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        step="1"
+                        value={planCustomFreq}
+                        onChange={(e) => setPlanCustomFreq(e.target.value)}
+                        placeholder={t("freqCustomPlaceholder")}
+                        className="bg-white border-gray-200 text-gray-800 h-9 font-mono mt-1"
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("planFirstDue")} *</label>
+                    <Input
+                      type="date"
+                      value={planFirstDue}
+                      onChange={(e) => setPlanFirstDue(e.target.value)}
+                      className="bg-white border-gray-200 text-gray-800 h-9"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-400">{t("paymentMethod")}</label>
+                  <Select value={paymentMethod} onValueChange={(v: "cash" | "card" | "stripe") => setPaymentMethod(v)}>
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200">
+                      <SelectItem value="card" className="text-gray-800">{t("card")}</SelectItem>
+                      <SelectItem value="cash" className="text-gray-800">{t("cash")}</SelectItem>
+                      <SelectItem value="stripe" className="text-gray-800">{t("stripe")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-400">{t("paymentStatus")}</label>
+                  <Select value={paymentStatus} onValueChange={(v: "paid" | "pending") => setPaymentStatus(v)}>
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200">
+                      <SelectItem value="paid" className="text-gray-800">{t("paid")}</SelectItem>
+                      <SelectItem value="pending" className="text-gray-800">{t("pending")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs text-gray-400">{t("saleNotes")}</label>
@@ -412,6 +568,8 @@ export function RegisterSaleModal({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 {tc("saving")}
               </>
+            ) : planMode ? (
+              t("confirmPlan", { total: fmtCents(total) })
             ) : (
               t("confirmSale", { total: fmtCents(total) })
             )}
