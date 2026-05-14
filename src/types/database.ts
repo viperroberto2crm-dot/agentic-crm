@@ -800,8 +800,11 @@ export type Database = {
           source: Database["public"]["Enums"]["lead_source"] | null
           assigned_rep_id: string | null
           notes: string | null
+          address_line1: string | null
+          address_line2: string | null
           city: string | null
           state: string | null
+          zip: string | null
           custom_fields: Json
           ai_score: number | null
           ai_score_reason: string | null
@@ -822,8 +825,11 @@ export type Database = {
           source?: Database["public"]["Enums"]["lead_source"] | null
           assigned_rep_id?: string | null
           notes?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
           city?: string | null
           state?: string | null
+          zip?: string | null
           custom_fields?: Json
           ai_score?: number | null
           ai_score_reason?: string | null
@@ -844,8 +850,11 @@ export type Database = {
           source?: Database["public"]["Enums"]["lead_source"] | null
           assigned_rep_id?: string | null
           notes?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
           city?: string | null
           state?: string | null
+          zip?: string | null
           custom_fields?: Json
           ai_score?: number | null
           ai_score_reason?: string | null

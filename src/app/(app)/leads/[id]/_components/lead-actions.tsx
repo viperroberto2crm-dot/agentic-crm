@@ -32,8 +32,11 @@ type LeadData = {
   status: LeadStatus
   source: LeadSource | null
   assigned_rep_id: string | null
+  address_line1: string | null
+  address_line2: string | null
   city: string | null
   state: string | null
+  zip: string | null
   notes: string | null
 }
 
