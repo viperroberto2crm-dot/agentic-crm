@@ -608,5 +608,26 @@
     "markAllAsRead": "Mark all as read",
     "empty": "You're all caught up.",
     "viewAll": "View all"
+  },
+  "exports": {
+    "exportButton": "Export",
+    "dateRange": {
+      "title": "Export by date range",
+      "selectRange": "Choose a preset or pick a custom range.",
+      "from": "From",
+      "to": "To",
+      "cancel": "Cancel",
+      "export": "Export",
+      "rangeSummary": "{from} → {to}",
+      "presets": {
+        "today": "Today",
+        "thisWeek": "This week",
+        "thisMonth": "This month",
+        "lastMonth": "Last month",
+        "thisQuarter": "This quarter",
+        "thisYear": "This year",
+        "custom": "Custom"
+      }
+    }
   }
 }

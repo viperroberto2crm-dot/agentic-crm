@@ -608,5 +608,26 @@
     "markAllAsRead": "Marcar todas como leídas",
     "empty": "No tienes notificaciones por ahora.",
     "viewAll": "Ver todas"
+  },
+  "exports": {
+    "exportButton": "Exportar",
+    "dateRange": {
+      "title": "Exportar por rango de fechas",
+      "selectRange": "Elige un preset o selecciona un rango personalizado.",
+      "from": "Desde",
+      "to": "Hasta",
+      "cancel": "Cancelar",
+      "export": "Exportar",
+      "rangeSummary": "{from} → {to}",
+      "presets": {
+        "today": "Hoy",
+        "thisWeek": "Esta semana",
+        "thisMonth": "Este mes",
+        "lastMonth": "Mes pasado",
+        "thisQuarter": "Este trimestre",
+        "thisYear": "Este año",
+        "custom": "Personalizado"
+      }
+    }
   }
 }

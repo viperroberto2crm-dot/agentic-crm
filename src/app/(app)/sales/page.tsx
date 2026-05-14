@@ -8,6 +8,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getTranslations } from "next-intl/server"
+import { ExportButton } from "@/components/exports/export-button"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -111,9 +112,12 @@ export default async function SalesPage({
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-        <p className="text-xs text-gray-400">{count ?? sales.length} {tc("records")}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-gray-400">{count ?? sales.length} {tc("records")}</p>
+          <ExportButton entity="sales" extraParams={{ status: statusFilter }} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
