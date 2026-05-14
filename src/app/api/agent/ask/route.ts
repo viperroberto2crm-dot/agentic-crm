@@ -18,6 +18,10 @@ import {
   executeListBrands,
 } from "@/lib/agent/tools"
 import { CRM_SYSTEM_PROMPT } from "@/lib/agent/prompts"
+import {
+  loadHistoryWithCompaction,
+  maybeCompact,
+} from "@/lib/agent/compaction"
 
 type DB = SupabaseClient<Database>
 
@@ -69,35 +73,36 @@ export async function POST(req: NextRequest) {
   }
   const runId = runRow?.id ?? null
 
-  // ---------- 2) Leer historial: últimas HISTORY_LIMIT runs completadas del mismo user ----------
-  // "completada" = tiene output_summary y no tiene error.
-  const { data: history } = await sb
-    .from("agent_runs")
-    .select("input_summary, output_summary, created_at")
-    .eq("triggered_by", user.id)
-    .eq("run_type", "ask")
-    .is("error", null)
-    .not("output_summary", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(HISTORY_LIMIT)
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  // Pasar de DESC (más reciente primero) a orden cronológico ASC para inyectar a Claude
-  const orderedHistory = (history ?? [])
-    // Excluir la run actual si por algún motivo apareciera (no debería: aún sin output)
-    .filter((h) => h.input_summary && h.output_summary)
-    .reverse()
+  // ---------- 2a) Compaction best-effort ANTES de leer historial ----------
+  // Si el historial sin compactar supera el threshold, generamos un nuevo
+  // resumen y lo persistimos en agent_compactions. Errores no rompen la response.
+  await maybeCompact(sb, user.id, brandId, anthropic, { limit: HISTORY_LIMIT }).catch((err) => {
+    console.error("[agent/ask] maybeCompact lanzó (no debería):", err)
+  })
+
+  // ---------- 2b) Leer historial: summary previo (si existe) + runs posteriores ----------
+  const { summary: priorSummary, runs: orderedHistory } = await loadHistoryWithCompaction(
+    sb,
+    user.id,
+    { limit: HISTORY_LIMIT }
+  )
 
   // Construir messages incluyendo historial + query actual
   const messages: Anthropic.MessageParam[] = []
   for (const h of orderedHistory) {
-    messages.push({ role: "user", content: h.input_summary as string })
-    messages.push({ role: "assistant", content: h.output_summary as string })
+    messages.push({ role: "user", content: h.input_summary })
+    messages.push({ role: "assistant", content: h.output_summary })
   }
   messages.push({ role: "user", content: query })
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-  // System con prompt caching ephemeral (reduce ~90% del costo del system prompt cuando se reusa <5 min)
+  // System con prompt caching ephemeral (reduce ~90% del costo del system prompt cuando se reusa <5 min).
+  // Si hay un summary de conversaciones previas compactadas, lo añadimos como SEGUNDO bloque del
+  // system (también con cache_control). Ventajas vs. inyectarlo como primer user message:
+  //   - No rompe el patrón user/assistant alternado que espera la API con tool_use.
+  //   - Se beneficia del prompt caching (el summary cambia poco entre requests cercanos).
+  //   - No consume slot de "última instrucción" — el query del user queda al final.
   const systemBlocks: Anthropic.TextBlockParam[] = [
     {
       type: "text",
@@ -105,6 +110,13 @@ export async function POST(req: NextRequest) {
       cache_control: { type: "ephemeral" },
     },
   ]
+  if (priorSummary) {
+    systemBlocks.push({
+      type: "text",
+      text: `Resumen de conversaciones anteriores con este usuario: ${priorSummary}`,
+      cache_control: { type: "ephemeral" },
+    })
+  }
 
   let tokensIn = 0
   let tokensOut = 0
