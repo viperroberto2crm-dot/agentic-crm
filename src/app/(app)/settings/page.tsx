@@ -11,6 +11,7 @@ import { BrandForm } from "./_components/brand-form"
 import { UsersTab, type UserRow } from "./_components/users-tab"
 import { ProductsTab, type ProductRow } from "./_components/products-tab"
 import { ClinicsTab, type ClinicRow } from "./_components/clinics-tab"
+import { BrandsTab, type BrandRow } from "./_components/brands-tab"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -43,6 +44,7 @@ export default async function SettingsPage({
 
   if (role === "rep" && tab !== "perfil" && tab !== "productos") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "clinicas") redirect("/settings?tab=perfil")
+  if (role !== "admin" && tab === "marcas") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -90,6 +92,22 @@ export default async function SettingsPage({
     }
   }
 
+  let allBrands: BrandRow[] = []
+  if (role === "admin") {
+    try {
+      const admin = createAdminClient()
+      const { data: brandsData, error: brandsErr } = await admin
+        .from("brands")
+        .select("*")
+        .order("active", { ascending: false })
+        .order("name")
+      if (brandsErr) console.error("[settings] brands query error:", brandsErr.message)
+      allBrands = (brandsData ?? []) as BrandRow[]
+    } catch (e) {
+      console.error("[settings] brands fetch threw:", e)
+    }
+  }
+
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
     const { data: ubRows } = await sb
@@ -111,6 +129,7 @@ export default async function SettingsPage({
     ? [
         { value: "marca", label: t("tabMarca") },
         { value: "clinicas", label: t("tabClinicas") },
+        { value: "marcas", label: t("tabMarcas") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -170,6 +189,9 @@ export default async function SettingsPage({
           brandId
             ? <ClinicsTab clinics={clinics} brandId={brandId} />
             : <p className="text-sm text-muted-foreground">{t("selectBrand")}</p>
+        )}
+        {tab === "marcas" && role === "admin" && (
+          <BrandsTab brands={allBrands} />
         )}
         {tab === "usuarios" && role === "admin" && (
           brandId
