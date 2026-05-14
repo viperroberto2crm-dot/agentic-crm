@@ -10,6 +10,7 @@ import { ProfileForm } from "./_components/profile-form"
 import { BrandForm } from "./_components/brand-form"
 import { UsersTab, type UserRow } from "./_components/users-tab"
 import { ProductsTab, type ProductRow } from "./_components/products-tab"
+import { ClinicsTab, type ClinicRow } from "./_components/clinics-tab"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -41,6 +42,7 @@ export default async function SettingsPage({
   const tab = typeof sp.tab === "string" ? sp.tab : "perfil"
 
   if (role === "rep" && tab !== "perfil" && tab !== "productos") redirect("/settings?tab=perfil")
+  if (role !== "admin" && tab === "clinicas") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -71,6 +73,23 @@ export default async function SettingsPage({
   }
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))]
 
+  let clinics: ClinicRow[] = []
+  if (role === "admin" && brandId) {
+    try {
+      const admin = createAdminClient()
+      const { data: clinicsData, error: clinicsErr } = await admin
+        .from("clinics")
+        .select("*")
+        .eq("brand_id", brandId)
+        .order("active", { ascending: false })
+        .order("name")
+      if (clinicsErr) console.error("[settings] clinics query error:", clinicsErr.message)
+      clinics = (clinicsData ?? []) as ClinicRow[]
+    } catch (e) {
+      console.error("[settings] clinics fetch threw:", e)
+    }
+  }
+
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
     const { data: ubRows } = await sb
@@ -91,6 +110,7 @@ export default async function SettingsPage({
   const adminTabs = role === "admin"
     ? [
         { value: "marca", label: t("tabMarca") },
+        { value: "clinicas", label: t("tabClinicas") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -144,6 +164,11 @@ export default async function SettingsPage({
         {tab === "productos" && (role === "admin" || role === "rep") && (
           brandId
             ? <ProductsTab products={products} brandId={brandId} categories={categories} readonly={role !== "admin"} />
+            : <p className="text-sm text-muted-foreground">{t("selectBrand")}</p>
+        )}
+        {tab === "clinicas" && role === "admin" && (
+          brandId
+            ? <ClinicsTab clinics={clinics} brandId={brandId} />
             : <p className="text-sm text-muted-foreground">{t("selectBrand")}</p>
         )}
         {tab === "usuarios" && role === "admin" && (
