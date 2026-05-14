@@ -313,7 +313,7 @@ export async function fetchProducts(brandId: string) {
     .select(
       "id, name, description, category, price_cents, display_price_cents, display_unit, cadence, billing_cycle_days, recurring, included_services, best_value, active"
     )
-    .or(`brand_id.eq.${brandId},brand_id.is.null`)
+    .eq("brand_id", brandId)
     .eq("active", true)
     .order("sort_order")
 
