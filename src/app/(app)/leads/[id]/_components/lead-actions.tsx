@@ -32,21 +32,34 @@ type LeadData = {
   status: LeadStatus
   source: LeadSource | null
   assigned_rep_id: string | null
+  address_line1: string | null
+  address_line2: string | null
   city: string | null
   state: string | null
+  zip: string | null
   notes: string | null
 }
 
 type Rep = { id: string; name: string }
 
+type ClinicOption = {
+  id: string
+  name: string
+  address_line1: string | null
+  city: string | null
+  state: string | null
+}
+
 export function LeadActions({
   lead,
   role,
   reps,
+  clinics,
 }: {
   lead: LeadData
   role: string
   reps: Rep[]
+  clinics: ClinicOption[]
 }) {
   const t = useTranslations("leads")
   const tc = useTranslations("common")
@@ -76,7 +89,19 @@ export function LeadActions({
       <div className="flex items-center gap-2">
         <RegisterSaleButton leadId={lead.id} brandId={lead.brand_id} />
 
-        <ScheduleAppointmentButton leadId={lead.id} brandId={lead.brand_id} />
+        <ScheduleAppointmentButton
+          leadId={lead.id}
+          brandId={lead.brand_id}
+          leadAddress={{
+            address_line1: lead.address_line1,
+            address_line2: lead.address_line2,
+            city: lead.city,
+            state: lead.state,
+            zip: lead.zip,
+          }}
+          clinics={clinics}
+          onEditLead={() => setEditOpen(true)}
+        />
 
         <Button
           size="sm"

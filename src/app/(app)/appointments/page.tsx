@@ -84,13 +84,42 @@ export default async function AppointmentsPage({
   }
   const appts = (raw ?? []) as unknown as ApptItem[]
 
-  let leadsForModal: { id: string; first_name: string; last_name: string | null; phone: string }[] = []
+  let leadsForModal: {
+    id: string
+    first_name: string
+    last_name: string | null
+    phone: string
+    address_line1: string | null
+    address_line2: string | null
+    city: string | null
+    state: string | null
+    zip: string | null
+  }[] = []
+  let clinicsForModal: {
+    id: string
+    name: string
+    address_line1: string | null
+    city: string | null
+    state: string | null
+  }[] = []
   if (brandId) {
-    let lq = sb.from("leads").select("id, first_name, last_name, phone")
-      .eq("brand_id", brandId).order("first_name").limit(200)
+    let lq = sb
+      .from("leads")
+      .select("id, first_name, last_name, phone, address_line1, address_line2, city, state, zip")
+      .eq("brand_id", brandId)
+      .order("first_name")
+      .limit(200)
     if (role === "rep") lq = lq.eq("assigned_rep_id", user.id)
     const { data } = await lq
     leadsForModal = (data ?? []) as typeof leadsForModal
+
+    const { data: clinicsData } = await sb
+      .from("clinics")
+      .select("id, name, address_line1, city, state")
+      .eq("brand_id", brandId)
+      .eq("active", true)
+      .order("name")
+    clinicsForModal = (clinicsData ?? []) as typeof clinicsForModal
   }
 
   const tabs = [
@@ -109,7 +138,13 @@ export default async function AppointmentsPage({
         <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
-          {brandId && <NewAppointmentButton brandId={brandId} leads={leadsForModal} />}
+          {brandId && (
+            <NewAppointmentButton
+              brandId={brandId}
+              leads={leadsForModal}
+              clinics={clinicsForModal}
+            />
+          )}
         </div>
       </div>
 
