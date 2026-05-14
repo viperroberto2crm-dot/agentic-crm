@@ -198,6 +198,7 @@
     "reopen": "Reopen",
     "dueDate": "Due date",
     "dueLabel": "Due",
+    "status": "Status",
     "priority": "Priority",
     "urgent": "Urgent",
     "high": "High",

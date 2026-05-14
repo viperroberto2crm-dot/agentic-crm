@@ -198,6 +198,7 @@
     "reopen": "Reabrir",
     "dueDate": "Fecha límite",
     "dueLabel": "Vence",
+    "status": "Estado",
     "priority": "Prioridad",
     "urgent": "Urgente",
     "high": "Alta",

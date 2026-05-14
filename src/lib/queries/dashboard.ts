@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database, Enums } from "@/types/database"
+import { getSalesBreakdown } from "./sales-kpi"
 
 // SupabaseClient<Database> uses Database["public"] as Schema (after the GenericSchema fix)
 // Page components must cast their client: `supabase as unknown as SB`
@@ -203,39 +204,14 @@ export async function fetchSalesKpi(
   brandId: string | null,
   range: DayRange
 ): Promise<SalesKpi> {
-  // Sales pagadas completamente en el período
-  let q = supabase
-    .from("sales")
-    .select("amount_cents")
-    .eq("rep_id", userId)
-    .eq("payment_status", "paid")
-    .gte("paid_at", range.start)
-    .lt("paid_at", range.end)
-  if (brandId) q = q.eq("brand_id", brandId)
-
-  const { data: paidRows } = await q
-  const paid = paidRows ?? []
-  const paidTotal = paid.reduce((sum, r) => sum + r.amount_cents, 0)
-
-  // Abonos del período en planes vinculados a sales del rep — también cuenta como dinero cobrado
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let abonoQ = (supabase as any)
-    .from("abonos")
-    .select("amount_cents, plan:payment_plans!inner(sale_id, sale:sales!inner(rep_id, brand_id))")
-    .gte("paid_at", range.start.slice(0, 10))
-    .lt("paid_at", range.end.slice(0, 10))
-    .eq("plan.sale.rep_id", userId)
-  if (brandId) abonoQ = abonoQ.eq("plan.sale.brand_id", brandId)
-
-  const { data: abonosRows } = await abonoQ
-  const abonosTotal = (abonosRows ?? []).reduce(
-    (sum: number, r: { amount_cents: number }) => sum + r.amount_cents,
-    0,
-  )
-
+  const breakdown = await getSalesBreakdown(supabase, {
+    brandId,
+    repId: userId,
+    paidRange: { startIso: range.start, endIso: range.end },
+  })
   return {
-    count: paid.length,
-    total_cents: paidTotal + abonosTotal,
+    count: breakdown.paidCount,
+    total_cents: breakdown.collectedCents,
   }
 }
 
@@ -248,58 +224,26 @@ export async function fetchPendingKpi(
 ): Promise<PendingKpi> {
   const overdueThreshold = new Date(Date.now() - 7 * 86_400_000).toISOString()
 
-  // Sales pending y partial son las que tienen saldo abierto
-  let q = supabase
+  const breakdown = await getSalesBreakdown(supabase, {
+    brandId,
+    repId: userId,
+  })
+
+  // overdue_count: cuántas open están "viejas" (sin cobrar tras 7 días).
+  // Necesitamos los created_at por separado — query barata.
+  let staleQ = supabase
     .from("sales")
-    .select("id, amount_cents, payment_status, created_at")
+    .select("created_at")
     .eq("rep_id", userId)
     .in("payment_status", ["pending", "partial"])
-  if (brandId) q = q.eq("brand_id", brandId)
-
-  const { data } = await q
-  const rows = data ?? []
-
-  // Para las sales 'partial', restar los abonos ya pagados para no sobrestimar el outstanding
-  const partialIds = rows.filter((r) => r.payment_status === "partial").map((r) => r.id)
-
-  let abonosByPlanSale = new Map<string, number>()
-  if (partialIds.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: planRows } = await (supabase as any)
-      .from("payment_plans")
-      .select("id, sale_id")
-      .in("sale_id", partialIds)
-    const planIds = (planRows ?? []).map((p: { id: string }) => p.id)
-    const planToSale = new Map<string, string>(
-      (planRows ?? []).map((p: { id: string; sale_id: string }) => [p.id, p.sale_id]),
-    )
-
-    if (planIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: abonosRows } = await (supabase as any)
-        .from("abonos")
-        .select("plan_id, amount_cents")
-        .in("plan_id", planIds)
-
-      abonosByPlanSale = new Map()
-      for (const a of (abonosRows ?? []) as Array<{ plan_id: string; amount_cents: number }>) {
-        const saleId = planToSale.get(a.plan_id)
-        if (!saleId) continue
-        abonosByPlanSale.set(saleId, (abonosByPlanSale.get(saleId) ?? 0) + a.amount_cents)
-      }
-    }
-  }
-
-  const total_cents = rows.reduce((sum, r) => {
-    const collected = abonosByPlanSale.get(r.id) ?? 0
-    const outstanding = Math.max(0, r.amount_cents - collected)
-    return sum + outstanding
-  }, 0)
+    .lt("created_at", overdueThreshold)
+  if (brandId) staleQ = staleQ.eq("brand_id", brandId)
+  const { data: stale } = await staleQ
 
   return {
-    count: rows.length,
-    total_cents,
-    overdue_count: rows.filter((r) => r.created_at < overdueThreshold).length,
+    count: breakdown.openCount,
+    total_cents: breakdown.outstandingCents,
+    overdue_count: (stale ?? []).length,
   }
 }
 

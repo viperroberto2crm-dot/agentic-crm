@@ -84,6 +84,27 @@ export default async function TasksPage({
   }
   const tasks = (raw ?? []) as unknown as TaskItem[]
 
+  // Contadores por status y priority (scoped a brand/rep igual que la query principal)
+  let countsBase = sb.from("tasks").select("status, priority")
+  if (role === "rep") countsBase = countsBase.eq("assigned_to", user.id)
+  if (brandId) countsBase = countsBase.eq("brand_id", brandId)
+  const { data: countsRaw } = await countsBase
+  const allCounts = (countsRaw ?? []) as Array<{ status: TaskStatus; priority: TaskPriority }>
+
+  const counts = {
+    status: {
+      open: allCounts.filter((r) => r.status === "open").length,
+      done: allCounts.filter((r) => r.status === "done").length,
+      all: allCounts.length,
+    },
+    priority: {
+      urgent: allCounts.filter((r) => r.priority === "urgent").length,
+      high:   allCounts.filter((r) => r.priority === "high").length,
+      normal: allCounts.filter((r) => r.priority === "normal").length,
+      low:    allCounts.filter((r) => r.priority === "low").length,
+    },
+  }
+
   let reps: { id: string; name: string }[] = []
   if (role !== "rep") {
     const { data } = await sb.from("users").select("id, name").eq("active", true).order("name")
@@ -91,16 +112,16 @@ export default async function TasksPage({
   }
 
   const statusTabs = [
-    { value: "open", label: t("open") },
-    { value: "done", label: t("done") },
-    { value: "all",  label: t("all") },
+    { value: "open", label: t("open"), count: counts.status.open },
+    { value: "done", label: t("done"), count: counts.status.done },
+    { value: "all",  label: t("all"),  count: counts.status.all },
   ] as const
 
   const priorityTabs = [
-    { value: null,     label: t("all") },
-    { value: "urgent", label: t("urgent") },
-    { value: "high",   label: t("high") },
-    { value: "normal", label: t("normal") },
+    { value: null,     label: t("all"),    count: counts.status.all },
+    { value: "urgent", label: t("urgent"), count: counts.priority.urgent },
+    { value: "high",   label: t("high"),   count: counts.priority.high },
+    { value: "normal", label: t("normal"), count: counts.priority.normal },
   ] as const
 
   return (
@@ -114,39 +135,54 @@ export default async function TasksPage({
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {statusTabs.map((tab) => {
-          const isActive = statusFilter === tab.value
-          return (
-            <Link
-              key={tab.value}
-              href={`/tasks?status=${tab.value}${priorityFilter ? `&priority=${priorityFilter}` : ""}`}
-              className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
-        <span className="text-gray-300">|</span>
-        {priorityTabs.map((tab) => {
-          const isActive = priorityFilter === tab.value
-          return (
-            <Link
-              key={tab.label}
-              href={tab.value
-                ? `/tasks?status=${statusFilter}&priority=${tab.value}`
-                : `/tasks?status=${statusFilter}`
-              }
-              className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mr-1">
+            {t("status")}
+          </span>
+          {statusTabs.map((tab) => {
+            const isActive = statusFilter === tab.value
+            return (
+              <Link
+                key={tab.value}
+                href={`/tasks?status=${tab.value}${priorityFilter ? `&priority=${priorityFilter}` : ""}`}
+                className={`px-3 py-1 rounded text-xs transition-colors inline-flex items-center gap-1.5 ${
+                  isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {tab.label}
+                <span className={`text-[10px] tabular-nums ${isActive ? "text-gray-500" : "text-gray-300"}`}>
+                  {tab.count}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mr-1">
+            {t("priority")}
+          </span>
+          {priorityTabs.map((tab) => {
+            const isActive = priorityFilter === tab.value
+            return (
+              <Link
+                key={tab.label}
+                href={tab.value
+                  ? `/tasks?status=${statusFilter}&priority=${tab.value}`
+                  : `/tasks?status=${statusFilter}`
+                }
+                className={`px-3 py-1 rounded text-xs transition-colors inline-flex items-center gap-1.5 ${
+                  isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {tab.label}
+                <span className={`text-[10px] tabular-nums ${isActive ? "text-gray-500" : "text-gray-300"}`}>
+                  {tab.count}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
