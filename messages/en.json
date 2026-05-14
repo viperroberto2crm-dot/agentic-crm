@@ -164,7 +164,12 @@
     "moreErrors": "+{count} more…",
     "rowsWithError": "{count} with errors",
     "fileTooLarge": "File larger than 10MB. Reduce size and try again.",
-    "fileEmpty": "The file is empty."
+    "fileEmpty": "The file is empty.",
+    "selectAll": "Select all",
+    "deleteSelected": "Delete selected",
+    "deleteBulkConfirm": "Delete {count} leads?",
+    "deleteBulkWarning": "This action permanently deletes ALL history for the selected leads: calls, appointments, sales, subscriptions, payment plans. Cannot be undone.",
+    "deleteBulkConfirmBtn": "Yes, delete all"
   },
   "status": {
     "new": "New",

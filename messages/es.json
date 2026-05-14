@@ -164,7 +164,12 @@
     "moreErrors": "+{count} más…",
     "rowsWithError": "{count} con error",
     "fileTooLarge": "Archivo mayor a 10MB. Reduce el tamaño e intenta de nuevo.",
-    "fileEmpty": "El archivo está vacío."
+    "fileEmpty": "El archivo está vacío.",
+    "selectAll": "Seleccionar todos",
+    "deleteSelected": "Borrar seleccionados",
+    "deleteBulkConfirm": "¿Borrar {count} leads?",
+    "deleteBulkWarning": "Esta acción borra TODO el historial de los leads seleccionados: llamadas, citas, ventas, suscripciones, planes de pago. No se puede deshacer.",
+    "deleteBulkConfirmBtn": "Sí, borrar todos"
   },
   "status": {
     "new": "Nuevo",

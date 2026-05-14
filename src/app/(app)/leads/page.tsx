@@ -9,7 +9,7 @@ import type { Database } from "@/types/database"
 import { fetchLeads } from "@/lib/queries/leads"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { LeadFilterBar } from "./_components/filter-bar"
-import { LeadsTable } from "./_components/leads-table"
+import { LeadsTableBulk } from "./_components/leads-table-bulk"
 import { logQuickCall } from "./actions"
 import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
@@ -27,6 +27,7 @@ export default async function LeadsPage({
 
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("leads")
+  const ts = await getTranslations("status")
   const tCommon = await getTranslations("common")
 
   const [profileRes, cookieStore, params] = await Promise.all([
@@ -82,7 +83,33 @@ export default async function LeadsPage({
       <LeadFilterBar total={total} showRepFilter={role !== "rep"} />
 
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
-        <LeadsTable leads={leads} logQuickCall={logQuickCall} />
+        <LeadsTableBulk
+          leads={leads}
+          canBulkDelete={role === "admin" || role === "manager"}
+          logQuickCall={logQuickCall}
+          statusLabels={{
+            new: ts("new"),
+            contacted: ts("contacted"),
+            qualified: ts("qualified"),
+            appointment_set: ts("appointment_set"),
+            sold: ts("sold"),
+            lost: ts("lost"),
+            on_hold: ts("on_hold"),
+          }}
+          labels={{
+            noLeadsFilter: t("noLeadsFilter"),
+            createNew: t("createNew"),
+            quickCallTitle: t("quickCallTitle"),
+            colLastContact: t("colLastContact"),
+            deleteSelected: t("deleteSelected"),
+            deleting: t("deleting"),
+            deleteConfirmTitle: t("deleteBulkConfirm"),
+            deleteConfirmDesc: t("deleteBulkWarning"),
+            deleteConfirmAll: t("deleteBulkConfirmBtn"),
+            cancel: tCommon("cancel"),
+            selectAll: t("selectAll"),
+          }}
+        />
       </div>
 
       {total > LIMIT && (
