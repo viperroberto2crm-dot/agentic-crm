@@ -7,27 +7,20 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { CancelSubscriptionButton } from "./_components/cancel-button"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 
 function fmtCents(cents: number) {
-  return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "USD" })
+  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
 }
 
 function fmtDate(d: string) {
-  return new Intl.DateTimeFormat("es-MX", { month: "short", day: "numeric", year: "numeric" }).format(new Date(d))
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(d))
 }
 
 function daysUntil(d: string) {
   return Math.ceil((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-}
-
-const CADENCE_LABEL: Record<string, string> = {
-  weekly:    "Semanal",
-  biweekly:  "Quincenal",
-  monthly:   "Mensual",
-  quarterly: "Trimestral",
-  annual:    "Anual",
 }
 
 export default async function SubscriptionsPage({
@@ -40,6 +33,15 @@ export default async function SubscriptionsPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("sales")
+
+  const CADENCE_LABEL: Record<string, string> = {
+    weekly:    t("subs.cadenceWeekly"),
+    biweekly:  t("subs.cadenceBiweekly"),
+    monthly:   t("subs.cadenceMonthly"),
+    quarterly: t("subs.cadenceQuarterly"),
+    annual:    t("subs.cadenceAnnual"),
+  }
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
@@ -89,9 +91,9 @@ export default async function SubscriptionsPage({
     }, 0)
 
   const statusTabs = [
-    { value: "active",    label: "Activas" },
-    { value: "cancelled", label: "Canceladas" },
-    { value: "all",       label: "Todas" },
+    { value: "active",    label: t("subs.activeTab") },
+    { value: "cancelled", label: t("subs.cancelledTab") },
+    { value: "all",       label: t("subs.allTab") },
   ] as const
 
   return (
@@ -99,23 +101,22 @@ export default async function SubscriptionsPage({
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Suscripciones</h1>
+          <h1 className="text-xl font-semibold text-gray-900">{t("subs.title")}</h1>
           <Link href="/sales" className="text-xs text-gray-400 hover:text-gray-500 transition-colors">
-            ← Volver a Ventas
+            {t("subs.backToSales")}
           </Link>
         </div>
         <span className="text-xs text-gray-400">{count ?? subs.length} total</span>
       </div>
 
-      {/* KPI mini */}
       {statusFilter === "active" && (
         <div className="flex gap-6">
           <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Activas</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">{t("subs.kpiActive")}</p>
             <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--brand)" }}>{totalActive}</p>
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">MRR estimado</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">{t("subs.kpiMrr")}</p>
             <p className="text-2xl font-semibold tabular-nums text-gray-800">{fmtCents(totalMonthlyCents)}</p>
           </div>
         </div>
@@ -140,17 +141,17 @@ export default async function SubscriptionsPage({
 
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {subs.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">Sin suscripciones con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">{t("subs.noSubsFilter")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Producto</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Cadencia</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Monto</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Próx. cobro</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("subs.colProduct")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("subs.colCadence")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("subs.colAmount")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("subs.colNextBilling")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("subs.colStatus")}</th>
                 {(role === "admin" || role === "manager") && statusFilter === "active" && (
                   <th className="pb-2" />
                 )}
@@ -185,7 +186,7 @@ export default async function SubscriptionsPage({
                     <td className="py-3 pr-4">
                       {sub.status === "active" ? (
                         <span className={`text-xs tabular-nums ${isOverdue ? "text-red-400" : isSoon ? "text-amber-400 font-medium" : "text-gray-400"}`}>
-                          {isOverdue ? "Vencido" : isSoon ? `${days}d — ${fmtDate(sub.next_billing_at)}` : fmtDate(sub.next_billing_at)}
+                          {isOverdue ? t("subs.overdue") : isSoon ? `${days}d — ${fmtDate(sub.next_billing_at)}` : fmtDate(sub.next_billing_at)}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-300">{sub.cancelled_at ? fmtDate(sub.cancelled_at) : "—"}</span>
@@ -200,7 +201,7 @@ export default async function SubscriptionsPage({
                             : "border-gray-300 text-gray-400"
                         }`}
                       >
-                        {sub.status === "active" ? "Activa" : "Cancelada"}
+                        {sub.status === "active" ? t("subs.active") : t("subs.cancelled")}
                       </Badge>
                     </td>
                     {(role === "admin" || role === "manager") && statusFilter === "active" && (

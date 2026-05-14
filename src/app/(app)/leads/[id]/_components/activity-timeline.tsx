@@ -1,4 +1,5 @@
 import { Phone, Calendar, DollarSign, StickyNote } from "lucide-react"
+import { getTranslations } from "next-intl/server"
 import type { Database } from "@/types/database"
 
 type CallRow = {
@@ -33,7 +34,7 @@ type Activity =
   | { kind: "sale"; date: string; data: SaleRow }
 
 function formatDate(d: string) {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -48,25 +49,7 @@ function formatDuration(seconds: number | null) {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
-const OUTCOME_LABELS: Record<string, string> = {
-  no_answer: "No contestó",
-  voicemail: "Buzón de voz",
-  connected: "Conectada",
-  appointment_set: "Cita agendada",
-  not_interested: "No interesado",
-  callback_requested: "Pide callback",
-  wrong_number: "Número equivocado",
-}
-
-const APPT_STATUS_LABELS: Record<string, string> = {
-  scheduled: "Programada",
-  confirmed: "Confirmada",
-  completed: "Completada",
-  cancelled: "Cancelada",
-  no_show: "No asistió",
-}
-
-export function ActivityTimeline({
+export async function ActivityTimeline({
   calls,
   appointments,
   sales,
@@ -77,6 +60,10 @@ export function ActivityTimeline({
   sales: SaleRow[]
   notes: string | null
 }) {
+  const ta = await getTranslations("activity")
+  const tCalls = await getTranslations("calls")
+  const tAppts = await getTranslations("appointments")
+
   const activities: Activity[] = [
     ...calls.map((c) => ({ kind: "call" as const, date: c.called_at, data: c })),
     ...appointments.map((a) => ({ kind: "appt" as const, date: a.scheduled_at, data: a })),
@@ -85,14 +72,13 @@ export function ActivityTimeline({
 
   return (
     <div className="space-y-3">
-      {/* Lead notes */}
       {notes && (
         <div className="flex gap-3 pb-3 border-b border-gray-200">
           <div className="mt-0.5 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
             <StickyNote className="w-3 h-3 text-gray-400" />
           </div>
           <div>
-            <p className="text-xs text-gray-400 mb-1">Notas del lead</p>
+            <p className="text-xs text-gray-400 mb-1">{ta("leadNotes")}</p>
             <p className="text-sm text-gray-500 leading-relaxed">{notes}</p>
           </div>
         </div>
@@ -100,7 +86,7 @@ export function ActivityTimeline({
 
       {activities.length === 0 && (
         <p className="text-sm text-gray-400 py-4 text-center">
-          Sin actividad registrada aún.
+          {ta("noActivity")}
         </p>
       )}
 
@@ -115,11 +101,11 @@ export function ActivityTimeline({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm text-gray-700">
-                    {c.direction === "outbound" ? "Llamada saliente" : "Llamada entrante"}
+                    {c.direction === "outbound" ? ta("callOutbound") : ta("callInbound")}
                   </span>
                   {c.outcome && (
                     <span className="text-[10px] text-gray-400">
-                      · {OUTCOME_LABELS[c.outcome] ?? c.outcome}
+                      · {tCalls(`outcomes.${c.outcome}`)}
                     </span>
                   )}
                   {formatDuration(c.duration_seconds) && (
@@ -144,9 +130,11 @@ export function ActivityTimeline({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-gray-700">Cita — {a.type}</span>
+                  <span className="text-sm text-gray-700">
+                    {ta("apptLabel")} — {tAppts(`types.${a.type}`)}
+                  </span>
                   <span className="text-[10px] text-gray-400">
-                    · {APPT_STATUS_LABELS[a.status] ?? a.status}
+                    · {tAppts(`appointmentStatuses.${a.status}`)}
                   </span>
                 </div>
                 {a.service && <p className="text-xs text-gray-400 mt-0.5">{a.service}</p>}
@@ -158,7 +146,7 @@ export function ActivityTimeline({
 
         if (act.kind === "sale") {
           const s = act.data
-          const amount = (s.amount_cents / 100).toLocaleString("es-MX", {
+          const amount = (s.amount_cents / 100).toLocaleString("en-US", {
             style: "currency",
             currency: "USD",
           })
@@ -169,9 +157,9 @@ export function ActivityTimeline({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-gray-700">Venta — {amount}</span>
+                  <span className="text-sm text-gray-700">{ta("saleLabel")} — {amount}</span>
                   <span className="text-[10px] text-gray-400">
-                    · {s.payment_status === "paid" ? "Pagada" : "Pendiente"} · {s.payment_method}
+                    · {s.payment_status === "paid" ? ta("salePaid") : ta("salePending")} · {s.payment_method}
                   </span>
                 </div>
                 <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(s.created_at)}</p>

@@ -8,17 +8,11 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewTaskButton } from "./_components/new-task-button"
 import { TaskStatusToggle } from "./_components/task-status-toggle"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 type TaskPriority = Database["public"]["Enums"]["task_priority"]
 type TaskStatus = Database["public"]["Enums"]["task_status"]
-
-const PRIORITY_CONFIG: Record<TaskPriority, { label: string; cls: string }> = {
-  urgent: { label: "Urgente", cls: "border-red-500/40 text-red-400" },
-  high:   { label: "Alta",    cls: "border-orange-500/40 text-orange-400" },
-  normal: { label: "Normal",  cls: "border-zinc-600 text-gray-500" },
-  low:    { label: "Baja",    cls: "border-gray-300 text-gray-400" },
-}
 
 function fmtDue(d: string | null) {
   if (!d) return null
@@ -26,7 +20,7 @@ function fmtDue(d: string | null) {
   const now = new Date()
   const diff = date.getTime() - now.getTime()
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-  const fmt = new Intl.DateTimeFormat("es-MX", { month: "short", day: "numeric" }).format(date)
+  const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date)
   return { label: fmt, overdue: days < 0, soon: days >= 0 && days <= 2 }
 }
 
@@ -40,6 +34,7 @@ export default async function TasksPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("tasks")
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
@@ -54,6 +49,13 @@ export default async function TasksPage({
   const sp = params as Record<string, string | string[] | undefined>
   const statusFilter = typeof sp.status === "string" ? sp.status : "open"
   const priorityFilter = typeof sp.priority === "string" ? sp.priority : null
+
+  const PRIORITY_CONFIG: Record<TaskPriority, { label: string; cls: string }> = {
+    urgent: { label: t("urgent"), cls: "border-red-500/40 text-red-400" },
+    high:   { label: t("high"),   cls: "border-orange-500/40 text-orange-400" },
+    normal: { label: t("normal"), cls: "border-zinc-600 text-gray-500" },
+    low:    { label: t("low"),    cls: "border-gray-300 text-gray-400" },
+  }
 
   let query = sb
     .from("tasks")
@@ -82,7 +84,6 @@ export default async function TasksPage({
   }
   const tasks = (raw ?? []) as unknown as TaskItem[]
 
-  // reps for new-task modal (manager/admin only)
   let reps: { id: string; name: string }[] = []
   if (role !== "rep") {
     const { data } = await sb.from("users").select("id, name").eq("active", true).order("name")
@@ -90,16 +91,23 @@ export default async function TasksPage({
   }
 
   const statusTabs = [
-    { value: "open", label: "Abiertas" },
-    { value: "done", label: "Completadas" },
-    { value: "all",  label: "Todas" },
+    { value: "open", label: t("open") },
+    { value: "done", label: t("done") },
+    { value: "all",  label: t("all") },
+  ] as const
+
+  const priorityTabs = [
+    { value: null,     label: t("all") },
+    { value: "urgent", label: t("urgent") },
+    { value: "high",   label: t("high") },
+    { value: "normal", label: t("normal") },
   ] as const
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Tareas</h1>
+        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{count ?? tasks.length} total</span>
           <NewTaskButton brandId={brandId} reps={reps} currentUserId={user.id} />
@@ -122,12 +130,7 @@ export default async function TasksPage({
           )
         })}
         <span className="text-gray-300">|</span>
-        {([
-          { value: null,     label: "Todas" },
-          { value: "urgent", label: "Urgente" },
-          { value: "high",   label: "Alta" },
-          { value: "normal", label: "Normal" },
-        ] as const).map((tab) => {
+        {priorityTabs.map((tab) => {
           const isActive = priorityFilter === tab.value
           return (
             <Link
@@ -148,7 +151,7 @@ export default async function TasksPage({
 
       <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
         {tasks.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">Sin tareas con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">{t("noTasksFilter")}</p>
         ) : (
           tasks.map((task) => {
             const pCfg = PRIORITY_CONFIG[task.priority]

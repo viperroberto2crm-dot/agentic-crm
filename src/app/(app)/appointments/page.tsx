@@ -7,27 +7,14 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewAppointmentButton } from "./_components/new-appointment-button"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
 type ApptType = Database["public"]["Enums"]["appointment_type"]
 
-const STATUS_CONFIG: Record<ApptStatus, { label: string; cls: string }> = {
-  scheduled: { label: "Agendada",      cls: "border-blue-500/40 text-blue-400" },
-  confirmed: { label: "Confirmada",    cls: "border-emerald-500/40 text-emerald-400" },
-  completed: { label: "Completada",    cls: "border-zinc-500/40 text-gray-500" },
-  cancelled: { label: "Cancelada",     cls: "border-red-500/40 text-red-400" },
-  no_show:   { label: "No se presentó", cls: "border-amber-500/40 text-amber-400" },
-}
-
-const TYPE_LABEL: Record<ApptType, string> = {
-  clinic:     "Clínica",
-  home:       "Domicilio",
-  telehealth: "Telesalud",
-}
-
 function fmtDate(d: string) {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("en-US", {
     weekday: "short", month: "short", day: "numeric",
     hour: "2-digit", minute: "2-digit",
   }).format(new Date(d))
@@ -43,6 +30,21 @@ export default async function AppointmentsPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("appointments")
+
+  const STATUS_CONFIG: Record<ApptStatus, { label: string; cls: string }> = {
+    scheduled: { label: t("appointmentStatuses.scheduled"), cls: "border-blue-500/40 text-blue-400" },
+    confirmed: { label: t("appointmentStatuses.confirmed"), cls: "border-emerald-500/40 text-emerald-400" },
+    completed: { label: t("appointmentStatuses.completed"), cls: "border-zinc-500/40 text-gray-500" },
+    cancelled: { label: t("appointmentStatuses.cancelled"), cls: "border-red-500/40 text-red-400" },
+    no_show:   { label: t("appointmentStatuses.no_show"),   cls: "border-amber-500/40 text-amber-400" },
+  }
+
+  const TYPE_LABEL: Record<ApptType, string> = {
+    clinic:     t("types.clinic"),
+    home:       t("types.home"),
+    telehealth: t("types.telehealth"),
+  }
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
@@ -82,7 +84,6 @@ export default async function AppointmentsPage({
   }
   const appts = (raw ?? []) as unknown as ApptItem[]
 
-  // leads list for new-appointment modal
   let leadsForModal: { id: string; first_name: string; last_name: string | null; phone: string }[] = []
   if (brandId) {
     let lq = sb.from("leads").select("id, first_name, last_name, phone")
@@ -93,19 +94,19 @@ export default async function AppointmentsPage({
   }
 
   const tabs = [
-    { value: null,        label: "Todas" },
-    { value: "scheduled", label: "Agendadas" },
-    { value: "confirmed", label: "Confirmadas" },
-    { value: "completed", label: "Completadas" },
-    { value: "cancelled", label: "Canceladas" },
-    { value: "no_show",   label: "No show" },
+    { value: null,        label: t("allAppts") },
+    { value: "scheduled", label: t("scheduledTab") },
+    { value: "confirmed", label: t("confirmedTab") },
+    { value: "completed", label: t("completedTab") },
+    { value: "cancelled", label: t("cancelledTab") },
+    { value: "no_show",   label: t("noShowTab") },
   ] as const
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Citas</h1>
+        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
           {brandId && <NewAppointmentButton brandId={brandId} leads={leadsForModal} />}
@@ -131,16 +132,16 @@ export default async function AppointmentsPage({
 
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {appts.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">Sin citas con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">{t("noApptsFilter")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Fecha / Hora</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDateTime")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Tipo</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Servicio</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colType")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colService")}</th>
                 {role !== "rep" && (
                   <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
                 )}

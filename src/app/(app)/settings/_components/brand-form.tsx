@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateBrand } from "../actions"
@@ -29,6 +30,8 @@ export function BrandForm({
   brandColor: string | null
   logoUrl: string | null
 }) {
+  const t = useTranslations("settings")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -50,19 +53,18 @@ export function BrandForm({
           brand_color: form.brand_color || null,
           logo_url: form.logo_url || null,
         })
-        // Update CSS variable immediately
         document.documentElement.style.setProperty("--brand", form.brand_color)
         setSaved(true)
         router.refresh()
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al guardar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
 
   return (
     <div className="space-y-5 max-w-md">
-      <Field label="Nombre de la marca">
+      <Field label={t("brandName")}>
         <Input
           className={inputCls}
           value={form.name}
@@ -70,7 +72,7 @@ export function BrandForm({
         />
       </Field>
 
-      <Field label="Color de marca" hint="Se aplica a botones, barras y acentos en todo el CRM">
+      <Field label={t("brandColor")} hint={t("brandColorHint")}>
         <div className="flex items-center gap-3">
           <input
             type="color"
@@ -98,7 +100,7 @@ export function BrandForm({
         </div>
       </Field>
 
-      <Field label="URL del logo" hint="URL pública de la imagen (.png, .svg)">
+      <Field label={t("logoUrl")} hint={t("logoUrlHint")}>
         <Input
           className={inputCls}
           placeholder="https://…"
@@ -112,7 +114,7 @@ export function BrandForm({
       )}
       {saved && (
         <p className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded px-3 py-2">
-          Marca actualizada
+          {t("brandUpdated")}
         </p>
       )}
 
@@ -122,7 +124,7 @@ export function BrandForm({
         className="cursor-pointer h-9 text-sm"
         style={{ background: "var(--brand)" }}
       >
-        {isPending ? "Guardando…" : "Guardar marca"}
+        {isPending ? t("savingBrand") : t("saveBrandBtn")}
       </Button>
     </div>
   )

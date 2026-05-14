@@ -4,6 +4,7 @@ import { MessageSquare, RotateCcw } from "lucide-react"
 import Link from "next/link"
 import { regenerateAgentSummary } from "../actions"
 import type { AgentSummary } from "@/lib/queries/dashboard"
+import { getTranslations } from "next-intl/server"
 
 function isAfter8am(timezone: string): boolean {
   const hour = parseInt(
@@ -16,19 +17,18 @@ function isAfter8am(timezone: string): boolean {
   return hour >= 8
 }
 
-export function AgentSummaryCard({
+export async function AgentSummaryCard({
   summary,
   timezone,
 }: {
   summary: AgentSummary
   timezone: string
 }) {
+  const t = await getTranslations("dashboard")
   const late = isAfter8am(timezone)
   const body =
     summary?.body ??
-    (late
-      ? "No pudimos generar tu resumen hoy. Pregúntale al agente con Cmd+K para un análisis bajo demanda."
-      : "El agente generará tu resumen a las 8am.")
+    (late ? t("summaryFailed") : t("summaryPending"))
 
   return (
     <Card
@@ -44,14 +44,14 @@ export function AgentSummaryCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
-                Agente · Resumen diario
+                {t("agentDailySummary")}
               </p>
               {summary && (
                 <form action={regenerateAgentSummary}>
                   <button
                     type="submit"
                     className="text-gray-400 hover:text-zinc-400 transition-colors cursor-pointer"
-                    title="Regenerar resumen"
+                    title={t("regenerateSummary")}
                   >
                     <RotateCcw className="w-3 h-3" />
                   </button>
@@ -71,7 +71,7 @@ export function AgentSummaryCard({
               className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
               asChild
             >
-              <Link href="/leads?filter=stale">Ver leads stale</Link>
+              <Link href="/leads?filter=stale">{t("viewStaleLeads")}</Link>
             </Button>
             <Button
               size="sm"
@@ -79,7 +79,7 @@ export function AgentSummaryCard({
               className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
               asChild
             >
-              <Link href="/calls">Registrar llamada</Link>
+              <Link href="/calls">{t("logCall")}</Link>
             </Button>
             <Button
               size="sm"
@@ -87,7 +87,7 @@ export function AgentSummaryCard({
               className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
               asChild
             >
-              <Link href="/appointments">Ver citas</Link>
+              <Link href="/appointments">{t("viewAppts")}</Link>
             </Button>
           </div>
         )}

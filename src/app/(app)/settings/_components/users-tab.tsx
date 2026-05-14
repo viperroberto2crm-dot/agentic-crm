@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { UserPlus, Pencil } from "lucide-react"
 import { InviteUserDialog } from "./invite-user-dialog"
@@ -16,12 +17,6 @@ export type UserRow = {
   created_at: string
 }
 
-const ROLE_LABELS: Record<UserRow["role"], string> = {
-  admin: "Admin",
-  manager: "Manager",
-  rep: "Rep",
-}
-
 const ROLE_CLASS: Record<UserRow["role"], string> = {
   admin: "bg-rose-400/10 text-rose-600 border-rose-400/20",
   manager: "bg-blue-400/10 text-blue-600 border-blue-400/20",
@@ -35,15 +30,23 @@ type Props = {
 }
 
 export function UsersTab({ users, brandId, currentUserId }: Props) {
+  const t = useTranslations("settings")
   const [inviteOpen, setInviteOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserRow | null>(null)
 
+  const ROLE_LABELS: Record<UserRow["role"], string> = {
+    admin: t("adminRole"),
+    manager: t("managerRole"),
+    rep: t("repRole"),
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {users.length} {users.length === 1 ? "usuario" : "usuarios"} en esta marca
+          {users.length !== 1
+            ? t("usersCountPlural", { count: users.length })
+            : t("usersCount", { count: users.length })}
         </p>
         <Button
           onClick={() => setInviteOpen(true)}
@@ -51,14 +54,13 @@ export function UsersTab({ users, brandId, currentUserId }: Props) {
           style={{ background: "var(--brand)" }}
         >
           <UserPlus className="w-4 h-4" />
-          Invitar usuario
+          {t("inviteUser")}
         </Button>
       </div>
 
-      {/* Table */}
       {users.length === 0 ? (
         <div className="text-center py-12 text-sm text-muted-foreground border border-dashed border-border rounded-lg">
-          Aún no hay usuarios en esta marca. Invita a tu primer rep.
+          {t("noUsersYet")}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -66,16 +68,16 @@ export function UsersTab({ users, brandId, currentUserId }: Props) {
             <thead>
               <tr className="border-b border-border bg-secondary/40">
                 <th className="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Usuario
+                  {t("colUser")}
                 </th>
                 <th className="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">
-                  Rol
+                  {t("colRole")}
                 </th>
                 <th className="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
-                  Teléfono
+                  {t("colPhone")}
                 </th>
                 <th className="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Estado
+                  {t("colStatus")}
                 </th>
                 <th className="px-4 py-2.5" />
               </tr>
@@ -103,11 +105,11 @@ export function UsersTab({ users, brandId, currentUserId }: Props) {
                   <td className="px-4 py-3">
                     {u.active ? (
                       <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-400/10 text-emerald-600 border-emerald-400/20">
-                        Activo
+                        {t("active")}
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-zinc-400/10 text-zinc-400 border-zinc-400/20">
-                        Inactivo
+                        {t("inactive")}
                       </span>
                     )}
                   </td>
@@ -115,7 +117,7 @@ export function UsersTab({ users, brandId, currentUserId }: Props) {
                     <button
                       onClick={() => setEditUser(u)}
                       className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                      title="Editar usuario"
+                      title={t("editUser")}
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>

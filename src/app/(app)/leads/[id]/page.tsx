@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { LeadHeader } from "./_components/lead-header"
 import { LeadActions } from "./_components/lead-actions"
 import { ActivityTimeline } from "./_components/activity-timeline"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -23,6 +24,7 @@ export default async function LeadDetailPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("leads")
 
   const [lead, profileRes, callsRes, apptsRes, salesRes] = await Promise.all([
     fetchLeadById(sb, id),
@@ -42,10 +44,8 @@ export default async function LeadDetailPage({
 
   const role = (profileRes.data?.role ?? "rep") as string
 
-  // Reps can only view leads assigned to them
   if (role === "rep" && lead.assigned_rep_id !== user.id) notFound()
 
-  // Fetch reps for assign dropdown (managers/admins only)
   let reps: { id: string; name: string }[] = []
   if (role === "admin" || role === "manager") {
     const { data } = await sb
@@ -94,19 +94,19 @@ export default async function LeadDetailPage({
           <Card className="bg-white border-border/60">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-                Resumen
+                {t("summary")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Stat label="Llamadas" value={calls.length} />
-              <Stat label="Citas" value={appointments.length} />
-              <Stat label="Ventas cerradas" value={
-                (totalSalesCents / 100).toLocaleString("es-MX", { style: "currency", currency: "USD" })
+              <Stat label={t("callCount")} value={calls.length} />
+              <Stat label={t("apptCount")} value={appointments.length} />
+              <Stat label={t("closedSales")} value={
+                (totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
               } />
-              {lead.source && <Stat label="Fuente" value={lead.source} />}
+              {lead.source && <Stat label={t("source")} value={lead.source} />}
               {lead.ai_score_reason && (
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Razón del score</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{t("scoreReason")}</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">{lead.ai_score_reason}</p>
                 </div>
               )}
@@ -118,7 +118,7 @@ export default async function LeadDetailPage({
           <Card className="bg-white border-border/60">
             <CardHeader className="pb-3">
               <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-                Actividad
+                {t("activityTitle")}
               </CardTitle>
             </CardHeader>
             <CardContent>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateProfile } from "../actions"
@@ -26,6 +27,8 @@ export function ProfileForm({
   email: string
   cellPhone: string | null
 }) {
+  const t = useTranslations("settings")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -41,14 +44,14 @@ export function ProfileForm({
         setSaved(true)
         router.refresh()
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al guardar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
 
   return (
     <div className="space-y-5 max-w-md">
-      <Field label="Nombre">
+      <Field label={t("name")}>
         <Input
           className={inputCls}
           value={form.name}
@@ -56,19 +59,19 @@ export function ProfileForm({
         />
       </Field>
 
-      <Field label="Email">
+      <Field label={t("email")}>
         <Input
           className={`${inputCls} opacity-50 cursor-not-allowed`}
           value={email}
           disabled
         />
-        <p className="text-[11px] text-gray-400 mt-1">El email se gestiona a través de Supabase Auth</p>
+        <p className="text-[11px] text-gray-400 mt-1">{t("emailManagedViaAuth")}</p>
       </Field>
 
-      <Field label="Teléfono celular">
+      <Field label={t("phone")}>
         <Input
           className={`${inputCls} font-mono`}
-          placeholder="+52 555 000 0000"
+          placeholder="+1 555 000 0000"
           value={form.cell_phone}
           onChange={(e) => setForm((p) => ({ ...p, cell_phone: e.target.value }))}
         />
@@ -79,7 +82,7 @@ export function ProfileForm({
       )}
       {saved && (
         <p className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded px-3 py-2">
-          Perfil actualizado
+          {t("profileSaved")}
         </p>
       )}
 
@@ -89,7 +92,7 @@ export function ProfileForm({
         className="cursor-pointer h-9 text-sm"
         style={{ background: "var(--brand)" }}
       >
-        {isPending ? "Guardando…" : "Guardar cambios"}
+        {isPending ? t("savingChanges") : t("saveChanges")}
       </Button>
     </div>
   )

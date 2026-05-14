@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Pencil, Trash2, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -46,6 +47,8 @@ export function LeadActions({
   role: string
   reps: Rep[]
 }) {
+  const t = useTranslations("leads")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -61,7 +64,7 @@ export function LeadActions({
         await deleteLead(lead.id)
         router.push("/leads")
       } catch (e) {
-        setDeleteError(e instanceof Error ? e.message : "Error al borrar")
+        setDeleteError(e instanceof Error ? e.message : tc("savingError"))
         setDeleteOpen(false)
       }
     })
@@ -70,10 +73,8 @@ export function LeadActions({
   return (
     <>
       <div className="flex items-center gap-2">
-        {/* Register sale */}
         <RegisterSaleButton leadId={lead.id} brandId={lead.brand_id} />
 
-        {/* Edit */}
         <Button
           size="sm"
           variant="outline"
@@ -81,10 +82,9 @@ export function LeadActions({
           onClick={() => setEditOpen(true)}
         >
           <Pencil className="w-3.5 h-3.5" />
-          Editar
+          {tc("edit")}
         </Button>
 
-        {/* More (delete) — only admin/manager */}
         {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -102,7 +102,7 @@ export function LeadActions({
                 onClick={() => setDeleteOpen(true)}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Borrar lead
+                {t("deleteLead")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -113,7 +113,6 @@ export function LeadActions({
         <p className="text-xs text-red-400">{deleteError}</p>
       )}
 
-      {/* Edit modal */}
       <EditLeadModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
@@ -121,28 +120,26 @@ export function LeadActions({
         reps={reps}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent className="bg-white border-gray-200 text-gray-900">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-gray-900">
-              ¿Borrar a {lead.first_name} {lead.last_name ?? ""}?
+              {t("deleteConfirm", { name: `${lead.first_name} ${lead.last_name ?? ""}`.trim() })}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
-              Esta acción borra <strong className="text-gray-700">TODO</strong> el historial: llamadas,
-              citas, ventas, suscripciones. <strong className="text-gray-700">No se puede deshacer.</strong>
+              {t("deleteWarning")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="border-gray-300 text-gray-500 hover:text-gray-800 bg-transparent hover:bg-gray-100">
-              Cancelar
+              {tc("cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isPending}
               className="bg-red-600 hover:bg-red-700 text-white border-0 cursor-pointer"
             >
-              {isPending ? "Borrando…" : "Sí, borrar todo"}
+              {isPending ? t("deleting") : t("deleteAll")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

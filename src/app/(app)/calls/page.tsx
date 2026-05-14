@@ -7,20 +7,11 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewCallButton } from "./_components/new-call-button"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 type CallOutcome = Database["public"]["Enums"]["call_outcome"]
 type CallDirection = Database["public"]["Enums"]["call_direction"]
-
-const OUTCOME_CONFIG: Record<CallOutcome, { label: string; cls: string }> = {
-  connected:           { label: "Conectado",          cls: "border-emerald-500/40 text-emerald-400" },
-  appointment_set:     { label: "Cita agendada",       cls: "border-blue-500/40 text-blue-400" },
-  callback_requested:  { label: "Devolución",          cls: "border-violet-500/40 text-violet-400" },
-  voicemail:           { label: "Buzón",               cls: "border-amber-500/40 text-amber-400" },
-  no_answer:           { label: "Sin respuesta",       cls: "border-zinc-600 text-gray-400" },
-  not_interested:      { label: "No interesado",       cls: "border-red-500/40 text-red-400" },
-  wrong_number:        { label: "N° equivocado",       cls: "border-zinc-600 text-gray-400" },
-}
 
 function fmtDuration(s: number | null) {
   if (!s) return "—"
@@ -30,7 +21,7 @@ function fmtDuration(s: number | null) {
 }
 
 function fmtDate(d: string) {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("en-US", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   }).format(new Date(d))
 }
@@ -45,6 +36,17 @@ export default async function CallsPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("calls")
+
+  const OUTCOME_CONFIG: Record<CallOutcome, { label: string; cls: string }> = {
+    connected:           { label: t("outcomes.connected"),          cls: "border-emerald-500/40 text-emerald-400" },
+    appointment_set:     { label: t("outcomes.appointment_set"),    cls: "border-blue-500/40 text-blue-400" },
+    callback_requested:  { label: t("outcomes.callback_requested"), cls: "border-violet-500/40 text-violet-400" },
+    voicemail:           { label: t("outcomes.voicemail"),          cls: "border-amber-500/40 text-amber-400" },
+    no_answer:           { label: t("outcomes.no_answer"),          cls: "border-zinc-600 text-gray-400" },
+    not_interested:      { label: t("outcomes.not_interested"),     cls: "border-red-500/40 text-red-400" },
+    wrong_number:        { label: t("outcomes.wrong_number"),       cls: "border-zinc-600 text-gray-400" },
+  }
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
@@ -86,7 +88,6 @@ export default async function CallsPage({
   }
   const calls = (raw ?? []) as unknown as CallItem[]
 
-  // leads for modal
   let leadsForModal: { id: string; first_name: string; last_name: string | null; phone: string }[] = []
   if (brandId) {
     let lq = sb.from("leads").select("id, first_name, last_name, phone")
@@ -97,18 +98,24 @@ export default async function CallsPage({
   }
 
   const outcomeTabs = [
-    { value: null,               label: "Todas" },
-    { value: "connected",        label: "Conectadas" },
-    { value: "appointment_set",  label: "Cita agendada" },
-    { value: "voicemail",        label: "Buzón" },
-    { value: "no_answer",        label: "Sin respuesta" },
+    { value: null,               label: t("allCalls") },
+    { value: "connected",        label: t("connectedTab") },
+    { value: "appointment_set",  label: t("appointmentSetTab") },
+    { value: "voicemail",        label: t("voicemailTab") },
+    { value: "no_answer",        label: t("noAnswerTab") },
+  ] as const
+
+  const dirTabs = [
+    { value: null,       label: t("allDirections") },
+    { value: "outbound", label: t("outboundCalls") },
+    { value: "inbound",  label: t("inboundCalls") },
   ] as const
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Llamadas</h1>
+        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{count ?? calls.length} total</span>
           {brandId && <NewCallButton brandId={brandId} leads={leadsForModal} />}
@@ -131,11 +138,7 @@ export default async function CallsPage({
           )
         })}
         <span className="text-gray-300">|</span>
-        {([
-          { value: null,       label: "↕ Todas" },
-          { value: "outbound", label: "↑ Salientes" },
-          { value: "inbound",  label: "↓ Entrantes" },
-        ] as const).map((tab) => {
+        {dirTabs.map((tab) => {
           const isActive = dirFilter === tab.value
           return (
             <Link
@@ -156,18 +159,18 @@ export default async function CallsPage({
 
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {calls.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">Sin llamadas con estos filtros.</p>
+          <p className="text-sm text-gray-400 py-8 text-center">{t("noCallsFilter")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Fecha</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDate")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">Dir.</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Resultado</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Duración</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colDir")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutcome")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colDuration")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">{t("colRep")}</th>
                 )}
               </tr>
             </thead>
@@ -190,7 +193,7 @@ export default async function CallsPage({
                     </td>
                     <td className="py-3 pr-4 hidden sm:table-cell">
                       <span className="text-xs text-gray-400">
-                        {c.direction === "outbound" ? "↑ Saliente" : "↓ Entrante"}
+                        {c.direction === "outbound" ? t("outboundRow") : t("inboundRow")}
                       </span>
                     </td>
                     <td className="py-3 pr-4">

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -35,6 +36,8 @@ export function NewTaskButton({
   reps: Rep[]
   currentUserId: string
 }) {
+  const t = useTranslations("tasks")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -49,7 +52,7 @@ export function NewTaskButton({
 
   function handleSave() {
     if (!form.title.trim()) {
-      setError("El título es requerido")
+      setError(t("titleRequired"))
       return
     }
     setError(null)
@@ -68,7 +71,7 @@ export function NewTaskButton({
         setOpen(false)
         setForm({ title: "", description: "", priority: "normal", due_at: "", assigned_to: currentUserId })
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al guardar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
@@ -82,39 +85,39 @@ export function NewTaskButton({
         onClick={() => setOpen(true)}
       >
         <Plus className="w-3.5 h-3.5" />
-        Nueva tarea
+        {t("newTask")}
       </Button>
 
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
         <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">Nueva tarea</DialogTitle>
+            <DialogTitle className="text-base font-semibold">{t("newTask")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <Field label="Título" required>
+            <Field label={t("titleLabel")} required>
               <Input
                 className={inputCls}
-                placeholder="Describe la tarea…"
+                placeholder={t("titlePlaceholder")}
                 value={form.title}
                 onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
               />
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Prioridad">
+              <Field label={t("priority")}>
                 <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v as TaskPriority }))}>
                   <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="urgent" className="text-red-400">Urgente</SelectItem>
-                    <SelectItem value="high" className="text-orange-400">Alta</SelectItem>
-                    <SelectItem value="normal" className="text-gray-800">Normal</SelectItem>
-                    <SelectItem value="low" className="text-gray-400">Baja</SelectItem>
+                    <SelectItem value="urgent" className="text-red-400">{t("urgent")}</SelectItem>
+                    <SelectItem value="high" className="text-orange-400">{t("high")}</SelectItem>
+                    <SelectItem value="normal" className="text-gray-800">{t("normal")}</SelectItem>
+                    <SelectItem value="low" className="text-gray-400">{t("low")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Vence">
+              <Field label={t("dueLabel")}>
                 <Input
                   type="datetime-local"
                   className={`${inputCls} [color-scheme:dark]`}
@@ -125,7 +128,7 @@ export function NewTaskButton({
             </div>
 
             {reps.length > 0 && (
-              <Field label="Asignar a">
+              <Field label={t("assignedTo")}>
                 <Select value={form.assigned_to} onValueChange={(v) => setForm((p) => ({ ...p, assigned_to: v }))}>
                   <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
@@ -139,13 +142,13 @@ export function NewTaskButton({
               </Field>
             )}
 
-            <Field label="Descripción">
+            <Field label={t("description")}>
               <textarea
                 rows={3}
                 value={form.description}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
-                placeholder="Detalles opcionales…"
+                placeholder={t("descriptionPlaceholder")}
               />
             </Field>
 
@@ -155,10 +158,10 @@ export function NewTaskButton({
 
             <div className="flex gap-3 pt-1">
               <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
-                {isPending ? "Guardando…" : "Crear tarea"}
+                {isPending ? tc("saving") : t("createTask")}
               </Button>
               <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={() => setOpen(false)} disabled={isPending}>
-                Cancelar
+                {tc("cancel")}
               </Button>
             </div>
           </div>

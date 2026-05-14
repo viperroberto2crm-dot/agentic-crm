@@ -7,29 +7,22 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 
 function fmtCents(cents: number) {
-  return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "USD" })
+  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
 }
 
 function fmtDate(d: string) {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(d))
 }
-
-const STATUS_CONFIG = {
-  paid: { label: "Pagado", className: "border-emerald-500/40 text-emerald-400" },
-  pending: { label: "Pendiente", className: "border-amber-500/40 text-amber-400" },
-  failed: { label: "Fallido", className: "border-red-500/40 text-red-500" },
-  refunded: { label: "Reembolsado", className: "border-zinc-600 text-gray-400" },
-  partial: { label: "Parcial", className: "border-blue-500/40 text-blue-400" },
-} as const
 
 export default async function SalesPage({
   searchParams,
@@ -41,6 +34,16 @@ export default async function SalesPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("sales")
+  const tc = await getTranslations("common")
+
+  const STATUS_CONFIG = {
+    paid:     { label: t("paid"),     className: "border-emerald-500/40 text-emerald-400" },
+    pending:  { label: t("pending"),  className: "border-amber-500/40 text-amber-400" },
+    failed:   { label: t("failed"),   className: "border-red-500/40 text-red-500" },
+    refunded: { label: t("refunded"), className: "border-zinc-600 text-gray-400" },
+    partial:  { label: t("partial"),  className: "border-blue-500/40 text-blue-400" },
+  } as const
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
@@ -109,30 +112,43 @@ export default async function SalesPage({
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Ventas</h1>
-        <p className="text-xs text-gray-400">{count ?? sales.length} registros</p>
+        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
+        <p className="text-xs text-gray-400">{count ?? sales.length} {tc("records")}</p>
       </div>
 
-      {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Cobrado" value={fmtCents(totalPaidCents)} sub={`${paidCount} venta${paidCount !== 1 ? "s" : ""}`} accent="var(--brand)" />
-        <KpiCard label="Por cobrar" value={fmtCents(totalPendingCents)} sub={`${pendingCount} pendiente${pendingCount !== 1 ? "s" : ""}`} accent="#F59E0B" />
-        <KpiCard label="Total" value={fmtCents(totalPaidCents + totalPendingCents)} sub={`${sales.length} total`} accent="#6B7280" />
         <KpiCard
-          label="Ticket promedio"
+          label={t("kpiCharged")}
+          value={fmtCents(totalPaidCents)}
+          sub={`${paidCount} ${paidCount !== 1 ? t("salePlural") : t("saleSingular")}`}
+          accent="var(--brand)"
+        />
+        <KpiCard
+          label={t("kpiToCollect")}
+          value={fmtCents(totalPendingCents)}
+          sub={`${pendingCount} ${pendingCount !== 1 ? t("pendingPlural") : t("pendingSingular")}`}
+          accent="#F59E0B"
+        />
+        <KpiCard
+          label={t("kpiTotal")}
+          value={fmtCents(totalPaidCents + totalPendingCents)}
+          sub={`${sales.length} ${tc("total")}`}
+          accent="#6B7280"
+        />
+        <KpiCard
+          label={t("kpiAvgTicket")}
           value={paidCount > 0 ? fmtCents(Math.round(totalPaidCents / paidCount)) : "$0"}
-          sub="cobradas"
+          sub={t("kpiCollected")}
           accent="#6B7280"
         />
       </div>
 
-      {/* Status filter tabs */}
       <div className="flex gap-2 flex-wrap">
         {([
-          { value: null, label: "Todas" },
-          { value: "paid", label: "Pagadas" },
-          { value: "pending", label: "Pendientes" },
-          { value: "failed", label: "Fallidas" },
+          { value: null,      label: t("allSales") },
+          { value: "paid",    label: t("paidSales") },
+          { value: "pending", label: t("pendingSales") },
+          { value: "failed",  label: t("failedSales") },
         ] as const).map((tab) => {
           const isActive = statusFilter === tab.value
           return (
@@ -149,24 +165,23 @@ export default async function SalesPage({
         })}
       </div>
 
-      {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
         {sales.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">
-            No hay ventas registradas con estos filtros.
+            {t("noSalesFilter")}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Monto</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Status</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">Método</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colLead")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colAmount")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colMethod")}</th>
                 {role !== "rep" && (
                   <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">Fecha</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">{t("colDate")}</th>
               </tr>
             </thead>
             <tbody>

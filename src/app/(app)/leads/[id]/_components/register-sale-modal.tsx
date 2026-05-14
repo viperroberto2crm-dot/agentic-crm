@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,15 +34,19 @@ type CartItem = {
 }
 
 function fmtCents(cents: number) {
-  return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "USD" })
+  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
 }
 
 function ProductCard({
   product,
   onAdd,
+  bestValueLabel,
+  addLabel,
 }: {
   product: Product
   onAdd: (p: Product) => void
+  bestValueLabel: string
+  addLabel: string
 }) {
   const displayPrice = product.display_price_cents ?? product.price_cents
   const isRecurring = product.recurring
@@ -56,7 +61,7 @@ function ProductCard({
         <div className="absolute -top-2 right-3">
           <Badge className="text-[9px] px-1.5 py-0 gap-0.5 font-semibold" style={{ background: "var(--brand)", color: "white" }}>
             <Star className="w-2.5 h-2.5" />
-            Mejor valor
+            {bestValueLabel}
           </Badge>
         </div>
       )}
@@ -86,7 +91,7 @@ function ProductCard({
           {product.category}
         </span>
         <span className="text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
-          + Agregar
+          {addLabel}
         </span>
       </div>
     </button>
@@ -95,10 +100,12 @@ function ProductCard({
 
 function CartLine({
   item,
+  discountLabel,
   onRemove,
   onDiscountChange,
 }: {
   item: CartItem
+  discountLabel: string
   onRemove: () => void
   onDiscountChange: (cents: number) => void
 }) {
@@ -118,9 +125,8 @@ function CartLine({
         </div>
       </div>
 
-      {/* Discount input */}
       <div className="flex items-center gap-1">
-        <span className="text-xs text-gray-400">Desc. $</span>
+        <span className="text-xs text-gray-400">{discountLabel}</span>
         <input
           type="number"
           min="0"
@@ -135,7 +141,6 @@ function CartLine({
         />
       </div>
 
-      {/* Line total */}
       <div className="w-20 text-right">
         <p className="text-sm font-medium text-gray-800 tabular-nums">
           {fmtCents(item.line_total_cents)}
@@ -164,6 +169,8 @@ export function RegisterSaleModal({
   leadId: string
   brandId: string
 }) {
+  const t = useTranslations("sales")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
@@ -174,7 +181,6 @@ export function RegisterSaleModal({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Load products when modal opens
   useEffect(() => {
     if (!open) return
     setLoadingProducts(true)
@@ -221,7 +227,7 @@ export function RegisterSaleModal({
 
   function handleSubmit() {
     if (cart.length === 0) {
-      setError("Agrega al menos un producto")
+      setError(t("addAtLeastOne"))
       return
     }
     setError(null)
@@ -243,7 +249,7 @@ export function RegisterSaleModal({
         onClose()
         router.refresh()
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al registrar venta")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
@@ -254,30 +260,35 @@ export function RegisterSaleModal({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200">
-          <DialogTitle className="text-base font-semibold">Registrar venta</DialogTitle>
+          <DialogTitle className="text-base font-semibold">{t("registerSale")}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-4 space-y-5">
 
-            {/* Product catalog */}
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-3">
-                Productos
+                {t("products")}
               </p>
               {loadingProducts ? (
                 <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Cargando productos…
+                  {t("loadingProducts")}
                 </div>
               ) : products.length === 0 ? (
                 <p className="text-sm text-gray-400 py-2">
-                  No hay productos activos para esta marca.
+                  {t("noProducts")}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {products.map((p) => (
-                    <ProductCard key={p.id} product={p} onAdd={addToCart} />
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      onAdd={addToCart}
+                      bestValueLabel={t("bestValue")}
+                      addLabel={t("addToCart")}
+                    />
                   ))}
                 </div>
               )}
@@ -285,10 +296,9 @@ export function RegisterSaleModal({
 
             <Separator className="bg-gray-100" />
 
-            {/* Cart */}
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-3">
-                Carrito
+                {t("cart")}
                 {cart.length > 0 && (
                   <span className="ml-2 text-gray-400 font-normal">({cart.length})</span>
                 )}
@@ -297,7 +307,7 @@ export function RegisterSaleModal({
               {cart.length === 0 ? (
                 <div className="flex items-center gap-2 text-sm text-gray-300 py-3">
                   <Plus className="w-4 h-4" />
-                  Selecciona productos arriba
+                  {t("selectProducts")}
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -305,6 +315,7 @@ export function RegisterSaleModal({
                     <CartLine
                       key={i}
                       item={item}
+                      discountLabel={t("discount")}
                       onRemove={() => removeFromCart(i)}
                       onDiscountChange={(d) => updateDiscount(i, d)}
                     />
@@ -314,7 +325,7 @@ export function RegisterSaleModal({
 
               {cart.length > 0 && (
                 <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-gray-200">
-                  <span className="text-xs text-gray-400">Total</span>
+                  <span className="text-xs text-gray-400">{t("total")}</span>
                   <span className="text-lg font-semibold tabular-nums" style={{ color: "var(--brand)" }}>
                     {fmtCents(total)}
                   </span>
@@ -323,57 +334,53 @@ export function RegisterSaleModal({
 
               {recurringCount > 0 && (
                 <p className="text-[11px] text-gray-400 mt-2">
-                  {recurringCount} producto{recurringCount !== 1 ? "s" : ""} recurrente
-                  {recurringCount !== 1 ? "s" : ""} — se creará suscripción automáticamente.
+                  {t("recurringNote", { count: recurringCount, plural: recurringCount !== 1 ? "s" : "" })}
                 </p>
               )}
             </div>
 
             <Separator className="bg-gray-100" />
 
-            {/* Payment options */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs text-gray-400">Método de pago</label>
+                <label className="text-xs text-gray-400">{t("paymentMethod")}</label>
                 <Select value={paymentMethod} onValueChange={(v: "cash" | "card" | "stripe") => setPaymentMethod(v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="card" className="text-gray-800">Tarjeta (terminal)</SelectItem>
-                    <SelectItem value="cash" className="text-gray-800">Efectivo</SelectItem>
-                    <SelectItem value="stripe" className="text-gray-800">Stripe / Online</SelectItem>
+                    <SelectItem value="card" className="text-gray-800">{t("card")}</SelectItem>
+                    <SelectItem value="cash" className="text-gray-800">{t("cash")}</SelectItem>
+                    <SelectItem value="stripe" className="text-gray-800">{t("stripe")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-gray-400">Estado del pago</label>
+                <label className="text-xs text-gray-400">{t("paymentStatus")}</label>
                 <Select value={paymentStatus} onValueChange={(v: "paid" | "pending") => setPaymentStatus(v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="paid" className="text-gray-800">Pagado</SelectItem>
-                    <SelectItem value="pending" className="text-gray-800">Pendiente</SelectItem>
+                    <SelectItem value="paid" className="text-gray-800">{t("paid")}</SelectItem>
+                    <SelectItem value="pending" className="text-gray-800">{t("pending")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* Notes */}
             <div className="space-y-1.5">
-              <label className="text-xs text-gray-400">Notas de venta</label>
+              <label className="text-xs text-gray-400">{t("saleNotes")}</label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Descuento autorizado por, instrucciones especiales…"
+                placeholder={t("saleNotesPlaceholder")}
                 className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
               />
             </div>
 
-            {/* Error */}
             {error && (
               <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">
                 {error}
@@ -383,7 +390,6 @@ export function RegisterSaleModal({
           </div>
         </div>
 
-        {/* Footer actions */}
         <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-3">
           <Button
             type="button"
@@ -392,7 +398,7 @@ export function RegisterSaleModal({
             onClick={onClose}
             disabled={isPending}
           >
-            Cancelar
+            {tc("cancel")}
           </Button>
           <Button
             type="button"
@@ -404,10 +410,10 @@ export function RegisterSaleModal({
             {isPending ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Guardando…
+                {tc("saving")}
               </>
             ) : (
-              `Confirmar venta · ${fmtCents(total)}`
+              t("confirmSale", { total: fmtCents(total) })
             )}
           </Button>
         </div>

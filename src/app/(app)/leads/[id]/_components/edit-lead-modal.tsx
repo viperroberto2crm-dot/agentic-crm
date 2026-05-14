@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,26 +14,6 @@ import type { Database } from "@/types/database"
 
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
 type LeadSource = Database["public"]["Enums"]["lead_source"]
-
-const STATUS_OPTIONS: { value: LeadStatus; label: string }[] = [
-  { value: "new", label: "Nuevo" },
-  { value: "contacted", label: "Contactado" },
-  { value: "qualified", label: "Calificado" },
-  { value: "appointment_set", label: "Cita agendada" },
-  { value: "sold", label: "Vendido" },
-  { value: "lost", label: "Perdido" },
-  { value: "on_hold", label: "En pausa" },
-]
-
-const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
-  { value: "inbound_call", label: "Llamada entrante" },
-  { value: "web_form", label: "Formulario web" },
-  { value: "referral", label: "Referido" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "walk_in", label: "Walk-in" },
-  { value: "social", label: "Redes sociales" },
-  { value: "other", label: "Otro" },
-]
 
 type LeadData = {
   id: string
@@ -72,9 +53,33 @@ export function EditLeadModal({
   lead: LeadData
   reps: Rep[]
 }) {
+  const t = useTranslations("leads")
+  const ts = useTranslations("status")
+  const tsrc = useTranslations("source")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  const STATUS_OPTIONS: { value: LeadStatus; label: string }[] = [
+    { value: "new", label: ts("new") },
+    { value: "contacted", label: ts("contacted") },
+    { value: "qualified", label: ts("qualified") },
+    { value: "appointment_set", label: ts("appointment_set") },
+    { value: "sold", label: ts("sold") },
+    { value: "lost", label: ts("lost") },
+    { value: "on_hold", label: ts("on_hold") },
+  ]
+
+  const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
+    { value: "inbound_call", label: tsrc("inbound_call") },
+    { value: "web_form", label: tsrc("web_form") },
+    { value: "referral", label: tsrc("referral") },
+    { value: "whatsapp", label: tsrc("whatsapp") },
+    { value: "walk_in", label: tsrc("walk_in") },
+    { value: "social", label: tsrc("social") },
+    { value: "other", label: tsrc("other") },
+  ]
 
   const [form, setForm] = useState<UpdateLeadInput>({
     first_name: lead.first_name,
@@ -102,7 +107,7 @@ export function EditLeadModal({
         router.refresh()
         onClose()
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al guardar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
@@ -111,43 +116,39 @@ export function EditLeadModal({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-base font-semibold">Editar lead</DialogTitle>
+          <DialogTitle className="text-base font-semibold">{t("editLead")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Name */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Nombre" required>
+            <Field label={t("firstName")} required>
               <Input className={inputCls} value={form.first_name}
                 onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} />
             </Field>
-            <Field label="Apellido">
+            <Field label={t("lastName")}>
               <Input className={inputCls} value={form.last_name ?? ""}
                 onChange={(e) => set("last_name", e.target.value)} />
             </Field>
           </div>
 
-          {/* Phone */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Teléfono" required>
+            <Field label={t("phone")} required>
               <Input className={`${inputCls} font-mono`} value={form.phone}
                 onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
             </Field>
-            <Field label="Teléfono alt.">
+            <Field label={t("phoneAlt")}>
               <Input className={`${inputCls} font-mono`} value={form.phone_alt ?? ""}
                 onChange={(e) => set("phone_alt", e.target.value)} />
             </Field>
           </div>
 
-          {/* Email */}
-          <Field label="Email">
+          <Field label={t("email")}>
             <Input className={inputCls} type="email" value={form.email ?? ""}
               onChange={(e) => set("email", e.target.value)} />
           </Field>
 
-          {/* Status + Source */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Status">
+            <Field label={t("status")}>
               <Select value={form.status} onValueChange={(v: string) => setForm((p) => ({ ...p, status: v as LeadStatus }))}>
                 <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                   <SelectValue />
@@ -159,7 +160,7 @@ export function EditLeadModal({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Fuente">
+            <Field label={t("source")}>
               <Select
                 value={form.source ?? "none"}
                 onValueChange={(v: string) => setForm((p) => ({ ...p, source: v === "none" ? null : v as LeadSource }))}
@@ -168,7 +169,7 @@ export function EditLeadModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
-                  <SelectItem value="none" className="text-gray-400">Sin fuente</SelectItem>
+                  <SelectItem value="none" className="text-gray-400">{tc("none")}</SelectItem>
                   {SOURCE_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value} className="text-gray-800">{o.label}</SelectItem>
                   ))}
@@ -177,9 +178,8 @@ export function EditLeadModal({
             </Field>
           </div>
 
-          {/* Assigned rep (only if reps list provided) */}
           {reps.length > 0 && (
-            <Field label="Rep asignado">
+            <Field label={t("assignedRep")}>
               <Select
                 value={form.assigned_rep_id ?? "none"}
                 onValueChange={(v: string) => set("assigned_rep_id", v === "none" ? null : v)}
@@ -188,7 +188,7 @@ export function EditLeadModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
-                  <SelectItem value="none" className="text-gray-400">Sin asignar</SelectItem>
+                  <SelectItem value="none" className="text-gray-400">{tc("none")}</SelectItem>
                   {reps.map((r) => (
                     <SelectItem key={r.id} value={r.id} className="text-gray-800">{r.name}</SelectItem>
                   ))}
@@ -197,20 +197,18 @@ export function EditLeadModal({
             </Field>
           )}
 
-          {/* City + State */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Ciudad">
+            <Field label={t("city")}>
               <Input className={inputCls} value={form.city ?? ""}
                 onChange={(e) => set("city", e.target.value)} />
             </Field>
-            <Field label="Estado">
+            <Field label={t("state")}>
               <Input className={inputCls} value={form.state ?? ""}
                 onChange={(e) => set("state", e.target.value)} />
             </Field>
           </div>
 
-          {/* Notes */}
-          <Field label="Notas">
+          <Field label={t("notes")}>
             <textarea
               rows={3}
               value={form.notes ?? ""}
@@ -227,10 +225,10 @@ export function EditLeadModal({
 
           <div className="flex gap-3 pt-1">
             <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
-              {isPending ? "Guardando…" : "Guardar cambios"}
+              {isPending ? tc("saving") : tc("save")}
             </Button>
             <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={onClose} disabled={isPending}>
-              Cancelar
+              {tc("cancel")}
             </Button>
           </div>
         </div>

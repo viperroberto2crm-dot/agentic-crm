@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,8 @@ type Props = {
 }
 
 export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: Props) {
+  const t = useTranslations("settings")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +51,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
         router.refresh()
         onClose()
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al eliminar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
         setConfirmDelete(false)
       }
     })
@@ -62,7 +65,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
         router.refresh()
         handleClose()
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al guardar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
@@ -71,11 +74,11 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="light-surface bg-white border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-base font-semibold">Editar usuario</DialogTitle>
+          <DialogTitle className="text-base font-semibold">{t("editUser")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          <Field label="Email">
+          <Field label={t("userEmail")}>
             <Input
               className={`${inputCls} opacity-50 cursor-not-allowed`}
               value={user.email}
@@ -83,7 +86,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
             />
           </Field>
 
-          <Field label="Nombre completo">
+          <Field label={t("userName")}>
             <Input
               className={inputCls}
               value={form.name}
@@ -91,7 +94,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
             />
           </Field>
 
-          <Field label="Rol">
+          <Field label={t("userRole")}>
             <Select
               value={form.role}
               onValueChange={(v) => setForm((p) => ({ ...p, role: v as typeof form.role }))}
@@ -100,14 +103,14 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-white border-border">
-                <SelectItem value="rep" className="text-foreground">Rep de ventas</SelectItem>
-                <SelectItem value="manager" className="text-foreground">Manager</SelectItem>
-                <SelectItem value="admin" className="text-foreground">Admin</SelectItem>
+                <SelectItem value="rep" className="text-foreground">{t("repRole")}</SelectItem>
+                <SelectItem value="manager" className="text-foreground">{t("managerRole")}</SelectItem>
+                <SelectItem value="admin" className="text-foreground">{t("adminRole")}</SelectItem>
               </SelectContent>
             </Select>
           </Field>
 
-          <Field label="Estado">
+          <Field label={t("userStatus")}>
             <Select
               value={form.active ? "active" : "inactive"}
               onValueChange={(v) => setForm((p) => ({ ...p, active: v === "active" }))}
@@ -117,12 +120,12 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-white border-border">
-                <SelectItem value="active" className="text-foreground">Activo</SelectItem>
-                <SelectItem value="inactive" className="text-foreground">Inactivo</SelectItem>
+                <SelectItem value="active" className="text-foreground">{t("active")}</SelectItem>
+                <SelectItem value="inactive" className="text-foreground">{t("inactive")}</SelectItem>
               </SelectContent>
             </Select>
             {isSelf && (
-              <p className="text-[11px] text-muted-foreground mt-1">No puedes desactivar tu propia cuenta</p>
+              <p className="text-[11px] text-muted-foreground mt-1">{t("cannotDeactivateSelf")}</p>
             )}
           </Field>
 
@@ -140,7 +143,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                 className="cursor-pointer h-9 text-sm"
                 style={{ background: "var(--brand)" }}
               >
-                {isPending ? "Guardando…" : "Guardar cambios"}
+                {isPending ? t("savingChanges") : t("saveChanges")}
               </Button>
               <Button
                 variant="ghost"
@@ -148,14 +151,14 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                 onClick={handleClose}
                 disabled={isPending}
               >
-                Cancelar
+                {tc("cancel")}
               </Button>
             </div>
 
             {!isSelf && (
               confirmDelete ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-red-500">¿Eliminar definitivamente?</span>
+                  <span className="text-xs text-red-500">{t("confirmDeleteQuestion")}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -163,7 +166,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                     onClick={handleDelete}
                     disabled={isPending}
                   >
-                    {isPending ? "Eliminando…" : "Sí, eliminar"}
+                    {isPending ? t("deleting") : t("confirmDelete")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -172,7 +175,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                     onClick={() => setConfirmDelete(false)}
                     disabled={isPending}
                   >
-                    No
+                    {t("deleteNo")}
                   </Button>
                 </div>
               ) : (
@@ -184,7 +187,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
                   disabled={isPending}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Eliminar
+                  {t("deleteUser")}
                 </Button>
               )
             )}

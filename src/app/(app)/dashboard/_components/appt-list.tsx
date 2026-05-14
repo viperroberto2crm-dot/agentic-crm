@@ -4,9 +4,10 @@ import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { confirmAppointment } from "../actions"
 import type { TodayAppt } from "@/lib/queries/dashboard"
+import { getTranslations } from "next-intl/server"
 
 function formatTime(isoString: string, timezone: string): string {
-  return new Date(isoString).toLocaleTimeString("es-MX", {
+  return new Date(isoString).toLocaleTimeString("en-US", {
     timeZone: timezone,
     hour: "2-digit",
     minute: "2-digit",
@@ -28,28 +29,31 @@ function apptSubtext(appt: TodayAppt): string {
   return `${appt.brand_name} · ${typeLabel} · ${location}`
 }
 
-export function TodayApptList({
+export async function TodayApptList({
   appts,
   timezone,
 }: {
   appts: TodayAppt[]
   timezone: string
 }) {
+  const t = await getTranslations("dashboard")
+  const tAppts = await getTranslations("appointments")
+
   if (appts.length === 0) {
     return (
       <Card className="bg-white border-gray-200">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-gray-500">Citas hoy</CardTitle>
+          <CardTitle className="text-sm font-medium text-gray-500">{t("apptsToday")}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-400">
-            No tienes citas hoy.{" "}
+            {t("noTodayAppts")}{" "}
             <Link
               href="/leads"
               className="underline underline-offset-2 hover:text-gray-500 transition-colors"
               style={{ color: "var(--brand)" }}
             >
-              Buen momento para llamar a leads stale →
+              {t("staleLinkText")}
             </Link>
           </p>
         </CardContent>
@@ -61,7 +65,7 @@ export function TodayApptList({
     <Card className="bg-white border-gray-200">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-gray-500">
-          Citas hoy
+          {t("apptsToday")}
           <span className="ml-2 text-gray-400 font-normal text-xs">({appts.length})</span>
         </CardTitle>
       </CardHeader>
@@ -88,7 +92,7 @@ export function TodayApptList({
                     className="text-[10px] px-1.5 py-0 border-0 font-normal"
                     style={{ background: "color-mix(in srgb, var(--brand) 15%, transparent)", color: "var(--brand)" }}
                   >
-                    Confirmada
+                    {tAppts("appointmentStatuses.confirmed")}
                   </Badge>
                 ) : (
                   <form action={confirmAppointment.bind(null, appt.id)}>
@@ -96,7 +100,7 @@ export function TodayApptList({
                       type="submit"
                       className="text-[11px] text-gray-400 border border-gray-300 rounded px-2 py-0.5 hover:text-gray-700 hover:border-gray-400 transition-colors cursor-pointer"
                     >
-                      Confirmar
+                      {tAppts("appointmentStatuses.scheduled")}
                     </button>
                   </form>
                 )}

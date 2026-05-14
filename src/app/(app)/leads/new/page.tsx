@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useTransition, useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -18,16 +19,6 @@ import { fetchProducts } from "../[id]/actions"
 import { useBrand } from "@/context/brand-context"
 
 type ProductOption = { id: string; name: string; price_cents: number; cadence: string }
-
-const SOURCE_OPTIONS = [
-  { value: "inbound_call", label: "Llamada entrante" },
-  { value: "web_form", label: "Formulario web" },
-  { value: "referral", label: "Referido" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "walk_in", label: "Walk-in" },
-  { value: "social", label: "Redes sociales" },
-  { value: "other", label: "Otro" },
-]
 
 function Field({
   label,
@@ -49,17 +40,11 @@ function Field({
   )
 }
 
-const CADENCE_LABELS: Record<string, string> = {
-  weekly: "sem", monthly: "mes", annual: "año", one_time: "único",
-}
-
-function fmtProduct(p: ProductOption) {
-  const price = (p.price_cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
-  const cadence = CADENCE_LABELS[p.cadence] ?? p.cadence
-  return `${p.name} — ${price}/${cadence}`
-}
-
 export default function NewLeadPage() {
+  const t = useTranslations("leads")
+  const tsrc = useTranslations("source")
+  const ts = useTranslations("sales")
+  const tc = useTranslations("common")
   const router = useRouter()
   const { activeBrand } = useBrand()
   const [isPending, startTransition] = useTransition()
@@ -67,6 +52,31 @@ export default function NewLeadPage() {
   const [source, setSource] = useState<string>("")
   const [products, setProducts] = useState<ProductOption[]>([])
   const [productInterest, setProductInterest] = useState<string>("")
+
+  const SOURCE_OPTIONS = [
+    { value: "inbound_call", label: tsrc("inbound_call") },
+    { value: "web_form", label: tsrc("web_form") },
+    { value: "referral", label: tsrc("referral") },
+    { value: "whatsapp", label: tsrc("whatsapp") },
+    { value: "walk_in", label: tsrc("walk_in") },
+    { value: "social", label: tsrc("social") },
+    { value: "other", label: tsrc("other") },
+  ]
+
+  const CADENCE_LABELS: Record<string, string> = {
+    weekly: ts("subs.cadenceWeekly"),
+    biweekly: ts("subs.cadenceBiweekly"),
+    monthly: ts("subs.cadenceMonthly"),
+    quarterly: ts("subs.cadenceQuarterly"),
+    annual: ts("subs.cadenceAnnual"),
+    one_time: "—",
+  }
+
+  function fmtProduct(p: ProductOption) {
+    const price = (p.price_cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+    const cadence = CADENCE_LABELS[p.cadence] ?? p.cadence
+    return `${p.name} — ${price}/${cadence}`
+  }
 
   useEffect(() => {
     if (!activeBrand?.id) { setProducts([]); return }
@@ -77,18 +87,17 @@ export default function NewLeadPage() {
 
   function handleSubmit(formData: FormData) {
     if (!activeBrand) {
-      setError("Selecciona una marca primero")
+      setError(t("selectBrandFirst"))
       return
     }
     formData.set("brand_id", activeBrand.id)
     if (source) formData.set("source", source)
 
-    // Prepend product interest to notes if selected
     if (productInterest) {
       const selected = products.find((p) => p.id === productInterest)
       if (selected) {
         const existing = (formData.get("notes") as string | null)?.trim() ?? ""
-        const productLine = `Interesado en: ${fmtProduct(selected)}`
+        const productLine = `${t("productInterest")}: ${fmtProduct(selected)}`
         formData.set("notes", existing ? `${productLine}\n\n${existing}` : productLine)
       }
     }
@@ -99,7 +108,7 @@ export default function NewLeadPage() {
         const id = await createLead(formData)
         router.push(`/leads/${id}`)
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al crear lead")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
@@ -107,7 +116,6 @@ export default function NewLeadPage() {
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
 
-      {/* Back nav */}
       <div className="flex items-center gap-2">
         <Link
           href="/leads"
@@ -115,10 +123,9 @@ export default function NewLeadPage() {
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
-        <h1 className="text-lg font-semibold text-foreground">Nuevo lead</h1>
+        <h1 className="text-lg font-semibold text-foreground">{t("newLeadTitle")}</h1>
       </div>
 
-      {/* Brand indicator */}
       {activeBrand && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span
@@ -129,54 +136,50 @@ export default function NewLeadPage() {
         </div>
       )}
 
-      {/* Form */}
       <form action={handleSubmit} className="space-y-4">
 
-        {/* Name row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Nombre" required>
+          <Field label={t("firstName")} required>
             <Input
               name="first_name"
               required
-              placeholder="Pedro"
+              placeholder="John"
               className="bg-white border-border text-foreground placeholder:text-muted-foreground"
             />
           </Field>
-          <Field label="Apellido">
+          <Field label={t("lastName")}>
             <Input
               name="last_name"
-              placeholder="Ramírez"
+              placeholder="Smith"
               className="bg-white border-border text-foreground placeholder:text-muted-foreground"
             />
           </Field>
         </div>
 
-        {/* Phone + Email */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Teléfono" required>
+          <Field label={t("phone")} required>
             <Input
               name="phone"
               type="tel"
               required
-              placeholder="+52 999 123 4567"
+              placeholder="+1 555 123 4567"
               className="bg-white border-border text-foreground placeholder:text-muted-foreground font-mono"
             />
           </Field>
-          <Field label="Email">
+          <Field label={t("email")}>
             <Input
               name="email"
               type="email"
-              placeholder="pedro@mail.com"
+              placeholder="john@mail.com"
               className="bg-white border-border text-foreground placeholder:text-muted-foreground"
             />
           </Field>
         </div>
 
-        {/* Source */}
-        <Field label="Fuente">
+        <Field label={t("source")}>
           <Select value={source} onValueChange={setSource}>
             <SelectTrigger className="bg-white border-border text-foreground">
-              <SelectValue placeholder="¿De dónde viene este lead?" />
+              <SelectValue placeholder={t("selectSource")} />
             </SelectTrigger>
             <SelectContent className="bg-white border-border">
               {SOURCE_OPTIONS.map((opt) => (
@@ -188,15 +191,14 @@ export default function NewLeadPage() {
           </Select>
         </Field>
 
-        {/* Product interest */}
         {products.length > 0 && (
-          <Field label="Producto de interés">
+          <Field label={t("productInterest")}>
             <Select value={productInterest} onValueChange={setProductInterest}>
               <SelectTrigger className="bg-white border-border text-foreground">
-                <SelectValue placeholder="¿Qué producto le interesa?" />
+                <SelectValue placeholder={t("selectProduct")} />
               </SelectTrigger>
               <SelectContent className="bg-white border-border">
-                <SelectItem value="none" className="text-muted-foreground">Sin especificar</SelectItem>
+                <SelectItem value="none" className="text-muted-foreground">{t("noProduct")}</SelectItem>
                 {products.map((p) => (
                   <SelectItem key={p.id} value={p.id} className="text-foreground">
                     {fmtProduct(p)}
@@ -207,24 +209,21 @@ export default function NewLeadPage() {
           </Field>
         )}
 
-        {/* Notes */}
-        <Field label="Notas">
+        <Field label={t("notes")}>
           <textarea
             name="notes"
             rows={3}
-            placeholder="Contexto inicial, síntomas, interés expresado…"
+            placeholder={t("notesPlaceholder")}
             className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30 resize-none"
           />
         </Field>
 
-        {/* Error */}
         {error && (
           <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">
             {error}
           </p>
         )}
 
-        {/* Actions */}
         <div className="flex items-center gap-3 pt-2">
           <Button
             type="submit"
@@ -232,7 +231,7 @@ export default function NewLeadPage() {
             className="cursor-pointer"
             style={{ background: "var(--brand)" }}
           >
-            {isPending ? "Guardando…" : "Crear lead"}
+            {isPending ? t("saving") : t("createLead")}
           </Button>
           <Button
             type="button"
@@ -240,13 +239,13 @@ export default function NewLeadPage() {
             className="text-muted-foreground hover:text-foreground"
             onClick={() => router.back()}
           >
-            Cancelar
+            {tc("cancel")}
           </Button>
         </div>
 
         {!activeBrand && (
           <p className="text-xs text-muted-foreground">
-            Selecciona una marca desde el menú para continuar.
+            {t("selectBrandHint")}
           </p>
         )}
       </form>

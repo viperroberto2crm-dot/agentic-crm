@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,8 @@ function randomPassword() {
 }
 
 export function InviteUserDialog({ open, onClose, brandId }: Props) {
+  const t = useTranslations("settings")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +50,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
   function copyCredentials() {
     if (!done) return
     navigator.clipboard.writeText(
-      `CRM Agentic\nEmail: ${done.email}\nContraseña: ${done.password}`
+      `CRM Agentic\nEmail: ${done.email}\n${t("tempPassword")}: ${done.password}`
     )
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -77,18 +80,18 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
       <DialogContent className="light-surface bg-white border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">
-            {done ? "Usuario creado" : "Nuevo usuario"}
+            {done ? t("userCreated") : t("newUser")}
           </DialogTitle>
         </DialogHeader>
 
         {done ? (
           <div className="space-y-4 pt-2">
             <p className="text-sm text-gray-600">
-              Cuenta creada para <strong className="text-gray-900">{done.name}</strong>. Comparte estas credenciales por WhatsApp o mensaje:
+              {t("accountCreatedFor", { name: done.name })}
             </p>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-1 font-mono text-sm text-gray-800">
               <p><span className="text-gray-400">Email:</span> {done.email}</p>
-              <p><span className="text-gray-400">Contraseña:</span> {done.password}</p>
+              <p><span className="text-gray-400">{t("tempPassword")}:</span> {done.password}</p>
             </div>
             <div className="flex gap-3">
               <Button
@@ -97,35 +100,35 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                 style={{ background: "var(--brand)" }}
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied ? "Copiado" : "Copiar credenciales"}
+                {copied ? tc("copied") : t("copyCredentials")}
               </Button>
               <Button variant="ghost" className="text-gray-500 hover:text-gray-800" onClick={handleClose}>
-                Cerrar
+                {tc("close")}
               </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4 pt-2">
-            <Field label="Email" required>
+            <Field label={t("userEmail")} required>
               <Input
                 className={inputCls}
                 type="email"
-                placeholder="rep@empresa.com"
+                placeholder="rep@company.com"
                 value={form.email}
                 onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
               />
             </Field>
 
-            <Field label="Nombre completo" required>
+            <Field label={t("userName")} required>
               <Input
                 className={inputCls}
-                placeholder="Juan García"
+                placeholder="John Smith"
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               />
             </Field>
 
-            <Field label="Rol" required>
+            <Field label={t("userRole")} required>
               <Select
                 value={form.role}
                 onValueChange={(v) => setForm((p) => ({ ...p, role: v as typeof form.role }))}
@@ -134,20 +137,20 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-border">
-                  <SelectItem value="rep" className="text-foreground">Rep de ventas</SelectItem>
-                  <SelectItem value="manager" className="text-foreground">Manager</SelectItem>
-                  <SelectItem value="admin" className="text-foreground">Admin</SelectItem>
+                  <SelectItem value="rep" className="text-foreground">{t("repRole")}</SelectItem>
+                  <SelectItem value="manager" className="text-foreground">{t("managerRole")}</SelectItem>
+                  <SelectItem value="admin" className="text-foreground">{t("adminRole")}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
 
-            <Field label="Contraseña temporal" required>
+            <Field label={t("tempPassword")} required>
               <div className="flex gap-2">
                 <Input
                   className={`${inputCls} flex-1 font-mono`}
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder="Min. 8 characters"
                 />
                 <Button
                   type="button"
@@ -156,10 +159,10 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                   className="shrink-0 border-gray-300 text-xs text-gray-600"
                   onClick={() => setForm((p) => ({ ...p, password: randomPassword() }))}
                 >
-                  Nueva
+                  {t("generateNew")}
                 </Button>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">Se la compartes tú por WhatsApp o mensaje.</p>
+              <p className="text-[11px] text-gray-400 mt-1">{t("tempPasswordHint")}</p>
             </Field>
 
             {error && (
@@ -175,7 +178,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                 className="cursor-pointer h-9 text-sm"
                 style={{ background: "var(--brand)" }}
               >
-                {isPending ? "Creando…" : "Crear usuario"}
+                {isPending ? t("creatingUser") : t("createUser")}
               </Button>
               <Button
                 variant="ghost"
@@ -183,7 +186,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                 onClick={handleClose}
                 disabled={isPending}
               >
-                Cancelar
+                {tc("cancel")}
               </Button>
             </div>
           </div>

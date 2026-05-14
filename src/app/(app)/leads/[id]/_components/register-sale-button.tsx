@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { RegisterSaleModal } from "./register-sale-modal"
@@ -12,6 +13,7 @@ export function RegisterSaleButton({
   leadId: string
   brandId: string
 }) {
+  const t = useTranslations("sales")
   const [open, setOpen] = useState(false)
 
   return (
@@ -23,7 +25,7 @@ export function RegisterSaleButton({
         onClick={() => setOpen(true)}
       >
         <DollarSign className="w-3.5 h-3.5" />
-        Registrar venta
+        {t("registerSale")}
       </Button>
       <RegisterSaleModal
         open={open}

@@ -3,33 +3,9 @@ import { Badge } from "@/components/ui/badge"
 import { Phone } from "lucide-react"
 import { daysAgo, type LeadRow } from "@/lib/queries/leads"
 import type { Database } from "@/types/database"
+import { getTranslations } from "next-intl/server"
 
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
-
-const STATUS_CONFIG: Record<
-  LeadStatus,
-  { label: string; className: string }
-> = {
-  new: { label: "Nuevo", className: "border-gray-300 text-gray-500" },
-  contacted: { label: "Contactado", className: "border-blue-500/40 text-blue-400" },
-  qualified: { label: "Calificado", className: "border-violet-500/40 text-violet-400" },
-  appointment_set: { label: "Cita", className: "border-amber-500/40 text-amber-400" },
-  sold: { label: "Vendido", className: "border-emerald-500/40 text-emerald-400" },
-  lost: { label: "Perdido", className: "border-red-500/40 text-red-500" },
-  on_hold: { label: "En pausa", className: "border-yellow-500/40 text-yellow-500" },
-}
-
-function StatusBadge({ status }: { status: LeadStatus }) {
-  const cfg = STATUS_CONFIG[status] ?? { label: status, className: "border-gray-300 text-gray-500" }
-  return (
-    <Badge
-      variant="outline"
-      className={`text-[10px] px-1.5 py-0 font-normal ${cfg.className}`}
-    >
-      {cfg.label}
-    </Badge>
-  )
-}
 
 function ScoreBar({ score }: { score: number | null }) {
   if (score === null) return <span className="text-gray-300 text-xs">—</span>
@@ -45,16 +21,29 @@ function ScoreBar({ score }: { score: number | null }) {
   )
 }
 
-export function LeadsTable({ leads, logQuickCall }: {
+export async function LeadsTable({ leads, logQuickCall }: {
   leads: LeadRow[]
   logQuickCall: (leadId: string, _: FormData) => Promise<void>
 }) {
+  const t = await getTranslations("leads")
+  const ts = await getTranslations("status")
+
+  const STATUS_CONFIG: Record<LeadStatus, { label: string; className: string }> = {
+    new:             { label: ts("new"),             className: "border-gray-300 text-gray-500" },
+    contacted:       { label: ts("contacted"),       className: "border-blue-500/40 text-blue-400" },
+    qualified:       { label: ts("qualified"),       className: "border-violet-500/40 text-violet-400" },
+    appointment_set: { label: ts("appointment_set"), className: "border-amber-500/40 text-amber-400" },
+    sold:            { label: ts("sold"),            className: "border-emerald-500/40 text-emerald-400" },
+    lost:            { label: ts("lost"),            className: "border-red-500/40 text-red-500" },
+    on_hold:         { label: ts("on_hold"),         className: "border-yellow-500/40 text-yellow-500" },
+  }
+
   if (leads.length === 0) {
     return (
       <div className="text-center py-16 text-sm text-gray-400">
-        No hay leads con estos filtros.{" "}
+        {t("noLeadsFilter")}{" "}
         <Link href="/leads/new" className="text-gray-500 underline underline-offset-2 hover:text-gray-900">
-          Crear uno nuevo
+          {t("createNew")}
         </Link>
       </div>
     )
@@ -75,7 +64,7 @@ export function LeadsTable({ leads, logQuickCall }: {
               Rep
             </th>
             <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">
-              Último contacto
+              {t("colLastContact")}
             </th>
             <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">
               Score
@@ -84,62 +73,64 @@ export function LeadsTable({ leads, logQuickCall }: {
           </tr>
         </thead>
         <tbody>
-          {leads.map((lead) => (
-            <tr
-              key={lead.id}
-              className="border-b border-gray-100 hover:bg-gray-50 transition-colors group"
-            >
-              {/* Name + phone */}
-              <td className="py-3 pr-4">
-                <Link
-                  href={`/leads/${lead.id}`}
-                  className="font-medium text-gray-800 hover:text-gray-900 transition-colors block leading-tight"
-                >
-                  {lead.first_name} {lead.last_name ?? ""}
-                </Link>
-                <span className="text-[11px] text-gray-400 font-mono">
-                  {lead.phone}
-                </span>
-              </td>
-
-              {/* Status */}
-              <td className="py-3 pr-4">
-                <StatusBadge status={lead.status} />
-              </td>
-
-              {/* Rep */}
-              <td className="py-3 pr-4 hidden md:table-cell">
-                <span className="text-xs text-gray-400">
-                  {lead.rep?.name ?? "—"}
-                </span>
-              </td>
-
-              {/* Last contact */}
-              <td className="py-3 pr-4 hidden sm:table-cell">
-                <span className="text-xs text-gray-400">
-                  {daysAgo(lead.last_contacted_at)}
-                </span>
-              </td>
-
-              {/* Score */}
-              <td className="py-3 hidden lg:table-cell">
-                <ScoreBar score={lead.ai_score} />
-              </td>
-
-              {/* Quick call action */}
-              <td className="py-3 w-8">
-                <form action={logQuickCall.bind(null, lead.id)}>
-                  <button
-                    type="submit"
-                    title="Registrar llamada rápida"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-zinc-300 cursor-pointer"
+          {leads.map((lead) => {
+            const cfg = STATUS_CONFIG[lead.status] ?? { label: lead.status, className: "border-gray-300 text-gray-500" }
+            return (
+              <tr
+                key={lead.id}
+                className="border-b border-gray-100 hover:bg-gray-50 transition-colors group"
+              >
+                <td className="py-3 pr-4">
+                  <Link
+                    href={`/leads/${lead.id}`}
+                    className="font-medium text-gray-800 hover:text-gray-900 transition-colors block leading-tight"
                   >
-                    <Phone className="w-3.5 h-3.5" />
-                  </button>
-                </form>
-              </td>
-            </tr>
-          ))}
+                    {lead.first_name} {lead.last_name ?? ""}
+                  </Link>
+                  <span className="text-[11px] text-gray-400 font-mono">
+                    {lead.phone}
+                  </span>
+                </td>
+
+                <td className="py-3 pr-4">
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] px-1.5 py-0 font-normal ${cfg.className}`}
+                  >
+                    {cfg.label}
+                  </Badge>
+                </td>
+
+                <td className="py-3 pr-4 hidden md:table-cell">
+                  <span className="text-xs text-gray-400">
+                    {lead.rep?.name ?? "—"}
+                  </span>
+                </td>
+
+                <td className="py-3 pr-4 hidden sm:table-cell">
+                  <span className="text-xs text-gray-400">
+                    {daysAgo(lead.last_contacted_at)}
+                  </span>
+                </td>
+
+                <td className="py-3 hidden lg:table-cell">
+                  <ScoreBar score={lead.ai_score} />
+                </td>
+
+                <td className="py-3 w-8">
+                  <form action={logQuickCall.bind(null, lead.id)}>
+                    <button
+                      type="submit"
+                      title={t("quickCallTitle")}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-zinc-300 cursor-pointer"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useTranslations } from "next-intl"
 import * as XLSX from "xlsx"
 import { ArrowLeft, Upload, Download, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -22,17 +23,6 @@ type FieldMapping = {
   field: keyof ImportRow | null
   header: string
 }
-
-const LEAD_FIELDS: { value: keyof ImportRow; label: string; required?: boolean }[] = [
-  { value: "first_name", label: "Nombre", required: true },
-  { value: "last_name", label: "Apellido" },
-  { value: "phone", label: "Teléfono", required: true },
-  { value: "email", label: "Email" },
-  { value: "source", label: "Fuente" },
-  { value: "notes", label: "Notas" },
-  { value: "city", label: "Ciudad" },
-  { value: "state", label: "Estado" },
-]
 
 // Auto-match Excel header → lead field
 const AUTO_MATCH: Record<string, keyof ImportRow> = {
@@ -55,31 +45,32 @@ function autoMatch(header: string): keyof ImportRow | null {
 function downloadTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
     ["First Name", "Last Name", "Phone", "Email", "Source", "Notes", "City", "State"],
-    ["Pedro", "Ramírez", "+5219991234567", "pedro@mail.com", "whatsapp", "", "Mérida", "Yucatán"],
+    ["John", "Smith", "+15551234567", "john@mail.com", "whatsapp", "", "Austin", "TX"],
   ])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Leads")
-  XLSX.writeFile(wb, "plantilla_leads.xlsx")
+  XLSX.writeFile(wb, "leads_template.xlsx")
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
 function validateRow(row: ImportRow, idx: number): string | null {
-  if (!row.first_name?.trim()) return `Fila ${idx + 1}: nombre vacío`
-  if (!row.phone?.trim() || row.phone.trim().length < 6) return `Fila ${idx + 1}: teléfono inválido`
+  if (!row.first_name?.trim()) return `Row ${idx + 1}: empty first name`
+  if (!row.phone?.trim() || row.phone.trim().length < 6) return `Row ${idx + 1}: invalid phone`
   if (row.email && row.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))
-    return `Fila ${idx + 1}: email inválido`
+    return `Row ${idx + 1}: invalid email`
   return null
 }
 
-// ── Step components ───────────────────────────────────────────────────────────
+// ── Step indicator ────────────────────────────────────────────────────────────
 
 function StepIndicator({ step }: { step: Step }) {
+  const t = useTranslations("leads")
   const steps: { key: Step; label: string }[] = [
-    { key: "upload", label: "Subir" },
-    { key: "map", label: "Mapear" },
-    { key: "preview", label: "Revisar" },
-    { key: "done", label: "Listo" },
+    { key: "upload", label: t("stepUpload") },
+    { key: "map", label: t("stepMap") },
+    { key: "preview", label: t("stepPreview") },
+    { key: "done", label: t("stepDone") },
   ]
   const order: Step[] = ["upload", "map", "preview", "importing", "done"]
   const current = order.indexOf(step)
@@ -106,6 +97,7 @@ function StepIndicator({ step }: { step: Step }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ImportLeadsPage() {
+  const t = useTranslations("leads")
   const router = useRouter()
   const { activeBrand } = useBrand()
   const [isPending, startTransition] = useTransition()
@@ -120,11 +112,22 @@ export default function ImportLeadsPage() {
   const [dragOver, setDragOver] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: Array<{ row: number; message: string }> } | null>(null)
 
+  const LEAD_FIELDS: { value: keyof ImportRow; label: string; required?: boolean }[] = [
+    { value: "first_name", label: t("firstName"), required: true },
+    { value: "last_name", label: t("lastName") },
+    { value: "phone", label: t("phone"), required: true },
+    { value: "email", label: t("email") },
+    { value: "source", label: t("source") },
+    { value: "notes", label: t("notes") },
+    { value: "city", label: t("city") },
+    { value: "state", label: t("state") },
+  ]
+
   // ── File parsing ─────────────────────────────────────────────────────────
 
   function parseFile(file: File) {
     if (file.size > 10 * 1024 * 1024) {
-      alert("Archivo mayor a 10MB. Reduce el tamaño e intenta de nuevo.")
+      alert(t("fileTooLarge"))
       return
     }
     const reader = new FileReader()
@@ -134,7 +137,7 @@ export default function ImportLeadsPage() {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<RawRow>(ws, { defval: "" })
 
-      if (rows.length === 0) { alert("El archivo está vacío."); return }
+      if (rows.length === 0) { alert(t("fileEmpty")); return }
 
       const hdrs = Object.keys(rows[0])
       setHeaders(hdrs)
@@ -180,10 +183,10 @@ export default function ImportLeadsPage() {
   // ── Import ────────────────────────────────────────────────────────────────
 
   function handleImport() {
-    if (!activeBrand) { alert("Selecciona una marca primero"); return }
+    if (!activeBrand) { alert(t("selectBrandFirst")); return }
 
     const toImport = skipErrors
-      ? previewRows.filter((_, i) => !validationErrors.some((e) => e.startsWith(`Fila ${i + 1}:`)))
+      ? previewRows.filter((_, i) => !validationErrors.some((e) => e.startsWith(`Row ${i + 1}:`)))
       : previewRows
 
     setStep("importing")
@@ -193,7 +196,7 @@ export default function ImportLeadsPage() {
         setImportResult(result)
         setStep("done")
       } catch (e) {
-        alert(e instanceof Error ? e.message : "Error al importar")
+        alert(e instanceof Error ? e.message : "Error")
         setStep("preview")
       }
     })
@@ -209,7 +212,7 @@ export default function ImportLeadsPage() {
           <Link href="/leads" className="text-gray-400 hover:text-gray-500 transition-colors">
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <h1 className="text-lg font-semibold text-gray-900">Importar leads</h1>
+          <h1 className="text-lg font-semibold text-gray-900">{t("importTitle")}</h1>
         </div>
         <StepIndicator step={step} />
       </div>
@@ -225,7 +228,6 @@ export default function ImportLeadsPage() {
       {/* ── STEP: UPLOAD ── */}
       {step === "upload" && (
         <div className="space-y-4">
-          {/* Drag-drop zone */}
           <div
             onDrop={handleDrop}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -236,9 +238,9 @@ export default function ImportLeadsPage() {
             onClick={() => document.getElementById("file-input")?.click()}
           >
             <Upload className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 font-medium">Arrastra tu archivo aquí</p>
-            <p className="text-xs text-gray-400 mt-1">o haz click para seleccionar</p>
-            <p className="text-[11px] text-gray-300 mt-3">Acepta .xlsx y .csv · Máximo 10 MB</p>
+            <p className="text-sm text-gray-500 font-medium">{t("dragDrop")}</p>
+            <p className="text-xs text-gray-400 mt-1">{t("dragDropOr")}</p>
+            <p className="text-[11px] text-gray-300 mt-3">{t("dragDropAccepted")}</p>
             <input
               id="file-input"
               type="file"
@@ -248,11 +250,10 @@ export default function ImportLeadsPage() {
             />
           </div>
 
-          {/* Download template */}
           <div className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
             <div>
-              <p className="text-sm text-gray-700 font-medium">Plantilla Excel</p>
-              <p className="text-xs text-gray-400">Descarga el formato con las columnas correctas</p>
+              <p className="text-sm text-gray-700 font-medium">{t("excelTemplate")}</p>
+              <p className="text-xs text-gray-400">{t("excelTemplateDesc")}</p>
             </div>
             <Button
               size="sm"
@@ -261,7 +262,7 @@ export default function ImportLeadsPage() {
               onClick={downloadTemplate}
             >
               <Download className="w-3.5 h-3.5" />
-              Descargar
+              {t("downloadBtn")}
             </Button>
           </div>
         </div>
@@ -271,18 +272,16 @@ export default function ImportLeadsPage() {
       {step === "map" && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500">
-            Archivo cargado con <strong className="text-gray-800">{rawRows.length}</strong> filas y{" "}
-            <strong className="text-gray-800">{headers.length}</strong> columnas.
-            Asigna cada columna del Excel a un campo del lead.
+            {t("fileLoaded", { rows: rawRows.length, cols: headers.length })}
           </p>
 
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">Columna del archivo</th>
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">Campo del lead</th>
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">Muestra</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">{t("colFileHeader")}</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">{t("colFieldHeader")}</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 py-2.5">{t("colSample")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -302,7 +301,7 @@ export default function ImportLeadsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-white border-gray-200">
-                          <SelectItem value="skip" className="text-gray-400 text-xs">— Omitir —</SelectItem>
+                          <SelectItem value="skip" className="text-gray-400 text-xs">{t("skipColumn")}</SelectItem>
                           {LEAD_FIELDS.map((f) => (
                             <SelectItem key={f.value} value={f.value} className="text-gray-800 text-xs">
                               {f.label}{f.required ? " *" : ""}
@@ -322,10 +321,10 @@ export default function ImportLeadsPage() {
 
           <div className="flex gap-3">
             <Button onClick={buildPreview} className="cursor-pointer" style={{ background: "var(--brand)" }}>
-              Ver preview →
+              {t("viewPreview")}
             </Button>
             <Button variant="ghost" className="text-gray-400" onClick={() => setStep("upload")}>
-              ← Volver
+              {t("backBtn")}
             </Button>
           </div>
         </div>
@@ -336,17 +335,16 @@ export default function ImportLeadsPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-4 text-sm">
             <span className="text-gray-700">
-              <strong className="text-gray-900">{previewRows.length}</strong> filas listas para importar
+              {t("rowsReady", { count: previewRows.length })}
             </span>
             {validationErrors.length > 0 && (
               <span className="flex items-center gap-1 text-amber-400">
                 <AlertCircle className="w-3.5 h-3.5" />
-                {validationErrors.length} con error{validationErrors.length !== 1 ? "es" : ""}
+                {t("rowsWithError", { count: validationErrors.length })}
               </span>
             )}
           </div>
 
-          {/* Preview table */}
           <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -362,7 +360,7 @@ export default function ImportLeadsPage() {
               </thead>
               <tbody>
                 {previewRows.slice(0, 10).map((row, i) => {
-                  const rowErr = validationErrors.find((e) => e.startsWith(`Fila ${i + 1}:`))
+                  const rowErr = validationErrors.find((e) => e.startsWith(`Row ${i + 1}:`))
                   return (
                     <tr key={i} className={`border-b border-gray-100 ${rowErr ? "bg-red-400/5" : ""}`}>
                       <td className="px-3 py-2 text-[10px] text-gray-300 tabular-nums">{i + 1}</td>
@@ -385,15 +383,14 @@ export default function ImportLeadsPage() {
             </table>
             {previewRows.length > 10 && (
               <p className="text-[11px] text-gray-300 px-3 py-2">
-                +{previewRows.length - 10} filas más no mostradas
+                {t("moreRows", { count: previewRows.length - 10 })}
               </p>
             )}
           </div>
 
-          {/* Validation errors list */}
           {validationErrors.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-gray-500">Errores encontrados:</p>
+              <p className="text-xs font-medium text-gray-500">{t("errorsFound")}</p>
               <div className="max-h-32 overflow-y-auto space-y-1">
                 {validationErrors.slice(0, 20).map((err, i) => (
                   <p key={i} className="text-xs text-red-400 flex items-start gap-1.5">
@@ -402,11 +399,10 @@ export default function ImportLeadsPage() {
                   </p>
                 ))}
                 {validationErrors.length > 20 && (
-                  <p className="text-xs text-gray-400">+{validationErrors.length - 20} más…</p>
+                  <p className="text-xs text-gray-400">{t("moreErrors", { count: validationErrors.length - 20 })}</p>
                 )}
               </div>
 
-              {/* Skip vs cancel */}
               <div className="flex items-center gap-3 pt-1">
                 <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
                   <input
@@ -415,7 +411,7 @@ export default function ImportLeadsPage() {
                     onChange={(e) => setSkipErrors(e.target.checked)}
                     className="accent-zinc-400"
                   />
-                  Saltar filas con errores e importar las válidas
+                  {t("skipErrors")}
                 </label>
               </div>
             </div>
@@ -429,13 +425,13 @@ export default function ImportLeadsPage() {
               style={{ background: "var(--brand)" }}
             >
               {isPending ? (
-                <><Loader2 className="w-4 h-4 animate-spin" />Importando…</>
+                <><Loader2 className="w-4 h-4 animate-spin" />{t("importingLeads")}</>
               ) : (
-                `Importar ${skipErrors ? previewRows.length - validationErrors.length : previewRows.length} leads`
+                t("importBtn", { count: skipErrors ? previewRows.length - validationErrors.length : previewRows.length })
               )}
             </Button>
             <Button variant="ghost" className="text-gray-400" onClick={() => setStep("map")}>
-              ← Volver
+              {t("backBtn")}
             </Button>
           </div>
         </div>
@@ -445,7 +441,7 @@ export default function ImportLeadsPage() {
       {step === "importing" && (
         <div className="flex flex-col items-center gap-4 py-16">
           <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
-          <p className="text-sm text-gray-500">Importando leads…</p>
+          <p className="text-sm text-gray-500">{t("importingLeads")}</p>
         </div>
       )}
 
@@ -456,21 +452,25 @@ export default function ImportLeadsPage() {
             <CheckCircle2 className="w-10 h-10 text-emerald-500" />
             <p className="text-xl font-semibold text-gray-900">
               {importResult.imported > 0
-                ? `Importados ${importResult.imported} lead${importResult.imported !== 1 ? "s" : ""}`
-                : "Sin leads importados"}
+                ? (importResult.imported !== 1
+                    ? t("importDone", { count: importResult.imported })
+                    : t("importDone1", { count: importResult.imported }))
+                : t("importNone")}
             </p>
             {importResult.skipped > 0 && (
               <p className="text-sm text-gray-400">
-                {importResult.skipped} saltado{importResult.skipped !== 1 ? "s" : ""} por errores
+                {importResult.skipped !== 1
+                  ? t("skippedPlural", { count: importResult.skipped })
+                  : t("skipped", { count: importResult.skipped })}
               </p>
             )}
           </div>
 
           {importResult.errors.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-medium text-gray-500">Filas con error:</p>
+              <p className="text-xs font-medium text-gray-500">{t("errorRows")}</p>
               {importResult.errors.slice(0, 10).map((err, i) => (
-                <p key={i} className="text-xs text-red-400">Fila {err.row}: {err.message}</p>
+                <p key={i} className="text-xs text-red-400">{err.row}: {err.message}</p>
               ))}
             </div>
           )}
@@ -481,7 +481,7 @@ export default function ImportLeadsPage() {
               className="cursor-pointer"
               style={{ background: "var(--brand)" }}
             >
-              Ver leads importados
+              {t("viewImported")}
             </Button>
             <Button
               variant="ghost"
@@ -496,7 +496,7 @@ export default function ImportLeadsPage() {
                 setImportResult(null)
               }}
             >
-              Importar otro archivo
+              {t("importAnother")}
             </Button>
           </div>
         </div>

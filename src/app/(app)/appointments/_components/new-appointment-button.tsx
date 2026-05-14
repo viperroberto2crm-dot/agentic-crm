@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -25,6 +26,8 @@ function Field({ label, required, children }: { label: string; required?: boolea
 const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
 export function NewAppointmentButton({ brandId, leads }: { brandId: string; leads: Lead[] }) {
+  const t = useTranslations("appointments")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -40,7 +43,7 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
 
   function handleSave() {
     if (!form.lead_id || !form.scheduled_at) {
-      setError("Lead y fecha/hora son requeridos")
+      setError(t("leadAndDateRequired"))
       return
     }
     setError(null)
@@ -59,7 +62,7 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
         setOpen(false)
         setForm({ lead_id: "", type: "clinic", scheduled_at: "", duration_minutes: 30, service: "", notes: "" })
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al guardar")
+        setError(e instanceof Error ? e.message : tc("savingError"))
       }
     })
   }
@@ -73,19 +76,19 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
         onClick={() => setOpen(true)}
       >
         <Plus className="w-3.5 h-3.5" />
-        Nueva cita
+        {t("newAppointment")}
       </Button>
 
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
         <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">Nueva cita</DialogTitle>
+            <DialogTitle className="text-base font-semibold">{t("newAppointment")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <Field label="Lead" required>
               <Select value={form.lead_id} onValueChange={(v) => setForm((p) => ({ ...p, lead_id: v }))}>
                 <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
-                  <SelectValue placeholder="Selecciona un lead…" />
+                  <SelectValue placeholder={t("selectLead")} />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200 max-h-52 overflow-y-auto">
                   {leads.map((l) => (
@@ -98,19 +101,19 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Tipo" required>
+              <Field label={t("type")} required>
                 <Select value={form.type} onValueChange={(v) => setForm((p) => ({ ...p, type: v as typeof form.type }))}>
                   <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="clinic" className="text-gray-800">Clínica</SelectItem>
-                    <SelectItem value="home" className="text-gray-800">Domicilio</SelectItem>
-                    <SelectItem value="telehealth" className="text-gray-800">Telesalud</SelectItem>
+                    <SelectItem value="clinic" className="text-gray-800">{t("types.clinic")}</SelectItem>
+                    <SelectItem value="home" className="text-gray-800">{t("types.home")}</SelectItem>
+                    <SelectItem value="telehealth" className="text-gray-800">{t("types.telehealth")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Duración (min)">
+              <Field label={t("durationMin")}>
                 <Input
                   type="number"
                   className={inputCls}
@@ -120,7 +123,7 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
               </Field>
             </div>
 
-            <Field label="Fecha y hora" required>
+            <Field label={t("dateTime")} required>
               <Input
                 type="datetime-local"
                 className={`${inputCls} [color-scheme:dark]`}
@@ -129,16 +132,15 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
               />
             </Field>
 
-            <Field label="Servicio">
+            <Field label={t("service")}>
               <Input
                 className={inputCls}
-                placeholder="ej. Consulta inicial"
                 value={form.service}
                 onChange={(e) => setForm((p) => ({ ...p, service: e.target.value }))}
               />
             </Field>
 
-            <Field label="Notas">
+            <Field label={t("notes")}>
               <textarea
                 rows={2}
                 value={form.notes}
@@ -153,10 +155,10 @@ export function NewAppointmentButton({ brandId, leads }: { brandId: string; lead
 
             <div className="flex gap-3 pt-1">
               <Button onClick={handleSave} disabled={isPending} className="cursor-pointer" style={{ background: "var(--brand)" }}>
-                {isPending ? "Guardando…" : "Agendar cita"}
+                {isPending ? tc("saving") : t("scheduleAppt")}
               </Button>
               <Button variant="ghost" className="text-gray-400 hover:text-gray-700" onClick={() => setOpen(false)} disabled={isPending}>
-                Cancelar
+                {tc("cancel")}
               </Button>
             </div>
           </div>

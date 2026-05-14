@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useTransition } from "react"
+import { useTranslations } from "next-intl"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -16,26 +17,6 @@ import type { Database } from "@/types/database"
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
 type LeadSource = Database["public"]["Enums"]["lead_source"]
 
-const STATUS_LABELS: Record<LeadStatus, string> = {
-  new: "Nuevo",
-  contacted: "Contactado",
-  qualified: "Calificado",
-  appointment_set: "Cita agendada",
-  sold: "Vendido",
-  lost: "Perdido",
-  on_hold: "En pausa",
-}
-
-const SOURCE_LABELS: Record<LeadSource, string> = {
-  inbound_call: "Llamada entrante",
-  web_form: "Formulario web",
-  referral: "Referido",
-  whatsapp: "WhatsApp",
-  walk_in: "Walk-in",
-  social: "Redes sociales",
-  other: "Otro",
-}
-
 export function LeadFilterBar({
   total,
   showRepFilter,
@@ -43,6 +24,30 @@ export function LeadFilterBar({
   total: number
   showRepFilter?: boolean
 }) {
+  const t = useTranslations("leads")
+  const ts = useTranslations("status")
+  const tsrc = useTranslations("source")
+
+  const STATUS_LABELS: Record<LeadStatus, string> = {
+    new: ts("new"),
+    contacted: ts("contacted"),
+    qualified: ts("qualified"),
+    appointment_set: ts("appointment_set"),
+    sold: ts("sold"),
+    lost: ts("lost"),
+    on_hold: ts("on_hold"),
+  }
+
+  const SOURCE_LABELS: Record<LeadSource, string> = {
+    inbound_call: tsrc("inbound_call"),
+    web_form: tsrc("web_form"),
+    referral: tsrc("referral"),
+    whatsapp: tsrc("whatsapp"),
+    walk_in: tsrc("walk_in"),
+    social: tsrc("social"),
+    other: tsrc("other"),
+  }
+
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -56,7 +61,7 @@ export function LeadFilterBar({
       } else {
         next.delete(key)
       }
-      next.delete("offset") // reset pagination on filter change
+      next.delete("offset")
       startTransition(() => {
         router.replace(`${pathname}?${next.toString()}`)
       })
@@ -71,12 +76,11 @@ export function LeadFilterBar({
 
   return (
     <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-      {/* Search */}
       <div className="relative flex-1 min-w-0">
         <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
         <Input
           type="text"
-          placeholder="Nombre, teléfono, email…"
+          placeholder={t("searchPlaceholder")}
           defaultValue={search}
           className="pl-8 h-9 bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 text-sm focus-visible:ring-zinc-700"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,33 +90,30 @@ export function LeadFilterBar({
         />
       </div>
 
-      {/* Status filter */}
       <Select value={status} onValueChange={(v: string) => update("status", v)}>
         <SelectTrigger className="h-9 w-[160px] bg-white border-gray-200 text-gray-700 text-sm">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent className="bg-white border-gray-200">
-          <SelectItem value="all" className="text-gray-500 text-sm">Todos los status</SelectItem>
+          <SelectItem value="all" className="text-gray-500 text-sm">{t("allStatus")}</SelectItem>
           {(Object.entries(STATUS_LABELS) as [LeadStatus, string][]).map(([v, label]) => (
             <SelectItem key={v} value={v} className="text-gray-800 text-sm">{label}</SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      {/* Source filter */}
       <Select value={source} onValueChange={(v: string) => update("source", v)}>
         <SelectTrigger className="h-9 w-[160px] bg-white border-gray-200 text-gray-700 text-sm">
-          <SelectValue placeholder="Fuente" />
+          <SelectValue placeholder="Source" />
         </SelectTrigger>
         <SelectContent className="bg-white border-gray-200">
-          <SelectItem value="all" className="text-gray-500 text-sm">Todas las fuentes</SelectItem>
+          <SelectItem value="all" className="text-gray-500 text-sm">{t("allSources")}</SelectItem>
           {(Object.entries(SOURCE_LABELS) as [LeadSource, string][]).map(([v, label]) => (
             <SelectItem key={v} value={v} className="text-gray-800 text-sm">{label}</SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      {/* Clear filters */}
       {hasFilters && (
         <button
           onClick={() => {
@@ -121,11 +122,10 @@ export function LeadFilterBar({
           className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-500 transition-colors px-1 whitespace-nowrap"
         >
           <X className="w-3 h-3" />
-          Limpiar
+          {t("clearFilters")}
         </button>
       )}
 
-      {/* Count + pending indicator */}
       <span className={`text-xs whitespace-nowrap ${isPending ? "text-gray-400" : "text-gray-400"} ml-auto pl-2`}>
         {isPending ? "…" : `${total} lead${total !== 1 ? "s" : ""}`}
       </span>

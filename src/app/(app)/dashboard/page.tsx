@@ -18,6 +18,7 @@ import {
   fetchPivotStats,
   formatCurrency as fmtCurrency,
 } from "@/lib/queries/dashboard"
+import { getTranslations } from "next-intl/server"
 
 // Cast to bypass @supabase/ssr↔@supabase/supabase-js@2.46 type param mismatch
 type TypedClient = SupabaseClient<Database>
@@ -29,7 +30,7 @@ import type { PivotStats } from "@/lib/queries/dashboard"
 
 type UserProfile = Pick<Tables<"users">, "name" | "role">
 
-function getGreeting(timezone: string): string {
+function getGreeting(timezone: string, t: Awaited<ReturnType<typeof getTranslations<"dashboard">>>): string {
   const hour = parseInt(
     new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
@@ -37,29 +38,27 @@ function getGreeting(timezone: string): string {
       hour12: false,
     }).format(new Date())
   )
-  if (hour < 12) return "Buen día"
-  if (hour < 19) return "Buenas tardes"
-  return "Buenas noches"
+  if (hour < 12) return t("greetingMorning")
+  if (hour < 19) return t("greetingAfternoon")
+  return t("greetingEvening")
 }
 
-function buildPivotText(pivot: PivotStats): string {
+function buildPivotText(pivot: PivotStats, t: Awaited<ReturnType<typeof getTranslations<"dashboard">>>): string {
   if (
     pivot.appts_today === 0 &&
     pivot.pending_cents === 0 &&
     pivot.stale_count === 0
   ) {
-    return "Tu pipeline está al día."
+    return t("pipelineOnTrack")
   }
   const parts: string[] = []
   if (pivot.appts_today > 0)
-    parts.push(`${pivot.appts_today} cita${pivot.appts_today !== 1 ? "s" : ""}`)
+    parts.push(`${pivot.appts_today} ${pivot.appts_today !== 1 ? t("apptPlural") : t("apptSingular")}`)
   if (pivot.pending_cents > 0)
-    parts.push(`${fmtCurrency(pivot.pending_cents)} por cobrar`)
+    parts.push(`${fmtCurrency(pivot.pending_cents)} ${t("toCollect")}`)
   if (pivot.stale_count > 0)
-    parts.push(
-      `${pivot.stale_count} lead${pivot.stale_count !== 1 ? "s" : ""} sin contactar`
-    )
-  return `Tu enfoque hoy: ${parts.join(", ")}`
+    parts.push(`${pivot.stale_count} ${pivot.stale_count !== 1 ? t("staleLeadPlural") : t("staleLeadSingular")}`)
+  return t("focusToday", { parts: parts.join(", ") })
 }
 
 export default async function DashboardPage() {
@@ -71,6 +70,7 @@ export default async function DashboardPage() {
 
   // Cast to bypass @supabase/ssr ↔ @supabase/supabase-js@2.46 generic mismatch
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("dashboard")
 
   // Profile + timezone in parallel (needed before parallel fetches)
   const [profileRes, timezone] = await Promise.all([
@@ -111,8 +111,8 @@ export default async function DashboardPage() {
     fetchPivotStats(sb, user.id, brandId, dayRange),
   ])
 
-  const greeting = getGreeting(timezone)
-  const pivotText = buildPivotText(pivot)
+  const greeting = getGreeting(timezone, t)
+  const pivotText = buildPivotText(pivot, t)
   const name = profile?.name ?? user.email ?? "—"
 
   return (

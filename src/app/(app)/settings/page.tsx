@@ -10,6 +10,7 @@ import { ProfileForm } from "./_components/profile-form"
 import { BrandForm } from "./_components/brand-form"
 import { UsersTab, type UserRow } from "./_components/users-tab"
 import { ProductsTab, type ProductRow } from "./_components/products-tab"
+import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -23,6 +24,7 @@ export default async function SettingsPage({
   if (!user) redirect("/login")
 
   const sb = supabase as unknown as TypedClient
+  const t = await getTranslations("settings")
 
   const [profileRes, cookieStore, params] = await Promise.all([
     sb.from("users").select("id, name, email, cell_phone, role").eq("id", user.id).single(),
@@ -38,7 +40,6 @@ export default async function SettingsPage({
   const sp = params as Record<string, string | string[] | undefined>
   const tab = typeof sp.tab === "string" ? sp.tab : "perfil"
 
-  // Reps can only access their profile and products tabs
   if (role === "rep" && tab !== "perfil" && tab !== "productos") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
@@ -89,40 +90,38 @@ export default async function SettingsPage({
 
   const adminTabs = role === "admin"
     ? [
-        { value: "marca", label: "Marca" },
-        { value: "usuarios", label: "Usuarios" },
+        { value: "marca", label: t("tabMarca") },
+        { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
   const tabs = [
-    { value: "perfil", label: "Perfil" },
-    { value: "productos", label: "Productos" },
+    { value: "perfil", label: t("tabPerfil") },
+    { value: "productos", label: t("tabProductos") },
     ...adminTabs,
   ]
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
 
-      <h1 className="text-xl font-semibold text-foreground">Configuración</h1>
+      <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
 
-      {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {tabs.map((t) => (
+        {tabs.map((tb) => (
           <Link
-            key={t.value}
-            href={`/settings?tab=${t.value}`}
+            key={tb.value}
+            href={`/settings?tab=${tb.value}`}
             className={`px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
-              tab === t.value
+              tab === tb.value
                 ? "border-current text-foreground font-medium"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
-            style={tab === t.value ? { borderColor: "var(--brand)" } : undefined}
+            style={tab === tb.value ? { borderColor: "var(--brand)" } : undefined}
           >
-            {t.label}
+            {tb.label}
           </Link>
         ))}
       </div>
 
-      {/* Tab content */}
       <div className="pt-2">
         {tab === "perfil" && profile && (
           <ProfileForm
@@ -140,17 +139,17 @@ export default async function SettingsPage({
           />
         )}
         {tab === "marca" && !brand && role === "admin" && (
-          <p className="text-sm text-zinc-600">Selecciona una marca primero desde el selector en el sidebar.</p>
+          <p className="text-sm text-zinc-600">{t("selectBrand")}</p>
         )}
         {tab === "productos" && (role === "admin" || role === "rep") && (
           brandId
             ? <ProductsTab products={products} brandId={brandId} categories={categories} readonly={role !== "admin"} />
-            : <p className="text-sm text-muted-foreground">Selecciona una marca primero desde el selector en el sidebar.</p>
+            : <p className="text-sm text-muted-foreground">{t("selectBrand")}</p>
         )}
         {tab === "usuarios" && role === "admin" && (
           brandId
             ? <UsersTab users={brandUsers} brandId={brandId} currentUserId={user.id} />
-            : <p className="text-sm text-muted-foreground">Selecciona una marca primero desde el selector en el sidebar.</p>
+            : <p className="text-sm text-muted-foreground">{t("selectBrand")}</p>
         )}
       </div>
 
