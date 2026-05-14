@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil, CheckCircle2 } from "lucide-react"
 import { ProductDialog } from "./product-dialog"
@@ -15,20 +16,22 @@ type Props = {
   readonly?: boolean
 }
 
-const CADENCE_LABELS: Record<string, string> = {
-  weekly: "Semanal",
-  monthly: "Mensual",
-  annual: "Anual",
-}
-
 function formatPrice(cents: number) {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 
 export function ProductsTab({ products, brandId, categories, readonly = false }: Props) {
+  const t = useTranslations("settings")
+  const tc = useTranslations("common")
   const [createOpen, setCreateOpen] = useState(false)
   const [editProduct, setEditProduct] = useState<ProductRow | null>(null)
+
+  const CADENCE_LABELS: Record<string, string> = {
+    weekly: t("weekly"),
+    monthly: t("monthly"),
+    annual: t("annual"),
+  }
 
   return (
     <div className="space-y-5">
@@ -36,12 +39,12 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
       {/* ── Header tabla ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {products.length} producto{products.length !== 1 ? "s" : ""}
+          {t("productsCount", { count: products.length })}
         </p>
         {!readonly && (
           <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
             <Plus className="w-3.5 h-3.5" />
-            Nuevo producto
+            {t("newProduct")}
           </Button>
         )}
       </div>
@@ -49,10 +52,10 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
       {/* ── Tabla ────────────────────────────────────────────────────────── */}
       {products.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border py-10 text-center">
-          <p className="text-sm text-muted-foreground">Aún no hay productos.</p>
+          <p className="text-sm text-muted-foreground">{t("noProducts")}</p>
           {!readonly && (
             <Button variant="ghost" size="sm" className="mt-2 text-primary" onClick={() => setCreateOpen(true)}>
-              Crear el primero
+              {t("createFirst")}
             </Button>
           )}
         </div>
@@ -61,13 +64,13 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/40">
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Nombre</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">Categoría</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Precio</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">Cadencia</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden lg:table-cell">Servicios</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">Recurrente</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Estado</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("productColName")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">{t("productColCategory")}</th>
+                <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("productColPrice")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">{t("productColCadence")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden lg:table-cell">{t("productColServices")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">{t("productColRecurring")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("productColStatus")}</th>
                 <th className="px-3 py-2 w-8" />
               </tr>
             </thead>
@@ -117,17 +120,17 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
                   </td>
                   <td className="px-3 py-2.5 hidden md:table-cell">
                     <span className={`text-xs font-medium ${p.recurring ? "text-emerald-600" : "text-muted-foreground"}`}>
-                      {p.recurring ? "Sí" : "No"}
+                      {p.recurring ? tc("yes") : tc("no")}
                     </span>
                   </td>
                   <td className="px-3 py-2.5">
                     {p.active ? (
                       <span className="inline-flex items-center text-xs bg-emerald-400/10 text-emerald-600 border border-emerald-400/20 rounded-full px-2 py-0.5 font-medium">
-                        Activo
+                        {t("active")}
                       </span>
                     ) : (
                       <span className="inline-flex items-center text-xs bg-zinc-400/10 text-zinc-400 border border-zinc-400/20 rounded-full px-2 py-0.5 font-medium">
-                        Inactivo
+                        {t("inactive")}
                       </span>
                     )}
                   </td>
@@ -136,7 +139,7 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
                       <button
                         onClick={() => setEditProduct(p)}
                         className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        title="Editar"
+                        title={tc("edit")}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
