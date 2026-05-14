@@ -427,7 +427,19 @@
     "summaryPending": "El agente generará tu resumen a las 8am.",
     "viewStaleLeads": "Ver leads stale",
     "viewAppts": "Ver citas",
-    "logCall": "Registrar llamada"
+    "logCall": "Registrar llamada",
+    "filters": {
+      "today": "Hoy",
+      "thisWeek": "Esta semana",
+      "thisMonth": "Este mes",
+      "lastMonth": "Mes pasado",
+      "thisQuarter": "Este trimestre",
+      "thisYear": "Este año",
+      "custom": "Personalizado",
+      "apply": "Aplicar",
+      "showing": "Mostrando datos del {from} al {to}",
+      "to": "al"
+    }
   },
   "import": {
     "title": "Importar leads",

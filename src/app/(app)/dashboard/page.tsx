@@ -5,7 +5,6 @@ import type { Tables } from "@/types/database"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import {
-  getDayRange,
   fetchTimezone,
   getBrandIdBySlug,
   fetchCallsKpi,
@@ -18,7 +17,14 @@ import {
   fetchPivotStats,
   formatCurrency as fmtCurrency,
 } from "@/lib/queries/dashboard"
-import { getTranslations } from "next-intl/server"
+import { getLocale, getTranslations } from "next-intl/server"
+import {
+  dateOnlyRangeToUtc,
+  formatYmdForDisplay,
+  resolveActiveRange,
+  type DashboardSearchParams,
+} from "@/lib/dashboard/date-ranges"
+import { DateRangeFilter } from "./_components/date-range-filter"
 
 // Cast to bypass @supabase/ssr↔@supabase/supabase-js@2.46 type param mismatch
 type TypedClient = SupabaseClient<Database>
@@ -61,7 +67,11 @@ function buildPivotText(pivot: PivotStats, t: Awaited<ReturnType<typeof getTrans
   return t("focusToday", { parts: parts.join(", ") })
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardSearchParams>
+}) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -71,6 +81,8 @@ export default async function DashboardPage() {
   // Cast to bypass @supabase/ssr ↔ @supabase/supabase-js@2.46 generic mismatch
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("dashboard")
+  const tFilters = await getTranslations("dashboard.filters")
+  const locale = await getLocale()
 
   // Profile + timezone in parallel (needed before parallel fetches)
   const [profileRes, timezone] = await Promise.all([
@@ -83,7 +95,11 @@ export default async function DashboardPage() {
   ])
 
   const profile = profileRes.data
-  const dayRange = getDayRange(timezone)
+
+  // Resolve active date range from URL searchParams.
+  const resolvedParams = await searchParams
+  const active = resolveActiveRange(resolvedParams, timezone)
+  const range = dateOnlyRangeToUtc(active.from, active.to, timezone)
 
   // Brand filter from cookie (set by BrandProvider on client)
   const cookieStore = await cookies()
@@ -101,28 +117,46 @@ export default async function DashboardPage() {
     summary,
     pivot,
   ] = await Promise.all([
-    fetchCallsKpi(sb, user.id, brandId, dayRange),
-    fetchApptsKpi(sb, user.id, brandId, dayRange),
-    fetchSalesKpi(sb, user.id, brandId, dayRange),
+    fetchCallsKpi(sb, user.id, brandId, range),
+    fetchApptsKpi(sb, user.id, brandId, range),
+    fetchSalesKpi(sb, user.id, brandId, range),
     fetchPendingKpi(sb, user.id, brandId),
-    fetchTodayAppts(sb, user.id, brandId, dayRange),
-    fetchUrgentLeads(sb, user.id, brandId, dayRange),
-    fetchAgentSummary(sb, user.id, dayRange),
-    fetchPivotStats(sb, user.id, brandId, dayRange),
+    fetchTodayAppts(sb, user.id, brandId, range),
+    fetchUrgentLeads(sb, user.id, brandId, range),
+    fetchAgentSummary(sb, user.id, range),
+    fetchPivotStats(sb, user.id, brandId, range),
   ])
 
   const greeting = getGreeting(timezone, t)
   const pivotText = buildPivotText(pivot, t)
   const name = profile?.name ?? user.email ?? "—"
 
+  const fromLabel = formatYmdForDisplay(active.from, locale)
+  const toLabel = formatYmdForDisplay(active.to, locale)
+  const showingLabel = tFilters("showing", {
+    from: fromLabel,
+    to: toLabel,
+  })
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
-      {/* Section 1: Greeting + pivot stats */}
-      <div>
-        <p className="text-sm text-gray-400">{greeting}</p>
-        <h1 className="text-2xl font-semibold text-gray-900 mt-0.5">{name}</h1>
-        <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">{pivotText}</p>
+      {/* Section 1: Greeting + pivot stats + date range filter */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <p className="text-sm text-gray-400">{greeting}</p>
+          <h1 className="text-2xl font-semibold text-gray-900 mt-0.5">{name}</h1>
+          <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">{pivotText}</p>
+          <p className="text-[11px] text-gray-400 mt-1 leading-snug">{showingLabel}</p>
+        </div>
+        <div className="shrink-0">
+          <DateRangeFilter
+            preset={active.preset}
+            from={active.from}
+            to={active.to}
+            timezone={timezone}
+          />
+        </div>
       </div>
 
       {/* PHASE B plug-in: pending agent actions for this user */}

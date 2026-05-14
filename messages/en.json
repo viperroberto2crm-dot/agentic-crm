@@ -427,7 +427,19 @@
     "summaryPending": "The agent will generate your summary at 8am.",
     "viewStaleLeads": "View stale leads",
     "viewAppts": "View appointments",
-    "logCall": "Log a call"
+    "logCall": "Log a call",
+    "filters": {
+      "today": "Today",
+      "thisWeek": "This week",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "thisQuarter": "This quarter",
+      "thisYear": "This year",
+      "custom": "Custom",
+      "apply": "Apply",
+      "showing": "Showing data from {from} to {to}",
+      "to": "to"
+    }
   },
   "import": {
     "title": "Import leads",
