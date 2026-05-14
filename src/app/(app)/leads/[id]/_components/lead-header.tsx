@@ -1,8 +1,8 @@
 import Link from "next/link"
-import { ArrowLeft, Phone, Mail, MapPin } from "lucide-react"
+import { ArrowLeft, Phone, Mail, MapPin, Calendar } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { Database } from "@/types/database"
-import { getTranslations } from "next-intl/server"
+import { getTranslations, getLocale } from "next-intl/server"
 
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
 
@@ -28,6 +28,7 @@ type Props = {
     city: string | null
     state: string | null
     ai_score: number | null
+    created_at: string
     brand: { name: string; brand_color: string | null } | null
     rep: { name: string } | null
   }
@@ -35,8 +36,13 @@ type Props = {
 
 export async function LeadHeader({ lead }: Props) {
   const ts = await getTranslations("status")
+  const tl = await getTranslations("leads")
+  const locale = await getLocale()
   const label = ts(lead.status)
   const className = STATUS_CLASS[lead.status] ?? "border-zinc-700 text-zinc-400"
+  const createdLabel = new Intl.DateTimeFormat(locale, {
+    dateStyle: "long",
+  }).format(new Date(lead.created_at))
 
   return (
     <div className="space-y-4">
@@ -71,6 +77,10 @@ export async function LeadHeader({ lead }: Props) {
                 Rep: {lead.rep.name}
               </span>
             )}
+            <span className="flex items-center gap-1 text-[10px] text-zinc-600">
+              <Calendar className="w-2.5 h-2.5" />
+              {tl("createdOn", { date: createdLabel })}
+            </span>
           </div>
         </div>
 

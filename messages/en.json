@@ -124,6 +124,7 @@
     "closedSales": "Closed sales",
     "scoreReason": "Score reason",
     "activityTitle": "Activity",
+    "createdOn": "Created on {date}",
     "importTitle": "Import leads",
     "dragDrop": "Drag your file here",
     "dragDropOr": "or click to select",

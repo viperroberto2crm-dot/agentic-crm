@@ -124,6 +124,7 @@
     "closedSales": "Ventas cerradas",
     "scoreReason": "Razón del score",
     "activityTitle": "Actividad",
+    "createdOn": "Creado el {date}",
     "importTitle": "Importar leads",
     "dragDrop": "Arrastra tu archivo aquí",
     "dragDropOr": "o haz click para seleccionar",
