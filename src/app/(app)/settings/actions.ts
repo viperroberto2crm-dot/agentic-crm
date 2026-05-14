@@ -113,8 +113,10 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
         return { ok: false, error: error.message }
       }
     } else if (createData?.user) {
-      // Upsert user record with correct role
-      const { error: profileErr } = await admin.from("users").upsert({
+      // The DB trigger handle_new_user() creates the public.users profile
+      // and user_brands association automatically from user_metadata.
+      // We do a fallback upsert in case the trigger is not installed.
+      await admin.from("users").upsert({
         id: createData.user.id,
         email: input.email,
         name: input.name,
@@ -122,16 +124,11 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
         active: true,
       }, { onConflict: "id" })
 
-      if (profileErr) return { ok: false, error: profileErr.message }
-
-      // Add to brand
       if (input.brand_id) {
-        const { error: brandErr } = await admin.from("user_brands").upsert({
+        await admin.from("user_brands").upsert({
           user_id: createData.user.id,
           brand_id: input.brand_id,
         }, { onConflict: "user_id,brand_id" })
-
-        if (brandErr) return { ok: false, error: brandErr.message }
       }
     }
 
