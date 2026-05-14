@@ -208,6 +208,7 @@ export type Database = {
           cost_cents: number | null
           duration_ms: number | null
           error: string | null
+          brand_id: string | null
           created_at: string
         }
         Insert: {
@@ -222,6 +223,7 @@ export type Database = {
           cost_cents?: number | null
           duration_ms?: number | null
           error?: string | null
+          brand_id?: string | null
           created_at?: string
         }
         Update: {
@@ -236,10 +238,12 @@ export type Database = {
           cost_cents?: number | null
           duration_ms?: number | null
           error?: string | null
+          brand_id?: string | null
           created_at?: string
         }
         Relationships: [
           { foreignKeyName: "agent_runs_related_user_id_fkey"; columns: ["related_user_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+          , { foreignKeyName: "agent_runs_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] }
         ]
       }
       agent_skills: {
