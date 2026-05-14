@@ -173,6 +173,138 @@ export async function registerSale(raw: RegisterSaleInput) {
   return sale.id
 }
 
+// ── Payment Plans & Abonos ────────────────────────────────────────────────────
+
+export type Abono = {
+  id: string
+  amount_cents: number
+  paid_at: string
+  payment_method: string
+  notes: string | null
+}
+
+export type PaymentPlan = {
+  id: string
+  product_name: string
+  total_amount_cents: number
+  notes: string | null
+  created_at: string
+  abonos: Abono[]
+}
+
+const CreatePlanSchema = z.object({
+  lead_id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  product_name: z.string().min(1),
+  total_amount_cents: z.number().int().min(0),
+  notes: z.string().nullable(),
+})
+
+export type CreatePlanInput = z.infer<typeof CreatePlanSchema>
+
+export async function createPaymentPlan(raw: CreatePlanInput) {
+  const input = CreatePlanSchema.parse(raw)
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("payment_plans")
+    .insert({
+      lead_id: input.lead_id,
+      brand_id: input.brand_id,
+      product_name: input.product_name,
+      total_amount_cents: input.total_amount_cents,
+      notes: input.notes,
+      created_by: user.id,
+    })
+    .select("id")
+    .single()
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/leads/${input.lead_id}`)
+  return data.id as string
+}
+
+const AddAbonoSchema = z.object({
+  plan_id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  amount_cents: z.number().int().min(1),
+  paid_at: z.string().min(1),
+  payment_method: z.string().min(1),
+  notes: z.string().nullable(),
+})
+
+export type AddAbonoInput = z.infer<typeof AddAbonoSchema>
+
+export async function addAbono(raw: AddAbonoInput) {
+  const input = AddAbonoSchema.parse(raw)
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("abonos")
+    .insert({
+      plan_id: input.plan_id,
+      lead_id: input.lead_id,
+      brand_id: input.brand_id,
+      amount_cents: input.amount_cents,
+      paid_at: input.paid_at,
+      payment_method: input.payment_method,
+      notes: input.notes,
+      recorded_by: user.id,
+    })
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/leads/${input.lead_id}`)
+}
+
+export async function deleteAbono(abonoId: string, leadId: string) {
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("abonos")
+    .delete()
+    .eq("id", abonoId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/leads/${leadId}`)
+}
+
+export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> {
+  const supabase = await typedClient()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("payment_plans")
+    .select(`
+      id,
+      product_name,
+      total_amount_cents,
+      notes,
+      created_at,
+      abonos (
+        id,
+        amount_cents,
+        paid_at,
+        payment_method,
+        notes
+      )
+    `)
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as PaymentPlan[]
+}
+
 export async function fetchProducts(brandId: string) {
   const supabase = await typedClient()
 

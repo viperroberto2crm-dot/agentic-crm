@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator"
 import { LeadHeader } from "./_components/lead-header"
 import { LeadActions } from "./_components/lead-actions"
 import { ActivityTimeline } from "./_components/activity-timeline"
+import { PaymentPlansSection } from "./_components/payment-plans-section"
+import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -39,6 +41,8 @@ export default async function LeadDetailPage({
       .select("id, created_at, amount_cents, payment_status, payment_method")
       .eq("lead_id", id).order("created_at", { ascending: false }).limit(20),
   ])
+
+  const paymentPlans = await fetchPaymentPlans(id).catch(() => [])
 
   if (!lead) notFound()
 
@@ -132,6 +136,18 @@ export default async function LeadDetailPage({
           </Card>
         </div>
       </div>
+
+      {lead.brand_id && (
+        <Card className="bg-white border-border/60">
+          <CardContent className="pt-5">
+            <PaymentPlansSection
+              plans={paymentPlans}
+              leadId={id}
+              brandId={lead.brand_id}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
