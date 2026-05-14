@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server"
 
+// Forzar Node runtime (no Edge) para que pueda leer todas las env vars
+// del proyecto, incluyendo las provisionadas por integraciones.
+export const runtime = "nodejs"
+
 /**
  * Endpoint de diagnóstico — NO expone valores, solo flags.
  * Útil para verificar si las env vars llegaron al runtime sin tocar logs.
