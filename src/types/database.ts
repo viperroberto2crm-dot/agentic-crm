@@ -1340,6 +1340,102 @@ export type Database = {
           { foreignKeyName: "tasks_related_lead_id_fkey"; columns: ["related_lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] }
         ]
       }
+      payment_plans: {
+        Row: {
+          id: string
+          lead_id: string
+          brand_id: string
+          product_name: string
+          total_amount_cents: number
+          notes: string | null
+          installment_count: number | null
+          installment_amount_cents: number | null
+          frequency_days: number | null
+          first_due_date: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          brand_id: string
+          product_name: string
+          total_amount_cents: number
+          notes?: string | null
+          installment_count?: number | null
+          installment_amount_cents?: number | null
+          frequency_days?: number | null
+          first_due_date?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          brand_id?: string
+          product_name?: string
+          total_amount_cents?: number
+          notes?: string | null
+          installment_count?: number | null
+          installment_amount_cents?: number | null
+          frequency_days?: number | null
+          first_due_date?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "payment_plans_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "payment_plans_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] },
+          { foreignKeyName: "payment_plans_created_by_fkey"; columns: ["created_by"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ]
+      }
+      abonos: {
+        Row: {
+          id: string
+          plan_id: string
+          lead_id: string
+          brand_id: string
+          amount_cents: number
+          paid_at: string
+          payment_method: string
+          notes: string | null
+          recorded_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          plan_id: string
+          lead_id: string
+          brand_id: string
+          amount_cents: number
+          paid_at: string
+          payment_method: string
+          notes?: string | null
+          recorded_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          plan_id?: string
+          lead_id?: string
+          brand_id?: string
+          amount_cents?: number
+          paid_at?: string
+          payment_method?: string
+          notes?: string | null
+          recorded_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "abonos_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "abonos_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] },
+          { foreignKeyName: "abonos_plan_id_fkey"; columns: ["plan_id"]; referencedRelation: "payment_plans"; referencedColumns: ["id"] },
+          { foreignKeyName: "abonos_recorded_by_fkey"; columns: ["recorded_by"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ]
+      }
       user_brands: {
         Row: {
           user_id: string

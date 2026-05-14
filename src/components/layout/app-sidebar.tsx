@@ -11,6 +11,7 @@ import {
   CalendarDays,
   DollarSign,
   CheckSquare,
+  CalendarClock,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -52,6 +53,7 @@ const NAV_HREFS = [
   { key: "calls", href: "/calls", icon: Phone },
   { key: "appointments", href: "/appointments", icon: CalendarDays },
   { key: "sales", href: "/sales", icon: DollarSign },
+  { key: "paymentsDue", href: "/payments-due", icon: CalendarClock },
   { key: "tasks", href: "/tasks", icon: CheckSquare, hasBadge: true },
 ]
 
