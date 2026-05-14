@@ -297,3 +297,116 @@ export async function updateProduct(raw: UpdateProductInput): Promise<{ ok: true
     return { ok: false, error: msg }
   }
 }
+
+// ── Clinics ────────────────────────────────────────────────────────────────────
+
+const ClinicSchema = z.object({
+  brand_id: z.string().uuid(),
+  name: z.string().min(1, "Nombre requerido"),
+  address_line1: z.string().nullable(),
+  address_line2: z.string().nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  zip: z.string().nullable(),
+  phone: z.string().nullable(),
+  active: z.boolean().default(true),
+})
+
+export type ClinicInput = z.infer<typeof ClinicSchema>
+
+export async function createClinic(raw: ClinicInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = ClinicSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar clínicas" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("clinics")
+      .insert(input)
+
+    if (error) {
+      console.error("[createClinic]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[createClinic] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+const UpdateClinicSchema = ClinicSchema.extend({ id: z.string().uuid() })
+export type UpdateClinicInput = z.infer<typeof UpdateClinicSchema>
+
+export async function updateClinic(raw: UpdateClinicInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { id, ...input } = UpdateClinicSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar clínicas" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("clinics")
+      .update(input)
+      .eq("id", id)
+      .eq("brand_id", input.brand_id)
+
+    if (error) {
+      console.error("[updateClinic]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[updateClinic] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+export async function toggleClinicActive(
+  id: string,
+  active: boolean,
+  brandId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    if (!id || typeof active !== "boolean" || !brandId) {
+      return { ok: false, error: "Parámetros inválidos" }
+    }
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden gestionar clínicas" }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("clinics")
+      .update({ active })
+      .eq("id", id)
+      .eq("brand_id", brandId)
+
+    if (error) {
+      console.error("[toggleClinicActive]", error.message, error.code)
+      return { ok: false, error: error.message }
+    }
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[toggleClinicActive] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
