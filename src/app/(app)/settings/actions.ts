@@ -72,6 +72,37 @@ export async function updateProfile(raw: UpdateProfileInput) {
   revalidatePath("/dashboard")
 }
 
+const UpdatePasswordSchema = z.object({
+  newPassword: z.string().min(8, "PASSWORD_TOO_SHORT"),
+})
+export type UpdatePasswordInput = z.infer<typeof UpdatePasswordSchema>
+
+export async function updateOwnPassword(
+  raw: UpdatePasswordInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = UpdatePasswordSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    // updateUser actualiza la contraseña del usuario autenticado
+    const { error } = await supabase.auth.updateUser({ password: input.newPassword })
+    if (error) {
+      console.error("[updateOwnPassword]", error.message)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return { ok: false, error: e.issues[0]?.message ?? "Invalid input" }
+    }
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[updateOwnPassword] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
 const UpdateBrandSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
