@@ -13,6 +13,42 @@ async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
 }
 
+/**
+ * Asegura que un usuario tenga las asociaciones user_brands correctas según su rol:
+ * - admin → asociado a TODAS las marcas activas (acceso global)
+ * - manager / rep → asociado solo a la marca específica (currentBrandId)
+ *
+ * NUNCA elimina asociaciones existentes — solo agrega las faltantes. Si un admin baja
+ * de rango, sus user_brands antiguos quedan (no estorba; el rol nuevo no autoriza nada
+ * por sí solo, las queries siguen filtrando por rol).
+ */
+async function ensureUserBrandsForRole(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  role: UserRole | string,
+  currentBrandId: string | null,
+) {
+  if (role === "admin") {
+    const { data: allBrands } = await admin
+      .from("brands")
+      .select("id")
+      .eq("active", true)
+    const rows = (allBrands ?? []).map((b) => ({ user_id: userId, brand_id: b.id }))
+    if (rows.length > 0) {
+      await admin
+        .from("user_brands")
+        .upsert(rows, { onConflict: "user_id,brand_id" })
+    }
+  } else if (currentBrandId) {
+    await admin
+      .from("user_brands")
+      .upsert(
+        { user_id: userId, brand_id: currentBrandId },
+        { onConflict: "user_id,brand_id" },
+      )
+  }
+}
+
 const UpdateProfileSchema = z.object({
   name: z.string().min(1),
   cell_phone: z.string().nullable(),
@@ -124,12 +160,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
         active: true,
       }, { onConflict: "id" })
 
-      if (input.brand_id) {
-        await admin.from("user_brands").upsert({
-          user_id: createData.user.id,
-          brand_id: input.brand_id,
-        }, { onConflict: "user_id,brand_id" })
-      }
+      await ensureUserBrandsForRole(admin, createData.user.id, input.role, input.brand_id)
     }
 
     revalidatePath("/settings")
@@ -176,6 +207,11 @@ export async function updateUser(raw: UpdateUserInput) {
     .eq("id", input.id)
 
   if (error) throw new Error(error.message)
+
+  // Si el rol resultante es admin, asegurar acceso a TODAS las marcas activas.
+  const admin = createAdminClient()
+  await ensureUserBrandsForRole(admin, input.id, input.role, input.brand_id)
+
   revalidatePath("/settings")
   revalidatePath("/dashboard")
 }
@@ -476,13 +512,23 @@ export async function createBrand(
       return { ok: false, error: error?.message ?? "No se pudo crear la marca" }
     }
 
-    // Asocia al admin creador con la nueva marca para que aparezca en el selector global
+    // Asocia TODOS los admins activos con la nueva marca (acceso global por rol)
+    const { data: admins } = await admin
+      .from("users")
+      .select("id")
+      .eq("role", "admin")
+      .eq("active", true)
+    const rows = (admins ?? []).map((a) => ({
+      user_id: a.id,
+      brand_id: inserted.id,
+    }))
+    // Asegura al creador en la lista por si la query falló o el creador es admin nuevo
+    if (!rows.some((r) => r.user_id === user.id)) {
+      rows.push({ user_id: user.id, brand_id: inserted.id })
+    }
     const { error: ubErr } = await admin
       .from("user_brands")
-      .upsert(
-        { user_id: user.id, brand_id: inserted.id },
-        { onConflict: "user_id,brand_id" },
-      )
+      .upsert(rows, { onConflict: "user_id,brand_id" })
     if (ubErr) {
       console.error("[createBrand:user_brands]", ubErr.message, ubErr.code)
       // No abortamos: la marca se creó; solo logueamos el warning
