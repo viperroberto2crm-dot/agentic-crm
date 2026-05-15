@@ -9,6 +9,7 @@ type DB = SupabaseClient<Database>
 export type Scope = "current" | "all"
 
 export type GetLeadsInput = {
+  query?: string
   status?: string
   days_without_contact?: number
   limit?: number
@@ -54,10 +55,14 @@ export const AGENT_TOOLS = [
   },
   {
     name: "get_leads",
-    description: "Get leads from the CRM. Can filter by status or days without contact.",
+    description: "Get leads from the CRM. Use the 'query' parameter to search by name, phone, or email (case-insensitive, partial match). Can also filter by status or days without contact.",
     input_schema: {
       type: "object" as const,
       properties: {
+        query: {
+          type: "string",
+          description: "Search text. Matches against first_name, last_name, phone, and email (case-insensitive, partial). Use this when the user asks for a specific lead by name or contact info.",
+        },
         status: {
           type: "string",
           enum: ["new", "contacted", "qualified", "proposal", "negotiation", "sold", "lost"],
@@ -173,8 +178,8 @@ export async function executeGetLeads(
   const limit = input.limit ?? 10
   let query = sb
     .from("leads")
-    .select("id, first_name, last_name, phone, status, score, last_contacted_at, source, brand_id")
-    .order("score", { ascending: false })
+    .select("id, first_name, last_name, phone, email, status, score, last_contacted_at, source, brand_id")
+    .order("score", { ascending: false, nullsFirst: false })
     .limit(limit)
 
   if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
@@ -183,6 +188,26 @@ export async function executeGetLeads(
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - input.days_without_contact)
     query = query.or(`last_contacted_at.is.null,last_contacted_at.lte.${cutoff.toISOString()}`)
+  }
+
+  if (input.query && input.query.trim().length > 0) {
+    // Escape commas and parens to keep PostgREST `or` filter safe.
+    const safe = input.query.trim().replace(/[(),]/g, " ")
+    // Split words and OR each against name/phone/email. Each word ANDed isn't
+    // supported in a single .or() chain, so we use a token-aware OR string:
+    // any word matching first_name/last_name/phone/email returns the lead.
+    const tokens = safe.split(/\s+/).filter(Boolean)
+    const parts: string[] = []
+    for (const tok of tokens) {
+      const t = tok.replace(/%/g, "")
+      parts.push(`first_name.ilike.%${t}%`)
+      parts.push(`last_name.ilike.%${t}%`)
+      parts.push(`phone.ilike.%${t}%`)
+      parts.push(`email.ilike.%${t}%`)
+    }
+    if (parts.length > 0) {
+      query = query.or(parts.join(","))
+    }
   }
 
   const { data } = await query
