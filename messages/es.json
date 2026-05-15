@@ -129,6 +129,8 @@
     "scoreReason": "Razón del score",
     "activityTitle": "Actividad",
     "createdOn": "Creado el {date}",
+    "justCreatedTitle": "Lead creado.",
+    "justCreatedHint": "Ahora puedes registrar la venta o agendar una cita desde abajo.",
     "importTitle": "Importar leads",
     "dragDrop": "Arrastra tu archivo aquí",
     "dragDropOr": "o haz click para seleccionar",

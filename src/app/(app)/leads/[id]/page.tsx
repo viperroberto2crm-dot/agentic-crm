@@ -9,6 +9,7 @@ import { LeadHeader } from "./_components/lead-header"
 import { LeadActions } from "./_components/lead-actions"
 import { ActivityTimeline } from "./_components/activity-timeline"
 import { PaymentPlansSection } from "./_components/payment-plans-section"
+import { JustCreatedBanner } from "./_components/just-created-banner"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
 
@@ -16,10 +17,14 @@ type TypedClient = SupabaseClient<Database>
 
 export default async function LeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ created?: string }>
 }) {
   const { id } = await params
+  const { created } = await searchParams
+  const justCreated = created === "1"
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -105,6 +110,8 @@ export default async function LeadDetailPage({
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
 
       <LeadHeader lead={lead} />
+
+      {justCreated && <JustCreatedBanner />}
 
       <LeadActions lead={lead} role={role} reps={reps} clinics={clinicsForModal} />
 

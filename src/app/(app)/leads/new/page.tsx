@@ -106,7 +106,7 @@ export default function NewLeadPage() {
     startTransition(async () => {
       try {
         const id = await createLead(formData)
-        router.push(`/leads/${id}`)
+        router.push(`/leads/${id}?created=1`)
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
       }
