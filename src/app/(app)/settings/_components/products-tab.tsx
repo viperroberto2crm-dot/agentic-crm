@@ -65,11 +65,10 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
             <thead>
               <tr className="border-b border-border bg-secondary/40">
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("productColName")}</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">{t("productColCategory")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">{t("productColCategory")}</th>
                 <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("productColPrice")}</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">{t("productColCadence")}</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden lg:table-cell">{t("productColServices")}</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden md:table-cell">{t("productColRecurring")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">{t("productColCadence")}</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden xl:table-cell">{t("productColServices")}</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("productColStatus")}</th>
                 <th className="px-3 py-2 w-8" />
               </tr>
@@ -87,7 +86,7 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
                       )}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">{p.category}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">{p.category}</td>
                   <td className="px-3 py-2.5 text-right text-foreground tabular-nums">
                     <span>{formatPrice(p.price_cents)}</span>
                     {p.display_price_cents && p.display_price_cents > p.price_cents && (
@@ -96,10 +95,10 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">
+                  <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">
                     {CADENCE_LABELS[p.cadence] ?? p.cadence}
                   </td>
-                  <td className="px-3 py-2.5 hidden lg:table-cell">
+                  <td className="px-3 py-2.5 hidden xl:table-cell">
                     {Array.isArray(p.included_services) && p.included_services.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {(p.included_services as string[]).slice(0, 3).map((s, i) => (
@@ -117,11 +116,6 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
                     ) : (
                       <span className="text-[10px] text-muted-foreground/50">—</span>
                     )}
-                  </td>
-                  <td className="px-3 py-2.5 hidden md:table-cell">
-                    <span className={`text-xs font-medium ${p.recurring ? "text-emerald-600" : "text-muted-foreground"}`}>
-                      {p.recurring ? tc("yes") : tc("no")}
-                    </span>
                   </td>
                   <td className="px-3 py-2.5">
                     {p.active ? (
