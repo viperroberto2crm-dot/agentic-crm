@@ -829,7 +829,7 @@ export type Database = {
           brand_id: string
           first_name: string
           last_name: string | null
-          phone: string
+          phone: string | null
           phone_alt: string | null
           email: string | null
           status: Database["public"]["Enums"]["lead_status"]
@@ -854,7 +854,7 @@ export type Database = {
           brand_id: string
           first_name: string
           last_name?: string | null
-          phone: string
+          phone?: string | null
           phone_alt?: string | null
           email?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
@@ -879,7 +879,7 @@ export type Database = {
           brand_id?: string
           first_name?: string
           last_name?: string | null
-          phone?: string
+          phone?: string | null
           phone_alt?: string | null
           email?: string | null
           status?: Database["public"]["Enums"]["lead_status"]

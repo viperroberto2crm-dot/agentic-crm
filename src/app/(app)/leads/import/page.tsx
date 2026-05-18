@@ -105,7 +105,8 @@ function downloadTemplate() {
 
 function validateRow(row: ImportRow, idx: number): string | null {
   if (!row.first_name?.trim()) return `Row ${idx + 1}: empty first name`
-  if (!row.phone?.trim() || row.phone.trim().length < 6) return `Row ${idx + 1}: invalid phone`
+  // Phone es opcional; si está presente, debe tener mínimo 6 caracteres
+  if (row.phone?.trim() && row.phone.trim().length < 6) return `Row ${idx + 1}: invalid phone`
   if (row.email && row.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))
     return `Row ${idx + 1}: invalid email`
   return null

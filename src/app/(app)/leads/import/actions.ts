@@ -16,7 +16,10 @@ type LeadSource = typeof VALID_SOURCES[number]
 const ImportRowSchema = z.object({
   first_name: z.string().min(1, "Nombre requerido"),
   last_name: z.string().nullable(),
-  phone: z.string().min(6, "Teléfono inválido"),
+  phone: z.preprocess(
+    (v) => (typeof v === "string" && v.trim().length === 0 ? null : v),
+    z.union([z.string().min(6, "Teléfono inválido"), z.null()])
+  ),
   email: z.string().email("Email inválido").nullable().or(z.literal("").transform(() => null)),
   source: z.preprocess(
     (v) => {
