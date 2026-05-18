@@ -16,7 +16,10 @@ async function typedClient(): Promise<SupabaseClient<Database>> {
 const UpdateLeadSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().nullable(),
-  phone: z.string().min(1),
+  phone: z.preprocess(
+    (v) => (typeof v === "string" && v.trim().length === 0 ? null : v),
+    z.string().min(1).nullable()
+  ),
   phone_alt: z.string().nullable(),
   email: z.string().nullable(),
   status: z.enum(["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold"]),

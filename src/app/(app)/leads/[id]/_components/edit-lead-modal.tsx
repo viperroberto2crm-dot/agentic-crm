@@ -19,7 +19,7 @@ type LeadData = {
   id: string
   first_name: string
   last_name: string | null
-  phone: string
+  phone: string | null
   phone_alt: string | null
   email: string | null
   status: LeadStatus
@@ -138,8 +138,8 @@ export function EditLeadModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={t("phone")} required>
-              <Input className={`${inputCls} font-mono`} value={form.phone}
+            <Field label={t("phone")}>
+              <Input className={`${inputCls} font-mono`} value={form.phone ?? ""}
                 onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
             </Field>
             <Field label={t("phoneAlt")}>
