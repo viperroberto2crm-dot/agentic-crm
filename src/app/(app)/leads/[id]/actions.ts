@@ -266,6 +266,94 @@ export async function createPaymentPlan(raw: CreatePlanInput) {
   return data.id as string
 }
 
+const UpdatePlanSchema = z.object({
+  id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  product_name: z.string().min(1),
+  total_amount_cents: z.number().int().min(0),
+  notes: z.string().nullable(),
+  installment_count: z.number().int().min(1).max(100).nullable(),
+  installment_amount_cents: z.number().int().min(0).nullable(),
+  frequency_days: z.number().int().min(1).max(365).nullable(),
+  first_due_date: z.string().nullable(),
+})
+
+export type UpdatePlanInput = z.infer<typeof UpdatePlanSchema>
+
+export async function updatePaymentPlan(raw: UpdatePlanInput) {
+  const input = UpdatePlanSchema.parse(raw)
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: plan } = await sb
+    .from("payment_plans")
+    .select("sale_id")
+    .eq("id", input.id)
+    .single()
+
+  const { error } = await sb
+    .from("payment_plans")
+    .update({
+      product_name: input.product_name,
+      total_amount_cents: input.total_amount_cents,
+      notes: input.notes,
+      installment_count: input.installment_count,
+      installment_amount_cents: input.installment_amount_cents,
+      frequency_days: input.frequency_days,
+      first_due_date: input.first_due_date,
+    })
+    .eq("id", input.id)
+
+  if (error) throw new Error(error.message)
+
+  // Mantener sincronizado el monto de la venta vinculada
+  if (plan?.sale_id) {
+    await sb
+      .from("sales")
+      .update({ amount_cents: input.total_amount_cents })
+      .eq("id", plan.sale_id)
+    await refreshPlanSaleStatus(supabase, input.id)
+  }
+
+  revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+}
+
+export async function deletePaymentPlan(planId: string, leadId: string) {
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  // Get linked sale_id so we can clean it up too
+  const { data: plan } = await sb
+    .from("payment_plans")
+    .select("sale_id")
+    .eq("id", planId)
+    .single()
+
+  // Delete abonos first (CASCADE may or may not be set)
+  await sb.from("abonos").delete().eq("plan_id", planId)
+  // Delete the plan
+  const { error } = await sb.from("payment_plans").delete().eq("id", planId)
+  if (error) throw new Error(error.message)
+
+  // Borrar la sale auto-generada vinculada
+  if (plan?.sale_id) {
+    await sb.from("sale_items").delete().eq("sale_id", plan.sale_id)
+    await sb.from("sales").delete().eq("id", plan.sale_id)
+  }
+
+  revalidatePath(`/leads/${leadId}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+}
+
 async function refreshPlanSaleStatus(
   supabase: SupabaseClient<Database>,
   planId: string,

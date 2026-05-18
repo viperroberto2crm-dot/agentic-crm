@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { Plus, Trash2, CheckCircle2, Loader2, Circle, AlertCircle, Clock } from "lucide-react"
+import { Plus, Pencil, Trash2, CheckCircle2, Loader2, Circle, AlertCircle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -22,6 +22,8 @@ import {
 import {
   addAbono,
   deleteAbono,
+  updatePaymentPlan,
+  deletePaymentPlan,
   type PaymentPlan,
 } from "../actions"
 
@@ -207,6 +209,226 @@ function AddAbonoDialog({
   )
 }
 
+// ── Edit Plan Dialog ──────────────────────────────────────────────────────────
+
+function EditPlanDialog({
+  open,
+  onClose,
+  plan,
+  leadId,
+}: {
+  open: boolean
+  onClose: () => void
+  plan: PaymentPlan
+  leadId: string
+}) {
+  const t = useTranslations("plans")
+  const tc = useTranslations("common")
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  const [productName, setProductName] = useState(plan.product_name)
+  const [totalDollars, setTotalDollars] = useState(
+    plan.total_amount_cents > 0 ? (plan.total_amount_cents / 100).toFixed(2) : "",
+  )
+  const [notes, setNotes] = useState(plan.notes ?? "")
+
+  const hasSched =
+    plan.installment_count != null && plan.installment_count > 0 && plan.frequency_days != null
+  const [scheduleOn, setScheduleOn] = useState(hasSched)
+  const [installmentCount, setInstallmentCount] = useState<string>(
+    plan.installment_count != null ? String(plan.installment_count) : "4",
+  )
+  const [installmentAmount, setInstallmentAmount] = useState<string>(
+    plan.installment_amount_cents != null
+      ? (plan.installment_amount_cents / 100).toFixed(2)
+      : "",
+  )
+  const [installmentAmountTouched, setInstallmentAmountTouched] = useState(
+    plan.installment_amount_cents != null,
+  )
+  const initialFreq = (() => {
+    const f = plan.frequency_days
+    if (f === 7) return "7"
+    if (f === 14) return "14"
+    if (f === 30) return "30"
+    if (f != null) return "custom"
+    return "7"
+  })()
+  const [frequency, setFrequency] = useState<string>(initialFreq)
+  const [customFrequency, setCustomFrequency] = useState<string>(
+    plan.frequency_days != null && ![7, 14, 30].includes(plan.frequency_days)
+      ? String(plan.frequency_days)
+      : "",
+  )
+  const [firstDueDate, setFirstDueDate] = useState<string>(
+    plan.first_due_date ?? todayIso(),
+  )
+
+  const totalNum = parseFloat(totalDollars || "0")
+  const countNum = parseInt(installmentCount || "0", 10)
+  const autoCalcAmount = totalNum > 0 && countNum > 0 ? (totalNum / countNum).toFixed(2) : ""
+  const displayedInstallmentAmount = installmentAmountTouched ? installmentAmount : autoCalcAmount
+  const effectiveFrequencyDays =
+    frequency === "custom" ? parseInt(customFrequency || "0", 10) : parseInt(frequency, 10)
+
+  function handleClose() {
+    setError(null)
+    onClose()
+  }
+
+  function handleSubmit() {
+    if (!productName.trim()) return
+    const cents = Math.round(parseFloat(totalDollars || "0") * 100)
+    setError(null)
+
+    let sched: {
+      installment_count: number | null
+      installment_amount_cents: number | null
+      frequency_days: number | null
+      first_due_date: string | null
+    } = {
+      installment_count: null,
+      installment_amount_cents: null,
+      frequency_days: null,
+      first_due_date: null,
+    }
+    if (scheduleOn) {
+      const count = parseInt(installmentCount, 10)
+      const amountDollars = parseFloat(displayedInstallmentAmount || "0")
+      if (!count || count < 1) { setError(t("schedule.installmentCount")); return }
+      if (!amountDollars || amountDollars <= 0) { setError(t("schedule.installmentAmount")); return }
+      if (!effectiveFrequencyDays || effectiveFrequencyDays < 1) { setError(t("schedule.frequency")); return }
+      if (!firstDueDate) { setError(t("schedule.firstDueDate")); return }
+      sched = {
+        installment_count: count,
+        installment_amount_cents: Math.round(amountDollars * 100),
+        frequency_days: effectiveFrequencyDays,
+        first_due_date: firstDueDate,
+      }
+    }
+
+    startTransition(async () => {
+      try {
+        await updatePaymentPlan({
+          id: plan.id,
+          lead_id: leadId,
+          product_name: productName.trim(),
+          total_amount_cents: cents,
+          notes: notes.trim() || null,
+          ...sched,
+        })
+        router.refresh()
+        handleClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : tc("savingError"))
+      }
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">{tc("edit")} · {plan.product_name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-1">
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">{t("productName")} *</label>
+            <Input value={productName} onChange={(e) => setProductName(e.target.value)}
+              className="bg-white border-gray-200 text-gray-800 h-9" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">{t("totalAmount")}</label>
+            <Input type="number" min="0" step="0.01" value={totalDollars}
+              onChange={(e) => setTotalDollars(e.target.value)}
+              className="bg-white border-gray-200 text-gray-800 h-9 font-mono" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">{t("planNotes")}</label>
+            <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
+              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 resize-none" />
+          </div>
+
+          <div className="rounded-md border border-gray-200 bg-gray-50/60">
+            <label className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
+              <input type="checkbox" checked={scheduleOn}
+                onChange={(e) => setScheduleOn(e.target.checked)}
+                className="h-3.5 w-3.5 accent-zinc-700" />
+              <span className="text-xs font-medium text-gray-700">{t("schedule.enable")}</span>
+            </label>
+
+            {scheduleOn && (
+              <div className="px-3 pb-3 pt-1 space-y-3 border-t border-gray-200">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("schedule.installmentCount")} *</label>
+                    <Input type="number" min="1" max="100" step="1" value={installmentCount}
+                      onChange={(e) => setInstallmentCount(e.target.value)}
+                      className="bg-white border-gray-200 text-gray-800 h-9 font-mono" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("schedule.installmentAmount")} *</label>
+                    <Input type="number" min="0" step="0.01" value={displayedInstallmentAmount}
+                      onChange={(e) => { setInstallmentAmountTouched(true); setInstallmentAmount(e.target.value) }}
+                      className="bg-white border-gray-200 text-gray-800 h-9 font-mono" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("schedule.frequency")} *</label>
+                    <Select value={frequency} onValueChange={setFrequency}>
+                      <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200">
+                        <SelectItem value="7" className="text-gray-800">{t("schedule.frequencyWeekly")}</SelectItem>
+                        <SelectItem value="14" className="text-gray-800">{t("schedule.frequencyBiweekly")}</SelectItem>
+                        <SelectItem value="30" className="text-gray-800">{t("schedule.frequencyMonthly")}</SelectItem>
+                        <SelectItem value="custom" className="text-gray-800">{tc("optional")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {frequency === "custom" && (
+                      <Input type="number" min="1" max="365" step="1" value={customFrequency}
+                        onChange={(e) => setCustomFrequency(e.target.value)} placeholder="days"
+                        className="bg-white border-gray-200 text-gray-800 h-9 font-mono mt-1" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-gray-500">{t("schedule.firstDueDate")} *</label>
+                    <Input type="date" value={firstDueDate}
+                      onChange={(e) => setFirstDueDate(e.target.value)}
+                      className="bg-white border-gray-200 text-gray-800 h-9" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">{error}</p>}
+
+          <div className="flex gap-2 pt-1">
+            <Button type="button" disabled={isPending || !productName.trim()}
+              onClick={handleSubmit} className="cursor-pointer" style={{ background: "var(--brand)" }}>
+              {isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />{tc("saving")}</> : tc("save")}
+            </Button>
+            <Button type="button" variant="ghost"
+              className="text-gray-400 hover:text-gray-700"
+              onClick={handleClose} disabled={isPending}>
+              {tc("cancel")}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 
 function PlanCard({
@@ -219,9 +441,26 @@ function PlanCard({
   brandId: string
 }) {
   const t = useTranslations("plans")
+  const tc = useTranslations("common")
   const router = useRouter()
   const [abonoOpen, setAbonoOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDeletePlan() {
+    setIsDeleting(true)
+    try {
+      await deletePaymentPlan(plan.id, leadId)
+      router.refresh()
+    } catch {
+      // silent
+    } finally {
+      setIsDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
 
   const paidCents = plan.abonos.reduce((s, a) => s + a.amount_cents, 0)
   const balanceCents = Math.max(0, plan.total_amount_cents - paidCents)
@@ -305,11 +544,53 @@ function PlanCard({
             <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{plan.notes}</p>
           )}
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-xs text-gray-400">{t("totalAmount").split(" ")[0]}</p>
-          <p className="text-sm font-semibold text-gray-800 tabular-nums">
-            {plan.total_amount_cents > 0 ? fmtCents(plan.total_amount_cents) : "—"}
-          </p>
+        <div className="flex items-start gap-3 shrink-0">
+          <div className="text-right">
+            <p className="text-xs text-gray-400">{t("totalAmount").split(" ")[0]}</p>
+            <p className="text-sm font-semibold text-gray-800 tabular-nums">
+              {plan.total_amount_cents > 0 ? fmtCents(plan.total_amount_cents) : "—"}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 pt-1">
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+              title={tc("edit")}
+              disabled={isDeleting}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            {confirmDelete ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleDeletePlan}
+                  disabled={isDeleting}
+                  className="px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 rounded"
+                >
+                  {isDeleting ? "…" : tc("yes")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={isDeleting}
+                  className="px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-100 rounded"
+                >
+                  {tc("no")}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                title={tc("delete")}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -468,6 +749,13 @@ function PlanCard({
         planId={plan.id}
         leadId={leadId}
         brandId={brandId}
+      />
+
+      <EditPlanDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        plan={plan}
+        leadId={leadId}
       />
     </div>
   )
