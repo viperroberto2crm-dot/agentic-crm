@@ -62,14 +62,24 @@ export default async function LeadsPage({
             extraParams={{ status, source, search }}
           />
           {role !== "rep" && (
-            <Button asChild size="sm" variant="outline"
-              className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-            >
-              <Link href="/leads/import">
-                <Upload className="w-3.5 h-3.5" />
-                {t("importLeads")}
-              </Link>
-            </Button>
+            <>
+              <Button asChild size="sm" variant="outline"
+                className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+              >
+                <Link href="/leads/import">
+                  <Upload className="w-3.5 h-3.5" />
+                  {t("importLeads")}
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline"
+                className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+              >
+                <Link href="/leads/import-plans">
+                  <Upload className="w-3.5 h-3.5" />
+                  Import plans
+                </Link>
+              </Button>
+            </>
           )}
           <Button asChild size="sm" className="h-9 text-xs gap-1.5 cursor-pointer" style={{ background: "var(--brand)" }}>
             <Link href="/leads/new">
