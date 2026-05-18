@@ -24,6 +24,7 @@ import {
   deleteAbono,
   updatePaymentPlan,
   deletePaymentPlan,
+  updateInstallmentOverride,
   type PaymentPlan,
 } from "../actions"
 
@@ -429,6 +430,166 @@ function EditPlanDialog({
   )
 }
 
+// ── Edit Installment Dialog ───────────────────────────────────────────────────
+
+function EditInstallmentDialog({
+  open,
+  onClose,
+  planId,
+  leadId,
+  sequence,
+  currentDueDate,
+  currentAmountCents,
+  defaultDueDate,
+  defaultAmountCents,
+}: {
+  open: boolean
+  onClose: () => void
+  planId: string
+  leadId: string
+  sequence: number
+  currentDueDate: string
+  currentAmountCents: number
+  defaultDueDate: string
+  defaultAmountCents: number
+}) {
+  const tc = useTranslations("common")
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [dueDate, setDueDate] = useState(currentDueDate)
+  const [amount, setAmount] = useState((currentAmountCents / 100).toFixed(2))
+
+  function handleClose() {
+    setDueDate(currentDueDate)
+    setAmount((currentAmountCents / 100).toFixed(2))
+    setError(null)
+    onClose()
+  }
+
+  function handleSubmit() {
+    setError(null)
+    const amtNum = parseFloat(amount || "0")
+    if (!Number.isFinite(amtNum) || amtNum < 0) {
+      setError("Monto inválido")
+      return
+    }
+    const amtCents = Math.round(amtNum * 100)
+
+    // Si el valor matchea el default, mandamos null para REMOVER el override
+    const dueDateOverride = dueDate === defaultDueDate ? null : dueDate
+    const amountOverride = amtCents === defaultAmountCents ? null : amtCents
+
+    startTransition(async () => {
+      try {
+        await updateInstallmentOverride({
+          plan_id: planId,
+          lead_id: leadId,
+          sequence,
+          due_date: dueDateOverride,
+          amount_cents: amountOverride,
+        })
+        router.refresh()
+        handleClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error guardando")
+      }
+    })
+  }
+
+  function handleReset() {
+    setDueDate(defaultDueDate)
+    setAmount((defaultAmountCents / 100).toFixed(2))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">
+            Cuota #{sequence}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-1">
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">Fecha</label>
+            <Input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="bg-white border-gray-200 text-gray-800 h-9"
+            />
+            {defaultDueDate !== dueDate && (
+              <p className="text-[10px] text-gray-400">
+                Default: {defaultDueDate}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">Monto (USD)</label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="bg-white border-gray-200 text-gray-800 h-9 font-mono"
+            />
+            {Math.round(parseFloat(amount || "0") * 100) !== defaultAmountCents && (
+              <p className="text-[10px] text-gray-400">
+                Default: ${(defaultAmountCents / 100).toFixed(2)}
+              </p>
+            )}
+          </div>
+
+          <p className="text-[11px] text-gray-400 leading-snug">
+            Solo esta cuota se modifica. Las demás no se mueven.
+          </p>
+
+          {error && (
+            <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs text-gray-500"
+              onClick={handleReset}
+              disabled={isPending}
+            >
+              Restaurar default
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleClose}
+                disabled={isPending}
+              >
+                {tc("cancel")}
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isPending}
+                style={{ background: "var(--brand)" }}
+              >
+                {isPending ? tc("saving") : tc("save")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 
 function PlanCard({
@@ -448,6 +609,7 @@ function PlanCard({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingInstallment, setEditingInstallment] = useState<number | null>(null)
 
   async function handleDeletePlan() {
     setIsDeleting(true)
@@ -500,19 +662,22 @@ function PlanCard({
     const paidCount = sortedAbonos.length
     let nextAssigned = false
     return Array.from({ length: count }, (_, i) => {
-      const dueDate = addDaysIso(start, i * freq)
+      const seq = i + 1
+      // Aplicar override de fecha y/o monto si existe
+      const override = (plan.installment_overrides ?? {})[String(seq)] ?? {}
+      const dueDate = override.due_date ?? addDaysIso(start, i * freq)
+      const expectedCents = override.amount_cents ?? expected
       const abono = i < paidCount ? sortedAbonos[i] : null
       let status: InstallmentState["status"]
       if (abono) {
         status = "paid"
       } else if (!nextAssigned) {
-        // First unpaid -> next or overdue
         status = cmpDateIso(dueDate, today) < 0 ? "overdue" : "next"
         nextAssigned = true
       } else {
         status = cmpDateIso(dueDate, today) < 0 ? "overdue" : "future"
       }
-      return { index: i + 1, dueDate, expectedCents: expected, status, abono }
+      return { index: seq, dueDate, expectedCents, status, abono }
     })
   })()
 
@@ -655,20 +820,27 @@ function PlanCard({
                   label: t("schedule.overdueLabel"),
                 },
               }[inst.status]
+              const isClickable = inst.status !== "paid"
+              const tooltip = isClickable
+                ? `${inst.index}. ${cfg.label} · ${fmtDate(inst.dueDate)} · ${fmtCents(inst.expectedCents)} (click para editar)`
+                : `${inst.index}. ${cfg.label} · ${fmtDate(inst.abono?.paid_at ?? inst.dueDate)} · ${fmtCents(inst.expectedCents)}`
               return (
-                <div
+                <button
                   key={inst.index}
-                  title={`${inst.index}. ${cfg.label} · ${fmtDate(
-                    inst.abono?.paid_at ?? inst.dueDate
-                  )} · ${fmtCents(inst.expectedCents)}`}
-                  className={`flex items-center gap-1 px-2 py-1 rounded border text-[10px] tabular-nums ${cfg.className}`}
+                  type="button"
+                  disabled={!isClickable}
+                  onClick={isClickable ? () => setEditingInstallment(inst.index) : undefined}
+                  title={tooltip}
+                  className={`flex items-center gap-1 px-2 py-1 rounded border text-[10px] tabular-nums transition-all ${cfg.className} ${
+                    isClickable ? "cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-amber-300" : "cursor-default"
+                  }`}
                 >
                   {cfg.icon}
                   <span className="font-mono">{inst.index}</span>
                   <span className="font-mono">
                     {fmtDate(inst.abono?.paid_at ?? inst.dueDate)}
                   </span>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -757,6 +929,32 @@ function PlanCard({
         plan={plan}
         leadId={leadId}
       />
+
+      {editingInstallment != null && (() => {
+        const inst = installments.find((i) => i.index === editingInstallment)
+        if (!inst) return null
+        const start = plan.first_due_date as string
+        const freq = plan.frequency_days as number
+        const defaultDueDate = addDaysIso(start, (editingInstallment - 1) * freq)
+        const defaultAmountCents =
+          plan.installment_amount_cents ??
+          (plan.installment_count
+            ? Math.round(plan.total_amount_cents / plan.installment_count)
+            : 0)
+        return (
+          <EditInstallmentDialog
+            open={true}
+            onClose={() => setEditingInstallment(null)}
+            planId={plan.id}
+            leadId={leadId}
+            sequence={editingInstallment}
+            currentDueDate={inst.dueDate}
+            currentAmountCents={inst.expectedCents}
+            defaultDueDate={defaultDueDate}
+            defaultAmountCents={defaultAmountCents}
+          />
+        )
+      })()}
     </div>
   )
 }

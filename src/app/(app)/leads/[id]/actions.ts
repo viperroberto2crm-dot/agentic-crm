@@ -189,6 +189,11 @@ export type Abono = {
   notes: string | null
 }
 
+export type InstallmentOverride = {
+  due_date?: string
+  amount_cents?: number
+}
+
 export type PaymentPlan = {
   id: string
   product_name: string
@@ -199,6 +204,7 @@ export type PaymentPlan = {
   installment_amount_cents: number | null
   frequency_days: number | null
   first_due_date: string | null
+  installment_overrides: Record<string, InstallmentOverride>
   abonos: Abono[]
 }
 
@@ -321,6 +327,56 @@ export async function updatePaymentPlan(raw: UpdatePlanInput) {
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+}
+
+const UpdateInstallmentSchema = z.object({
+  plan_id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  sequence: z.number().int().min(1),
+  due_date: z.string().nullable(),     // null → quita override de fecha
+  amount_cents: z.number().int().min(0).nullable(),  // null → quita override de monto
+})
+
+export type UpdateInstallmentInput = z.infer<typeof UpdateInstallmentSchema>
+
+export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
+  const input = UpdateInstallmentSchema.parse(raw)
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: plan } = await sb
+    .from("payment_plans")
+    .select("installment_overrides")
+    .eq("id", input.plan_id)
+    .single()
+
+  const overrides: Record<string, { due_date?: string; amount_cents?: number }> =
+    (plan?.installment_overrides as Record<string, { due_date?: string; amount_cents?: number }>) ?? {}
+
+  const key = String(input.sequence)
+  const next: { due_date?: string; amount_cents?: number } = { ...(overrides[key] ?? {}) }
+
+  if (input.due_date) next.due_date = input.due_date
+  else delete next.due_date
+
+  if (input.amount_cents != null) next.amount_cents = input.amount_cents
+  else delete next.amount_cents
+
+  // Si no quedan keys en este override, removerlo
+  if (Object.keys(next).length === 0) delete overrides[key]
+  else overrides[key] = next
+
+  const { error } = await sb
+    .from("payment_plans")
+    .update({ installment_overrides: overrides })
+    .eq("id", input.plan_id)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/leads/${input.lead_id}`)
 }
 
 export async function deletePaymentPlan(planId: string, leadId: string) {
@@ -481,6 +537,7 @@ export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> 
       installment_amount_cents,
       frequency_days,
       first_due_date,
+      installment_overrides,
       abonos (
         id,
         amount_cents,
@@ -493,7 +550,11 @@ export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> 
     .order("created_at", { ascending: false })
 
   if (error) throw new Error(error.message)
-  return (data ?? []) as PaymentPlan[]
+  // Normalizar installment_overrides en caso de null/undefined
+  return (data ?? []).map((p: PaymentPlan) => ({
+    ...p,
+    installment_overrides: p.installment_overrides ?? {},
+  })) as PaymentPlan[]
 }
 
 export async function fetchProducts(brandId: string) {
