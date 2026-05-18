@@ -102,9 +102,34 @@ export default async function LeadDetailPage({
     payment_method: Database["public"]["Enums"]["payment_method"]
   }>
 
-  const totalSalesCents = sales
-    .filter((s) => s.payment_status === "paid")
+  // IDs de las sales auto-generadas por payment plans (para evitar doble-cuenta)
+  const planSaleIds = new Set(
+    paymentPlans.map((p) => p.sale_id).filter((x): x is string => !!x),
+  )
+
+  // COBRADO real = sales pagadas (sin plan) + sum de abonos de planes
+  const standalonePaidCents = sales
+    .filter((s) => s.payment_status === "paid" && !planSaleIds.has(s.id))
     .reduce((sum, s) => sum + s.amount_cents, 0)
+  const planAbonosCents = paymentPlans.reduce(
+    (sum, p) => sum + p.abonos.reduce((s, a) => s + a.amount_cents, 0),
+    0,
+  )
+  const totalCollectedCents = standalonePaidCents + planAbonosCents
+
+  // POR COBRAR = pendiente de sales standalone + balance de planes
+  const standalonePendingCents = sales
+    .filter(
+      (s) =>
+        (s.payment_status === "pending" || s.payment_status === "partial") &&
+        !planSaleIds.has(s.id),
+    )
+    .reduce((sum, s) => sum + s.amount_cents, 0)
+  const planPendingCents = paymentPlans.reduce((sum, p) => {
+    const paid = p.abonos.reduce((s, a) => s + a.amount_cents, 0)
+    return sum + Math.max(0, p.total_amount_cents - paid)
+  }, 0)
+  const totalPendingCents = standalonePendingCents + planPendingCents
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
@@ -129,8 +154,16 @@ export default async function LeadDetailPage({
               <Stat label={t("callCount")} value={calls.length} />
               <Stat label={t("apptCount")} value={appointments.length} />
               <Stat label={t("closedSales")} value={
-                (totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
+                (totalCollectedCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
               } />
+              {totalPendingCents > 0 && (
+                <Stat
+                  label="Por cobrar"
+                  value={
+                    (totalPendingCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
+                  }
+                />
+              )}
               {lead.source && <Stat label={t("source")} value={lead.source} />}
               {lead.ai_score_reason && (
                 <div>

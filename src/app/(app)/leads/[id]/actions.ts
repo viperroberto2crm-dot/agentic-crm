@@ -196,6 +196,7 @@ export type InstallmentOverride = {
 
 export type PaymentPlan = {
   id: string
+  sale_id: string | null
   product_name: string
   total_amount_cents: number
   notes: string | null
@@ -529,6 +530,7 @@ export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> 
     .from("payment_plans")
     .select(`
       id,
+      sale_id,
       product_name,
       total_amount_cents,
       notes,
