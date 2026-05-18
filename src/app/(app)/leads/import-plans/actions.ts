@@ -18,6 +18,7 @@ const PlanRowSchema = z.object({
   last_name: z.string().nullable(),
   phone: z.string().nullable(),
   email: z.string().nullable(),
+  assigned_rep: z.string().nullable(),
   plan_name: z.string().min(1, "plan_name requerido"),
   plan_total: z.number().nonnegative("plan_total inválido").nullable(),
   plan_per_installment: z.number().positive().nullable(),
@@ -127,6 +128,35 @@ export async function importPaymentPlans(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
+  // Pre-cargar usuarios activos para matchear reps por nombre
+  const { data: allUsers } = await sb
+    .from("users")
+    .select("id, name, email")
+    .eq("active", true)
+  const userList: Array<{ id: string; name: string; email: string }> = allUsers ?? []
+
+  function findRepByText(text: string | null | undefined): string | null {
+    if (!text) return null
+    const t = text.trim().toLowerCase()
+    if (!t) return null
+    // Quita prefijos comunes que la usuaria pone: 'S.S Moe' → 'moe', 'SSP-Andreina' → 'andreina'
+    const cleaned = t
+      .replace(/^(s\.?\s*[swp]\.?\s*[-\s]*)/i, "")
+      .replace(/^(ssp?[-\s]+)/i, "")
+      .replace(/[.,]/g, "")
+      .trim()
+    const candidates = cleaned ? [cleaned, t] : [t]
+    for (const c of candidates) {
+      const found = userList.find(
+        (u) =>
+          u.name?.toLowerCase().includes(c) ||
+          u.email?.toLowerCase().startsWith(c + "@"),
+      )
+      if (found) return found.id
+    }
+    return null
+  }
+
   for (const plan of validPlans) {
     try {
       // Computar total efectivo: prioriza plan_total; si no, multiplica per_installment × installments
@@ -149,6 +179,15 @@ export async function importPaymentPlans(
 
       // a) Crear lead nuevo (siempre — la usuaria pidió "wipe + start fresh")
       const phoneClean = plan.phone?.trim() || null
+      const matchedRepId = findRepByText(plan.assigned_rep)
+      const repText = plan.assigned_rep?.trim() || null
+      // Si el rep no se pudo matchear, lo apuntamos en las notas para no perderlo
+      const repFallbackNote =
+        repText && !matchedRepId ? `[Rep desde import: ${repText}]` : null
+      const combinedNotes = [plan.plan_notes?.trim(), repFallbackNote]
+        .filter(Boolean)
+        .join(" · ") || null
+
       const { data: leadRow, error: leadErr } = await sb
         .from("leads")
         .insert({
@@ -158,11 +197,20 @@ export async function importPaymentPlans(
           phone: phoneClean,
           email: plan.email?.trim() || null,
           status: "sold", // Si tienen plan = ya están vendidos
-          assigned_rep_id: user.id,
+          assigned_rep_id: matchedRepId ?? user.id,
+          notes: combinedNotes,
           created_by: user.id,
         })
         .select("id")
         .single()
+
+      if (repText && !matchedRepId) {
+        result.errors.push({
+          sheet: "Plans",
+          ref_id: plan.ref_id,
+          message: `Rep '${repText}' no matchea ningún usuario activo — lead asignado a ti. Crea ese rep en Settings → Users.`,
+        })
+      }
 
       if (leadErr || !leadRow) {
         result.errors.push({
@@ -181,7 +229,7 @@ export async function importPaymentPlans(
         .insert({
           brand_id: brandId,
           lead_id: leadId,
-          rep_id: user.id,
+          rep_id: matchedRepId ?? user.id,
           amount_cents: totalCents,
           payment_method: "cash",
           payment_status: "partial",
