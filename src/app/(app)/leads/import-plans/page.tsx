@@ -62,11 +62,12 @@ function downloadTemplate() {
       "phone",
       "email",
       "plan_name",
-      "plan_total",
-      "plan_notes",
+      "plan_per_installment",
       "plan_installments",
+      "plan_total",
       "plan_frequency",
       "plan_first_due",
+      "plan_notes",
     ],
     [
       "P001",
@@ -74,25 +75,41 @@ function downloadTemplate() {
       "Flores",
       "21356256000",
       "",
-      "GLP1 Mensual",
-      300,
-      "Programa 1 mes",
+      "Weekly $75",
+      75,
       4,
+      "",
       "weekly",
       "04/22/2026",
+      "S.W.",
     ],
     [
       "P002",
-      "Juan",
-      "Perez",
-      "555-1234567",
-      "juan@mail.com",
-      "Consulta + Medicamento",
-      150,
+      "Karina",
+      "Abreo",
       "",
-      2,
-      "biweekly",
-      "05/01/2026",
+      "",
+      "Monthly $299",
+      299,
+      1,
+      "",
+      "monthly",
+      "04/10/2026",
+      "S.W. — solo 1 pago",
+    ],
+    [
+      "P003",
+      "Irma",
+      "Anaya",
+      "",
+      "",
+      "Monthly/Weekly $499",
+      "",
+      "",
+      499,
+      "monthly",
+      "04/13/2026",
+      "SSP-Andreina",
     ],
   ])
 
@@ -108,17 +125,24 @@ function downloadTemplate() {
     ["INSTRUCCIONES"],
     [""],
     ["Hoja 'Plans': una fila por paciente con su plan de pago."],
-    ["Hoja 'Payments': una fila por cada abono cobrado, referencia al plan por ref_id."],
+    ["Hoja 'Payments': UNA FILA POR CADA ABONO YA COBRADO. Déjala vacía si todos los pagos son a futuro."],
     [""],
     ["ref_id: cualquier código único que tú decidas (P001, P002, paciente-1, etc)."],
-    ["Importante: el mismo ref_id en Plans debe matchear los abonos de ese paciente en Payments."],
+    ["  Si llenas la hoja Payments, usa el mismo ref_id para vincular abonos al plan correcto."],
     [""],
-    ["plan_frequency: usa 'weekly', 'biweekly', 'monthly' o el número de días directo (ej. 21)."],
-    ["plan_first_due: formato MM/DD/YYYY (ej. 04/22/2026)."],
-    ["plan_installments: número de cuotas. Si lo dejas vacío, no se generará schedule."],
+    ["MONTO DEL PLAN — dos formas (escoge una):"],
+    ["  A) Llena plan_per_installment + plan_installments. Ej: $75 × 4 = $300 (el sistema computa)."],
+    ["  B) Llena plan_total directo. Útil cuando no se divide en cuotas iguales."],
+    ["  Si llenas las dos, plan_total gana."],
     [""],
-    ["method (abonos): cash, card, transfer, check, other."],
-    ["date (abonos): formato MM/DD/YYYY (ej. 04/22/2026)."],
+    ["plan_frequency: 'weekly' (semanal), 'biweekly' (quincenal), 'monthly' (mensual) o número de días (ej. 21)."],
+    ["plan_first_due: fecha del primer cobro. Formato MM/DD/YYYY (ej. 04/22/2026)."],
+    ["plan_installments: número de cuotas totales. Si se deja vacío no se genera schedule."],
+    ["plan_notes: notas libres (ej. nombre del rep, observaciones)."],
+    [""],
+    ["HOJA PAYMENTS (opcional, solo si tienes abonos cobrados ya):"],
+    ["  method: cash, card, transfer, check, other."],
+    ["  date: formato MM/DD/YYYY."],
   ])
 
   XLSX.utils.book_append_sheet(wb, plans, "Plans")
@@ -163,7 +187,8 @@ export default function ImportPlansPage() {
           phone: toNullableString(r.phone),
           email: toNullableString(r.email),
           plan_name: String(r.plan_name ?? "").trim(),
-          plan_total: toNumber(r.plan_total),
+          plan_total: toNullableNumber(r.plan_total),
+          plan_per_installment: toNullableNumber(r.plan_per_installment),
           plan_notes: toNullableString(r.plan_notes),
           plan_installments: toNullableNumber(r.plan_installments),
           plan_frequency: toNullableString(r.plan_frequency),
@@ -312,7 +337,14 @@ export default function ImportPlansPage() {
                         {p.first_name} {p.last_name ?? ""}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{p.plan_name}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">${p.plan_total.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        ${(
+                          p.plan_total ??
+                          (p.plan_per_installment != null && p.plan_installments != null
+                            ? p.plan_per_installment * p.plan_installments
+                            : 0)
+                        ).toFixed(2)}
+                      </td>
                       <td className="px-3 py-2 text-right text-muted-foreground">
                         {abonosByRef.get(p.ref_id) ?? 0}
                       </td>

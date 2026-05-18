@@ -19,7 +19,8 @@ const PlanRowSchema = z.object({
   phone: z.string().nullable(),
   email: z.string().nullable(),
   plan_name: z.string().min(1, "plan_name requerido"),
-  plan_total: z.number().nonnegative("plan_total inválido"),
+  plan_total: z.number().nonnegative("plan_total inválido").nullable(),
+  plan_per_installment: z.number().positive().nullable(),
   plan_notes: z.string().nullable(),
   plan_installments: z.number().int().min(1).max(100).nullable(),
   plan_frequency: z.string().nullable(),
@@ -128,6 +129,24 @@ export async function importPaymentPlans(
 
   for (const plan of validPlans) {
     try {
+      // Computar total efectivo: prioriza plan_total; si no, multiplica per_installment × installments
+      const effectiveTotal: number = (() => {
+        if (plan.plan_total != null && plan.plan_total > 0) return plan.plan_total
+        if (plan.plan_per_installment != null && plan.plan_installments != null) {
+          return plan.plan_per_installment * plan.plan_installments
+        }
+        return 0
+      })()
+
+      if (effectiveTotal <= 0) {
+        result.errors.push({
+          sheet: "Plans",
+          ref_id: plan.ref_id,
+          message: "plan_total vacío y plan_per_installment × plan_installments no se puede calcular",
+        })
+        continue
+      }
+
       // a) Crear lead nuevo (siempre — la usuaria pidió "wipe + start fresh")
       const phoneClean = plan.phone?.trim() || null
       const { data: leadRow, error: leadErr } = await sb
@@ -156,7 +175,7 @@ export async function importPaymentPlans(
       const leadId = leadRow.id as string
 
       // b) Crear sale linkeada con status 'partial'
-      const totalCents = Math.round(plan.plan_total * 100)
+      const totalCents = Math.round(effectiveTotal * 100)
       const { data: saleRow, error: saleErr } = await sb
         .from("sales")
         .insert({
@@ -181,10 +200,15 @@ export async function importPaymentPlans(
       }
 
       // c) Crear payment_plan
-      const installmentAmountCents =
-        plan.plan_installments != null && plan.plan_installments > 0
-          ? Math.round(totalCents / plan.plan_installments)
-          : null
+      const installmentAmountCents = (() => {
+        if (plan.plan_per_installment != null && plan.plan_per_installment > 0) {
+          return Math.round(plan.plan_per_installment * 100)
+        }
+        if (plan.plan_installments != null && plan.plan_installments > 0) {
+          return Math.round(totalCents / plan.plan_installments)
+        }
+        return null
+      })()
       const freqDays = freqToDays(plan.plan_frequency)
       const firstDue = parseDate(plan.plan_first_due)
 
