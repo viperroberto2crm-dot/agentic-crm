@@ -36,11 +36,12 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
     email: "",
     name: "",
     role: "rep" as "admin" | "manager" | "rep",
+    all_brands: false,
     password: randomPassword(),
   })
 
   function handleClose() {
-    setForm({ email: "", name: "", role: "rep", password: randomPassword() })
+    setForm({ email: "", name: "", role: "rep", all_brands: false, password: randomPassword() })
     setError(null)
     setDone(null)
     setCopied(false)
@@ -64,6 +65,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
         name: form.name,
         role: form.role,
         brand_id: brandId,
+        all_brands: form.all_brands,
         password: form.password,
       })
       if (!result.ok) {
@@ -143,6 +145,24 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                 </SelectContent>
               </Select>
             </Field>
+
+            <label className="flex items-start gap-2 cursor-pointer select-none rounded-md border border-border bg-gray-50/60 px-3 py-2">
+              <input
+                type="checkbox"
+                checked={form.all_brands || form.role === "admin"}
+                disabled={form.role === "admin"}
+                onChange={(e) => setForm((p) => ({ ...p, all_brands: e.target.checked }))}
+                className="h-3.5 w-3.5 accent-zinc-700 mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-foreground">Asignar a TODAS las marcas</p>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  {form.role === "admin"
+                    ? "Los admins siempre se vinculan a todas las marcas."
+                    : "Si está marcado, este usuario podrá ver leads de todas las marcas. Si no, solo de la marca activa."}
+                </p>
+              </div>
+            </label>
 
             <Field label={t("tempPassword")} required>
               <div className="flex gap-2">

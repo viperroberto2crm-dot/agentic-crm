@@ -138,6 +138,7 @@ const InviteUserSchema = z.object({
   name: z.string().min(1, "Nombre requerido"),
   role: z.enum(["admin", "manager", "rep"]),
   brand_id: z.string().uuid().nullable(),
+  all_brands: z.boolean().optional().default(false),
   password: z.string().min(8, "Contraseña mínimo 8 caracteres"),
 })
 
@@ -191,7 +192,10 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
         active: true,
       }, { onConflict: "id" })
 
-      await ensureUserBrandsForRole(admin, createData.user.id, input.role, input.brand_id)
+      // Si pidió "all_brands", forzamos rol-admin-like en la asignación
+      // (linkear a TODAS las brands activas) aunque sea rep/manager.
+      const effectiveRoleForBrands = input.all_brands ? "admin" : input.role
+      await ensureUserBrandsForRole(admin, createData.user.id, effectiveRoleForBrands, input.brand_id)
     }
 
     revalidatePath("/settings")
