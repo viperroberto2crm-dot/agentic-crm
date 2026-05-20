@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 // Paths públicos que NO pasan por la verificación de sesión.
-// (Los crons usan su propio CRON_SECRET en lugar de cookies de sesión.)
+// (Los crons usan su propio CRON_SECRET en lugar de cookies de sesión.
+// Los webhooks validan su propia firma HMAC.)
 const PUBLIC_PATHS = [
   "/api/agent/diag",
   "/api/agent/reflect",
   "/api/agent/daily-insights",
+  "/api/webhooks/",  // todos los webhooks (800com, twilio futuro, etc.)
 ]
 
 export async function middleware(request: NextRequest) {
