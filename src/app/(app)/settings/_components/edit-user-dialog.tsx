@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -25,7 +24,6 @@ type Props = {
 export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: Props) {
   const t = useTranslations("settings")
   const tc = useTranslations("common")
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -47,8 +45,12 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
     setError(null)
     startTransition(async () => {
       try {
-        await deleteUser(user.id, brandId)
-        router.refresh()
+        const res = await deleteUser(user.id, brandId)
+        if (!res.ok) {
+          setError(res.error)
+          setConfirmDelete(false)
+          return
+        }
         onClose()
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
@@ -61,8 +63,17 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
     setError(null)
     startTransition(async () => {
       try {
-        await updateUser({ id: user.id, name: form.name, role: form.role, active: form.active, brand_id: brandId })
-        router.refresh()
+        const res = await updateUser({
+          id: user.id,
+          name: form.name,
+          role: form.role,
+          active: form.active,
+          brand_id: brandId,
+        })
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
         handleClose()
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))

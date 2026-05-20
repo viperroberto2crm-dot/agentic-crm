@@ -216,65 +216,93 @@ const UpdateUserSchema = z.object({
 
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>
 
-export async function updateUser(raw: UpdateUserInput) {
-  const input = UpdateUserSchema.parse(raw)
-  const supabase = await typedClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+export async function updateUser(
+  raw: UpdateUserInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = UpdateUserSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
 
-  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
-  if (profile?.role !== "admin") throw new Error("Solo admins pueden editar usuarios")
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden editar usuarios" }
 
-  if (input.id === user.id && !input.active) throw new Error("No puedes desactivar tu propia cuenta")
+    if (input.id === user.id && !input.active) return { ok: false, error: "No puedes desactivar tu propia cuenta" }
 
-  // Verify target user belongs to the same brand to prevent cross-brand escalation
-  const { data: membership } = await supabase
-    .from("user_brands")
-    .select("user_id")
-    .eq("user_id", input.id)
-    .eq("brand_id", input.brand_id)
-    .single()
-  if (!membership) throw new Error("No autorizado: el usuario no pertenece a esta marca")
+    // Verify target user belongs to the same brand to prevent cross-brand escalation
+    const { data: membership } = await supabase
+      .from("user_brands")
+      .select("user_id")
+      .eq("user_id", input.id)
+      .eq("brand_id", input.brand_id)
+      .maybeSingle()
+    if (!membership) return { ok: false, error: "El usuario no pertenece a esta marca" }
 
-  const { error } = await supabase
-    .from("users")
-    .update({ name: input.name, role: input.role as UserRole, active: input.active })
-    .eq("id", input.id)
+    const { error: updErr } = await supabase
+      .from("users")
+      .update({ name: input.name, role: input.role as UserRole, active: input.active })
+      .eq("id", input.id)
+    if (updErr) return { ok: false, error: updErr.message }
 
-  if (error) throw new Error(error.message)
+    // Si el rol resultante es admin, asegurar acceso a TODAS las marcas activas.
+    try {
+      const admin = createAdminClient()
+      await ensureUserBrandsForRole(admin, input.id, input.role, input.brand_id)
+    } catch (err) {
+      console.error("[updateUser] ensureUserBrandsForRole failed:", err)
+      // No bloqueamos por esto — el update principal ya está hecho
+    }
 
-  // Si el rol resultante es admin, asegurar acceso a TODAS las marcas activas.
-  const admin = createAdminClient()
-  await ensureUserBrandsForRole(admin, input.id, input.role, input.brand_id)
-
-  revalidatePath("/settings")
-  revalidatePath("/dashboard")
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error desconocido"
+    console.error("[updateUser] unhandled:", msg, e)
+    return { ok: false, error: msg }
+  }
 }
 
-export async function deleteUser(userId: string, brandId: string) {
-  const supabase = await typedClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+export async function deleteUser(
+  userId: string,
+  brandId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
 
-  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
-  if (profile?.role !== "admin") throw new Error("Solo admins pueden eliminar usuarios")
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") return { ok: false, error: "Solo admins pueden eliminar usuarios" }
 
-  if (userId === user.id) throw new Error("No puedes eliminar tu propia cuenta")
+    if (userId === user.id) return { ok: false, error: "No puedes eliminar tu propia cuenta" }
 
-  const { data: membership } = await supabase
-    .from("user_brands")
-    .select("user_id")
-    .eq("user_id", userId)
-    .eq("brand_id", brandId)
-    .single()
-  if (!membership) throw new Error("No autorizado: el usuario no pertenece a esta marca")
+    const { data: membership } = await supabase
+      .from("user_brands")
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("brand_id", brandId)
+      .maybeSingle()
+    if (!membership) return { ok: false, error: "El usuario no pertenece a esta marca" }
 
-  const admin = createAdminClient()
-  const { error: authErr } = await admin.auth.admin.deleteUser(userId)
-  if (authErr) throw new Error(authErr.message)
+    const admin = createAdminClient()
+    const { error: authErr } = await admin.auth.admin.deleteUser(userId)
+    if (authErr) {
+      // FK constraints (sales.rep_id NO ACTION, etc.) suelen rebotar acá con mensaje claro.
+      // Si el delete del auth falla, public.users queda intacto.
+      return {
+        ok: false,
+        error: `No se pudo eliminar: ${authErr.message}. Tip: si tiene ventas/llamadas asociadas, desactivá el usuario en vez de borrarlo.`,
+      }
+    }
 
-  revalidatePath("/settings")
-  revalidatePath("/dashboard")
+    revalidatePath("/settings")
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error desconocido"
+    console.error("[deleteUser] unhandled:", msg, e)
+    return { ok: false, error: msg }
+  }
 }
 
 // ── Products ───────────────────────────────────────────────────────────────────

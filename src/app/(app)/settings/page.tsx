@@ -110,18 +110,27 @@ export default async function SettingsPage({
 
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
-    const { data: ubRows } = await sb
-      .from("user_brands")
-      .select("user_id")
-      .eq("brand_id", brandId)
-    const ids = (ubRows ?? []).map((r) => r.user_id)
-    if (ids.length) {
-      const { data: usersData } = await sb
-        .from("users")
-        .select("id, name, email, role, cell_phone, active, created_at")
-        .in("id", ids)
-        .order("name")
-      brandUsers = (usersData ?? []) as UserRow[]
+    try {
+      // Usar admin client: SSR client puede tener problemas con RLS sobre user_brands
+      // después de revalidatePath cuando cambian roles. Admin bypass es safer acá.
+      const admin = createAdminClient()
+      const { data: ubRows, error: ubErr } = await admin
+        .from("user_brands")
+        .select("user_id")
+        .eq("brand_id", brandId)
+      if (ubErr) console.error("[settings] user_brands query error:", ubErr.message)
+      const ids = (ubRows ?? []).map((r) => r.user_id)
+      if (ids.length) {
+        const { data: usersData, error: usersErr } = await admin
+          .from("users")
+          .select("id, name, email, role, cell_phone, active, created_at")
+          .in("id", ids)
+          .order("name")
+        if (usersErr) console.error("[settings] users query error:", usersErr.message)
+        brandUsers = (usersData ?? []) as UserRow[]
+      }
+    } catch (e) {
+      console.error("[settings] brandUsers fetch threw:", e)
     }
   }
 
