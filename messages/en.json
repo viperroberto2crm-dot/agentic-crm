@@ -9,7 +9,14 @@
     "paymentsDue": "Payments due",
     "settings": "Settings",
     "askAgent": "Ask the agent",
-    "navigation": "Navigation"
+    "navigation": "Navigation",
+    "askAgentPlaceholder": "Ask the agent...",
+    "recentHistory": "Recent history",
+    "frequentQuestions": "Frequent questions",
+    "examplePrompt1": "Who's losing weight this week?",
+    "examplePrompt2": "How many appointments do I have today?",
+    "examplePrompt3": "Show me leads I haven't touched in over 3 days",
+    "examplePrompt4": "What's my conversion rate this month?"
   },
   "common": {
     "save": "Save",

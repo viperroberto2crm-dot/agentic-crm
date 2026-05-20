@@ -21,18 +21,19 @@ type CommandSearchProps = {
   userRole: string
 }
 
-const EXAMPLE_PROMPTS = [
-  "Quien esta bajando esta semana?",
-  "Cuantas citas tengo hoy?",
-  "Muestrame los leads sin tocar mas de 3 dias",
-  "Cual es mi tasa de conversion este mes?",
-]
-
 export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchProps) {
   const t = useTranslations("common")
+  const tNav = useTranslations("nav")
   const [query, setQuery] = useState("")
   const [history, setHistory] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
+
+  const EXAMPLE_PROMPTS = [
+    tNav("examplePrompt1"),
+    tNav("examplePrompt2"),
+    tNav("examplePrompt3"),
+    tNav("examplePrompt4"),
+  ]
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -116,7 +117,7 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
 
       {/* ── Input ───────────────────────────────────────────────────── */}
       <CommandInput
-        placeholder="Preguntale al agente..."
+        placeholder={tNav("askAgentPlaceholder")}
         value={query}
         onValueChange={setQuery}
         onKeyDown={(e) => {
@@ -146,7 +147,7 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
           <>
             {history.length > 0 && (
               <>
-                <CommandGroup heading="Historial reciente">
+                <CommandGroup heading={tNav("recentHistory")}>
                   {history
                     .filter((m) => m.role === "user")
                     .slice(-3)
@@ -165,7 +166,7 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
                 <CommandSeparator />
               </>
             )}
-            <CommandGroup heading="Preguntas frecuentes">
+            <CommandGroup heading={tNav("frequentQuestions")}>
               {EXAMPLE_PROMPTS.map((p) => (
                 <CommandItem
                   key={p}

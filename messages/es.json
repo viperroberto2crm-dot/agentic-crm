@@ -9,7 +9,14 @@
     "paymentsDue": "Pagos pendientes",
     "settings": "Ajustes",
     "askAgent": "Pregúntale al agente",
-    "navigation": "Navegación"
+    "navigation": "Navegación",
+    "askAgentPlaceholder": "Pregúntale al agente...",
+    "recentHistory": "Historial reciente",
+    "frequentQuestions": "Preguntas frecuentes",
+    "examplePrompt1": "¿Quién está bajando esta semana?",
+    "examplePrompt2": "¿Cuántas citas tengo hoy?",
+    "examplePrompt3": "Mostrame los leads sin tocar hace más de 3 días",
+    "examplePrompt4": "¿Cuál es mi tasa de conversión este mes?"
   },
   "common": {
     "save": "Guardar",
