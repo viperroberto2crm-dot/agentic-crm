@@ -25,26 +25,37 @@ const API_BASE = "https://api.800.com"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-/** Shape returned by 800.com /v2/calls (subset of fields we use). */
+/**
+ * Shape returned by 800.com /v2/calls (subset of fields we use).
+ * Confirmed via curl probe on 2026-05-20.
+ */
 export type EightHundredCallV2 = {
   id: number
-  providerCallId?: string
+  parentId: number | null
   caller: string         // E.164
   dialed: string         // E.164
-  numberId: number       // matches tracking_numbers.provider_metadata.number_id
-  companyId: number
-  outbound: 0 | 1
-  durationInSeconds?: number
-  duration?: number
-  state?: string
-  answeredBy?: string | null
+  direction: "inbound" | "outbound"
+  status: string         // "hungup" | "answered" | ...
+  startedAt: string      // ISO
+  endedAt: string | null
+  answeredAt: string | null
+  forwardNumber: string
+  number: {
+    id: number           // matches tracking_numbers.provider_metadata.number_id
+    number: string       // E.164
+    label: string | null
+    tags: Array<{ id: number; label: string }>
+  }
+  answeredBy: string | null
+  ringDuration: number
+  duration: number       // seconds, talk time
+  billableDuration: number
+  disconnectCause: string
+  disconnectCauseMessage: string
+  result: number
+  // Optional fields that appear on some endpoints / call details
   recordingUrl?: string | null
   voicemailUrl?: string | null
-  transcription?: { data?: unknown[] } | null
-  startedAt: string      // ISO
-  endedAt?: string | null
-  answeredAt?: string | null
-  tags?: { data?: Array<{ id: number; label: string }> } | null
 }
 
 export type EightHundredListResponse = {
@@ -153,24 +164,13 @@ type TrackingNumberRow = {
 }
 
 /**
- * Map 800.com tags to our call_outcome enum.
- * Conservative: if no tag matches, return null (we'll show as just "connected"
- * if answeredBy exists, otherwise as missed via duration check downstream).
+ * Derive call_outcome from 800.com payload. Uses answeredBy + duration since
+ * v2/calls doesn't include the per-call tags (those live on /calls/{id} detail).
  */
 function deriveOutcome(call: EightHundredCallV2): CallOutcome | null {
-  const tags = call.tags?.data ?? []
-  const labels = tags.map((t) => t.label.toLowerCase())
-
-  if (labels.some((l) => l.includes("appointment"))) return "appointment_set"
-  if (labels.some((l) => l.includes("not interested") || l.includes("not_interested"))) return "not_interested"
-  if (labels.some((l) => l.includes("callback") || l.includes("follow up") || l.includes("follow_up"))) return "callback_requested"
-  if (labels.some((l) => l.includes("wrong number") || l.includes("wrong_number"))) return "wrong_number"
-  if (labels.some((l) => l.includes("voicemail") || l.includes("vm"))) return "voicemail"
-  if (labels.some((l) => l.includes("missed") || l.includes("abandoned"))) return "no_answer"
-
-  // No tag — infer from answered state
   if (call.answeredBy && call.answeredBy.length > 0) return "connected"
-  if ((call.durationInSeconds ?? call.duration ?? 0) === 0) return "no_answer"
+  if (call.disconnectCause === "voicemail") return "voicemail"
+  if ((call.duration ?? 0) === 0) return "no_answer"
   return null
 }
 
@@ -184,8 +184,8 @@ export function normalize800ToCrm(
   matchedLeadId: string | null,
   repIdFallback: string,
 ): CrmCallRow {
-  const duration = call.durationInSeconds ?? call.duration ?? 0
-  const direction: CallDirection = call.outbound === 1 ? "outbound" : "inbound"
+  const duration = call.duration ?? 0
+  const direction: CallDirection = call.direction === "outbound" ? "outbound" : "inbound"
   const outcome = deriveOutcome(call)
 
   return {
@@ -199,7 +199,7 @@ export function normalize800ToCrm(
     source: "800com",
     external_id: String(call.id),
     recording_url: call.recordingUrl ?? null,
-    transcript_text: null, // Filled later by Whisper cron
+    transcript_text: null,
     ai_summary: null,
     ai_extracted: null,
     called_at: call.startedAt,
@@ -396,7 +396,9 @@ export async function importCallsFromEightHundred(
       result.fetched++
 
       // Only import calls to numbers we track
-      const tracking = trackingByNumberId.get(call.numberId)
+      const numberId = call.number?.id
+      if (typeof numberId !== "number") continue
+      const tracking = trackingByNumberId.get(numberId)
       if (!tracking) continue
 
       // Dedupe: already in DB?
