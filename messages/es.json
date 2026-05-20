@@ -329,6 +329,7 @@
     "markCompleted": "Marcar completada",
     "markNoShow": "Marcar no asistió",
     "markCancelled": "Cancelar cita",
+    "editAppointment": "Editar cita",
     "types": {
       "clinic": "Clínica",
       "home": "Domicilio",

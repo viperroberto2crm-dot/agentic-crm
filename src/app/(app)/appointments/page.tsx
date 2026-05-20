@@ -8,6 +8,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewAppointmentButton } from "./_components/new-appointment-button"
 import { AppointmentStatusActions } from "./_components/appointment-status-actions"
+import { EditAppointmentButton } from "./_components/edit-appointment-button"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -63,7 +64,8 @@ export default async function AppointmentsPage({
   let query = sb
     .from("appointments")
     .select(
-      `id, scheduled_at, type, status, service, duration_minutes,
+      `id, scheduled_at, type, status, service, duration_minutes, notes,
+       clinic_id, telehealth_link, lead_id,
        lead:leads!appointments_lead_id_fkey(id, first_name, last_name),
        rep:users!appointments_rep_id_fkey(id, name)`,
       { count: "exact" }
@@ -79,7 +81,8 @@ export default async function AppointmentsPage({
 
   type ApptItem = {
     id: string; scheduled_at: string; type: ApptType; status: ApptStatus
-    service: string | null; duration_minutes: number
+    service: string | null; duration_minutes: number; notes: string | null
+    clinic_id: string | null; telehealth_link: string | null; lead_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
   }
@@ -218,7 +221,24 @@ export default async function AppointmentsPage({
                       </td>
                     )}
                     <td className="py-3 text-right">
-                      <AppointmentStatusActions appointmentId={a.id} status={a.status} />
+                      <div className="flex justify-end items-center gap-1">
+                        <AppointmentStatusActions appointmentId={a.id} status={a.status} />
+                        <EditAppointmentButton
+                          appointment={{
+                            id: a.id,
+                            lead_id: a.lead_id,
+                            type: a.type,
+                            scheduled_at: a.scheduled_at,
+                            duration_minutes: a.duration_minutes,
+                            service: a.service,
+                            notes: a.notes,
+                            clinic_id: a.clinic_id,
+                            telehealth_link: a.telehealth_link,
+                          }}
+                          leads={leadsForModal}
+                          clinics={clinicsForModal}
+                        />
+                      </div>
                     </td>
                   </tr>
                 )

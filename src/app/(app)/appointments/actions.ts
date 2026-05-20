@@ -95,6 +95,94 @@ export async function updateAppointmentStatus(
   revalidatePath("/appointments")
 }
 
+const UpdateAppointmentSchema = z
+  .object({
+    id: z.string().uuid(),
+    type: z.enum(["clinic", "home", "telehealth"]),
+    scheduled_at: z.string().min(1),
+    duration_minutes: z.number().int().min(15).max(480),
+    service: z.string().nullable(),
+    notes: z.string().nullable(),
+    clinic_id: z.string().uuid().nullable().default(null),
+    address_line1: z.string().nullable().default(null),
+    address_line2: z.string().nullable().default(null),
+    city: z.string().nullable().default(null),
+    state: z.string().nullable().default(null),
+    zip: z.string().nullable().default(null),
+    telehealth_link: z.string().nullable().default(null),
+  })
+  .refine(
+    (v) => v.type !== "clinic" || (typeof v.clinic_id === "string" && v.clinic_id.length > 0),
+    { message: "clinic_id is required when type is 'clinic'", path: ["clinic_id"] }
+  )
+  .refine(
+    (v) =>
+      v.type !== "home" ||
+      (typeof v.address_line1 === "string" &&
+        v.address_line1.trim().length > 0 &&
+        typeof v.city === "string" &&
+        v.city.trim().length > 0),
+    {
+      message: "address_line1 and city are required when type is 'home'",
+      path: ["address_line1"],
+    }
+  )
+
+export type UpdateAppointmentInput = z.input<typeof UpdateAppointmentSchema>
+
+export async function updateAppointment(raw: UpdateAppointmentInput) {
+  const input = UpdateAppointmentSchema.parse(raw)
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+  const role = profile?.role ?? "rep"
+
+  const isHome = input.type === "home"
+  const isClinic = input.type === "clinic"
+  const isTele = input.type === "telehealth"
+
+  const updates = {
+    type: input.type,
+    scheduled_at: input.scheduled_at,
+    duration_minutes: input.duration_minutes,
+    service: input.service,
+    notes: input.notes,
+    clinic_id: isClinic ? input.clinic_id : null,
+    address_line1: isHome ? input.address_line1 : null,
+    address_line2: isHome ? input.address_line2 : null,
+    city: isHome ? input.city : null,
+    state: isHome ? input.state : null,
+    zip: isHome ? input.zip : null,
+    telehealth_link: isTele ? input.telehealth_link : null,
+  }
+
+  const base = supabase.from("appointments").update(updates).eq("id", input.id)
+  const { error } = role === "rep" ? await base.eq("rep_id", user.id) : await base
+  if (error) throw new Error(error.message)
+  revalidatePath("/appointments")
+}
+
+export async function fetchAppointmentById(id: string) {
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+  const role = profile?.role ?? "rep"
+
+  let q = supabase
+    .from("appointments")
+    .select("id, rep_id, lead_id, type, scheduled_at, duration_minutes, service, notes, clinic_id, address_line1, address_line2, city, state, zip, telehealth_link, status")
+    .eq("id", id)
+
+  if (role === "rep") q = q.eq("rep_id", user.id)
+
+  const { data } = await q.maybeSingle()
+  return data
+}
+
 export async function fetchLeadsForAppt(brandId: string) {
   const supabase = await typedClient()
   const { data: { user } } = await supabase.auth.getUser()

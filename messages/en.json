@@ -329,6 +329,7 @@
     "markCompleted": "Mark completed",
     "markNoShow": "Mark no-show",
     "markCancelled": "Cancel appointment",
+    "editAppointment": "Edit appointment",
     "types": {
       "clinic": "Clinic",
       "home": "Home visit",
