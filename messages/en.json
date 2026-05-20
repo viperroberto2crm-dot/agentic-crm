@@ -325,6 +325,10 @@
     "colStatus": "Status",
     "notes": "Notes",
     "colService": "Service",
+    "colActions": "Actions",
+    "markCompleted": "Mark completed",
+    "markNoShow": "Mark no-show",
+    "markCancelled": "Cancel appointment",
     "types": {
       "clinic": "Clinic",
       "home": "Home visit",

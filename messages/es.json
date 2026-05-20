@@ -325,6 +325,10 @@
     "colStatus": "Status",
     "notes": "Notas",
     "colService": "Servicio",
+    "colActions": "Acciones",
+    "markCompleted": "Marcar completada",
+    "markNoShow": "Marcar no asistió",
+    "markCancelled": "Cancelar cita",
     "types": {
       "clinic": "Clínica",
       "home": "Domicilio",

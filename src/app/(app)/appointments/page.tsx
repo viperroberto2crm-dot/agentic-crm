@@ -7,6 +7,7 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewAppointmentButton } from "./_components/new-appointment-button"
+import { AppointmentStatusActions } from "./_components/appointment-status-actions"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -178,8 +179,9 @@ export default async function AppointmentsPage({
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colService")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
                 )}
+                <th className="text-right text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2">{t("colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -211,10 +213,13 @@ export default async function AppointmentsPage({
                       <span className="text-xs text-gray-400">{a.service ?? "—"}</span>
                     </td>
                     {role !== "rep" && (
-                      <td className="py-3 hidden lg:table-cell">
+                      <td className="py-3 pr-4 hidden lg:table-cell">
                         <span className="text-xs text-gray-400">{a.rep?.name ?? "—"}</span>
                       </td>
                     )}
+                    <td className="py-3 text-right">
+                      <AppointmentStatusActions appointmentId={a.id} status={a.status} />
+                    </td>
                   </tr>
                 )
               })}
