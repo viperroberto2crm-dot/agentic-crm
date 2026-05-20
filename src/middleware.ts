@@ -8,6 +8,9 @@ const PUBLIC_PATHS = [
   "/api/agent/diag",
   "/api/agent/reflect",
   "/api/agent/daily-insights",
+  "/api/agent/poll-800com",
+  "/api/agent/transcribe-calls",
+  "/api/admin/800com/",
   "/api/webhooks/",  // todos los webhooks (800com, twilio futuro, etc.)
 ]
 

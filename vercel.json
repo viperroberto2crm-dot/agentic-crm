@@ -1,6 +1,8 @@
 {
   "crons": [
     { "path": "/api/agent/reflect", "schedule": "0 7 * * *" },
-    { "path": "/api/agent/daily-insights", "schedule": "30 7 * * *" }
+    { "path": "/api/agent/daily-insights", "schedule": "30 7 * * *" },
+    { "path": "/api/agent/poll-800com", "schedule": "*/3 * * * *" },
+    { "path": "/api/agent/transcribe-calls", "schedule": "*/5 * * * *" }
   ]
 }
