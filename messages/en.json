@@ -473,6 +473,18 @@
       "apply": "Apply",
       "showing": "Showing data from {from} to {to}",
       "to": "to"
+    },
+    "dailyInsights": {
+      "title": "Today's insights",
+      "collapsedAllGood": "✓ You're all caught up",
+      "collapsedWithCount": "{count} leads need attention",
+      "columnLead": "Lead",
+      "columnDays": "Days since contact",
+      "columnBrand": "Brand",
+      "columnActions": "Actions",
+      "actionFollowUp": "Create follow-up",
+      "actionContacted": "Mark contacted",
+      "regenerateFallback": "Could not personalize with AI, keeping original message."
     }
   },
   "import": {

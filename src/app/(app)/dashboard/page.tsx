@@ -32,6 +32,8 @@ import { CallsKpiCard, ApptsKpiCard, SalesKpiCard, PendingKpiCard } from "./_com
 import { TodayApptList } from "./_components/appt-list"
 import { UrgentLeadList } from "./_components/urgent-list"
 import { AgentSummaryCard } from "./_components/agent-summary"
+import { DailyInsightsPanel, type DailyInsightLead } from "./_components/daily-insights-panel"
+import { detectStaleLeads } from "@/lib/agent/daily-insights"
 import type { PivotStats } from "@/lib/queries/dashboard"
 
 type UserProfile = Pick<Tables<"users">, "name" | "role">
@@ -106,7 +108,7 @@ export default async function DashboardPage({
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
 
-  // 8 parallel fetches — one per dashboard section
+  // 9 parallel fetches — one per dashboard section
   const [
     kpiCalls,
     kpiAppts,
@@ -116,6 +118,7 @@ export default async function DashboardPage({
     urgentLeads,
     summary,
     pivot,
+    staleLeadsRaw,
   ] = await Promise.all([
     fetchCallsKpi(sb, user.id, brandId, range),
     fetchApptsKpi(sb, user.id, brandId, range),
@@ -125,7 +128,15 @@ export default async function DashboardPage({
     fetchUrgentLeads(sb, user.id, brandId, range),
     fetchAgentSummary(sb, user.id, range),
     fetchPivotStats(sb, user.id, brandId, range),
+    detectStaleLeads(sb, user.id).catch(() => []),
   ])
+
+  const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
+    id: l.id,
+    name: l.last_name ? `${l.first_name} ${l.last_name}` : l.first_name,
+    brand_name: l.brand_name,
+    days_stale: l.days_stale,
+  }))
 
   const greeting = getGreeting(timezone, t)
   const pivotText = buildPivotText(pivot, t)
@@ -159,7 +170,8 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* PHASE B plug-in: pending agent actions for this user */}
+      {/* PHASE B plug-in: Daily Insights (leads sin contactar) */}
+      <DailyInsightsPanel leads={staleLeadsForPanel} />
 
       {/* Section 2: Agent daily summary */}
       <AgentSummaryCard summary={summary} timezone={timezone} />
