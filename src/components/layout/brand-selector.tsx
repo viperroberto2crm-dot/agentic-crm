@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { ChevronDown } from "lucide-react"
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ type BrandSelectorProps = {
 }
 
 export function BrandSelector({ brands, activeBrand, onSelect }: BrandSelectorProps) {
+  const t = useTranslations("common")
   if (!activeBrand) return null
 
   const activeColor =
@@ -63,7 +65,7 @@ export function BrandSelector({ brands, activeBrand, onSelect }: BrandSelectorPr
               />
               <span className="truncate">{brand.name}</span>
               {isActive && (
-                <span className="ml-auto text-[10px] text-zinc-500 font-mono">activa</span>
+                <span className="ml-auto text-[10px] text-zinc-500 font-mono">{t("active").toLowerCase()}</span>
               )}
             </DropdownMenuItem>
           )

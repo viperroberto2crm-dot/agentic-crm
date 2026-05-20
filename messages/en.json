@@ -49,7 +49,10 @@
     "sending": "Sending…",
     "total": "total",
     "records": "records",
-    "savingError": "Error saving"
+    "savingError": "Error saving",
+    "myProfile": "My profile",
+    "open": "Open",
+    "askPlaceholder": "Type your question and press Enter."
   },
   "auth": {
     "title": "Agentic CRM",

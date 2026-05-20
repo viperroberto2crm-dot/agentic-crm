@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import {
   CommandDialog,
   CommandEmpty,
@@ -28,6 +29,7 @@ const EXAMPLE_PROMPTS = [
 ]
 
 export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchProps) {
+  const t = useTranslations("common")
   const [query, setQuery] = useState("")
   const [history, setHistory] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
@@ -178,20 +180,20 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
           </>
         )}
         <CommandEmpty className="text-sm text-muted-foreground py-4">
-          Escribe tu pregunta y presiona Enter.
+          {t("askPlaceholder")}
         </CommandEmpty>
       </CommandList>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
       <div className="border-t border-border px-3 py-2 flex items-center gap-2 text-[10px] text-muted-foreground bg-white">
         <kbd className="font-mono bg-secondary border border-border rounded px-1 py-0.5">Ctrl K</kbd>
-        <span>abrir</span>
+        <span>{t("open").toLowerCase()}</span>
         <span className="opacity-40">·</span>
         <kbd className="font-mono bg-secondary border border-border rounded px-1 py-0.5">Esc</kbd>
-        <span>cerrar</span>
+        <span>{t("close").toLowerCase()}</span>
         <span className="opacity-40">·</span>
         <kbd className="font-mono bg-secondary border border-border rounded px-1 py-0.5">↵</kbd>
-        <span>enviar</span>
+        <span>{t("send").toLowerCase()}</span>
       </div>
     </CommandDialog>
   )

@@ -49,7 +49,10 @@
     "sending": "Enviando…",
     "total": "total",
     "records": "registros",
-    "savingError": "Error al guardar"
+    "savingError": "Error al guardar",
+    "myProfile": "Mi perfil",
+    "open": "Abrir",
+    "askPlaceholder": "Escribe tu pregunta y presiona Enter."
   },
   "auth": {
     "title": "Agentic CRM",

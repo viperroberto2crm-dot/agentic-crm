@@ -276,6 +276,7 @@ export function AppSidebar({
   onMobileClose,
   ...props
 }: AppSidebarProps) {
+  const t = useTranslations("nav")
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -322,7 +323,7 @@ export function AppSidebar({
           className="p-0 w-60 bg-[#0D3D4A] border-white/10"
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Navegación</SheetTitle>
+            <SheetTitle>{t("navigation")}</SheetTitle>
           </SheetHeader>
           <SidebarContent collapsed={false} {...props} />
         </SheetContent>

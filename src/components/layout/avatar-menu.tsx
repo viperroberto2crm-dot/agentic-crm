@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,13 +29,20 @@ function initials(name: string) {
     .toUpperCase()
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  manager: "Manager",
-  rep: "Rep de Ventas",
-}
-
 export function AvatarMenu({ user }: { user: UserProfile }) {
+  const tCommon = useTranslations("common")
+  const tAuth = useTranslations("auth")
+  const tSettings = useTranslations("settings")
+
+  const roleLabel =
+    user.role === "admin"
+      ? tSettings("adminRole")
+      : user.role === "manager"
+        ? tSettings("managerRole")
+        : user.role === "rep"
+          ? tSettings("repRole")
+          : user.role
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -55,7 +63,7 @@ export function AvatarMenu({ user }: { user: UserProfile }) {
           <p className="text-sm font-medium text-zinc-100 truncate">{user.name}</p>
           <p className="text-xs text-zinc-500 truncate">{user.email}</p>
           <p className="text-[10px] text-zinc-600 mt-0.5 font-mono uppercase tracking-wide">
-            {ROLE_LABELS[user.role] ?? user.role}
+            {roleLabel}
           </p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-zinc-800" />
@@ -65,7 +73,7 @@ export function AvatarMenu({ user }: { user: UserProfile }) {
         >
           <a href="/settings">
             <User className="w-3.5 h-3.5" />
-            Mi perfil
+            {tCommon("myProfile")}
           </a>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-zinc-800" />
@@ -73,7 +81,7 @@ export function AvatarMenu({ user }: { user: UserProfile }) {
           <form action={signOut}>
             <button type="submit" className="flex items-center gap-2 w-full">
               <LogOut className="w-3.5 h-3.5" />
-              Cerrar sesión
+              {tAuth("signOut")}
             </button>
           </form>
         </DropdownMenuItem>
