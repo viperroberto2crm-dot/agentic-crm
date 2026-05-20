@@ -808,6 +808,19 @@
         "thisYear": "This year",
         "custom": "Custom"
       }
+    },
+    "report": {
+      "title": "Generate Excel report",
+      "description": "Select brand and range to download the full report.",
+      "brand": "Brand",
+      "brandAll": "All",
+      "historico": "Full history",
+      "generate": "Generate Excel",
+      "buttonLabel": "Excel report",
+      "generating": "Generating...",
+      "errorTitle": "Error generating report",
+      "errorGeneric": "Could not generate report. Try again.",
+      "rangeRequired": "Set a range or check 'Full history'"
     }
   }
 }

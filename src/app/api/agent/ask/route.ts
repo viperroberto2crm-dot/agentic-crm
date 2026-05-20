@@ -27,6 +27,11 @@ import {
   RAG_TOOL_NAMES,
   executeRagTool,
 } from "@/lib/agent/rag-tools"
+import {
+  FILE_TOOLS,
+  isFileToolName,
+  executeFileTool,
+} from "@/lib/agent/file-tools"
 import { resolveAutonomy } from "@/lib/agent/policies"
 import { createPendingAction } from "@/lib/agent/pending-actions"
 import { CRM_SYSTEM_PROMPT } from "@/lib/agent/prompts"
@@ -154,9 +159,18 @@ export async function POST(req: NextRequest) {
   let failure: Error | null = null
 
   try {
-    // Combinamos read tools + write tools. Las write tools pasan por el
-    // pipeline de aprobación humana (default: approve_required).
-    const allTools = [...AGENT_TOOLS, ...WRITE_TOOLS, ...RAG_TOOLS]
+    // Combinamos read tools + write tools + RAG + file tools. Las write tools
+    // pasan por el pipeline de aprobación humana (default: approve_required).
+    // Las file tools generan artefactos descargables sin aprobación (solo lectura).
+    const allTools = [...AGENT_TOOLS, ...WRITE_TOOLS, ...RAG_TOOLS, ...FILE_TOOLS]
+
+    // Resolver rol del user actual (para scope de file tools)
+    const { data: profileForCtx } = await sb
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+    const userRole = (profileForCtx?.role ?? "rep") as string
 
     // ---------- 3) Primera llamada a Claude ----------
     let response = await anthropic.messages.create({
@@ -198,6 +212,43 @@ export async function POST(req: NextRequest) {
               })
               .then(({ error }) => {
                 if (error) console.error("[agent/ask] agent_actions(rag) insert:", error)
+              })
+          }
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+          continue
+        }
+
+        // ── FILE TOOLS: generan artefactos descargables (xlsx/pdf/csv) ──
+        if (isFileToolName(block.name)) {
+          const fileRes = await executeFileTool(
+            block.name,
+            sb,
+            { userId: user.id, role: userRole, brandId },
+            input,
+          )
+          result = fileRes.ok
+            ? { status: "ok", ...fileRes.result }
+            : { status: "error", error: fileRes.error }
+          if (runId) {
+            await sb
+              .from("agent_actions")
+              .insert({
+                run_id: runId,
+                action_type: block.name,
+                payload: {
+                  args: input,
+                  // No persistimos download_url en payload para no exponerlo en histórico
+                  result: { status: (result as { status: string }).status } as Database["public"]["Tables"]["agent_actions"]["Insert"]["payload"],
+                } as Database["public"]["Tables"]["agent_actions"]["Insert"]["payload"],
+                executed: true,
+                executed_at: new Date().toISOString(),
+              })
+              .then(({ error }) => {
+                if (error) console.error("[agent/ask] agent_actions(file) insert:", error)
               })
           }
           toolResults.push({

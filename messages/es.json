@@ -808,6 +808,19 @@
         "thisYear": "Este año",
         "custom": "Personalizado"
       }
+    },
+    "report": {
+      "title": "Generar reporte Excel",
+      "description": "Selecciona marca y rango para descargar el reporte completo.",
+      "brand": "Marca",
+      "brandAll": "Todas",
+      "historico": "Todo el histórico",
+      "generate": "Generar Excel",
+      "buttonLabel": "Reporte Excel",
+      "generating": "Generando...",
+      "errorTitle": "Error al generar reporte",
+      "errorGeneric": "No se pudo generar el reporte. Reintentá.",
+      "rangeRequired": "Definí un rango o marcá 'Todo el histórico'"
     }
   }
 }

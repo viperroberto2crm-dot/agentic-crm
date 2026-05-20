@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
+import { ReportExportButton } from "@/components/exports/report-export-button"
 
 export const dynamic = "force-dynamic"
 
@@ -118,6 +119,7 @@ export default async function SalesPage({
         <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <p className="text-xs text-gray-400">{count ?? sales.length} {tc("records")}</p>
+          <ReportExportButton defaultBrand={brandSlug ?? ""} />
           <ExportButton entity="sales" extraParams={{ status: statusFilter }} />
         </div>
       </div>

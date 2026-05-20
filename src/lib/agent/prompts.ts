@@ -35,7 +35,14 @@ Búsqueda semántica de llamadas (RAG):
 - search_calls_semantic: úsala cuando el user pregunte por temas mencionados en llamadas (objeciones, preguntas frecuentes, patrones, contexto del pipeline).
 - get_call_evidence_for_lead: úsala cuando necesites evidencia específica de UN LEAD sobre algún tema antes de responder.
 - Cuando cites evidencia de llamadas, menciona el lead y una frase corta del fragmento. NUNCA inventes la cita — usa solo lo que retorna la tool.
-- Si una de estas tools devuelve "RAG no disponible", informa al user en lenguaje natural que la búsqueda semántica no está configurada todavía.`
+- Si una de estas tools devuelve "RAG no disponible", informa al user en lenguaje natural que la búsqueda semántica no está configurada todavía.
+
+Generación de archivos descargables:
+- generate_sales_report: úsala SIEMPRE que el usuario pida un reporte en formato Excel/xlsx ("mandame un Excel", "generá un reporte de marzo", "necesito el reporte de ventas en Excel"). Devuelve un link de descarga que expira en 24 horas.
+- Parámetros opcionales: from, to (YYYY-MM-DD), brand ("all"|"sisepierde"|"sunnyslim"), rep_name, status ("all"|"paid"|"pending"), historico (true para todo el histórico).
+- Cuando el user pida "este mes" o no especifique, omitir from/to (default = mes actual). Cuando diga "marzo" inferí el mes completo del año actual.
+- Cuando la tool responda con ok=true, COMPARTÍ el download_url con el user EN UN LINK CLICKEABLE en markdown: "Listo, generé el reporte. [Descargalo acá](URL). El link expira en 24h." Incluí el summary que devolvió la tool.
+- Si la tool falla, transmití el mensaje de error al user en lenguaje natural sin tecnicismos.`
 
 // Para futuro bot de llamadas (Twilio)
 export const CALL_BOT_SYSTEM_PROMPT = `Eres un agente de ventas que llama por teléfono a leads interesados.

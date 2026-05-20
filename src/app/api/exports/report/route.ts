@@ -1,0 +1,117 @@
+import { NextResponse, type NextRequest } from "next/server"
+import { cookies } from "next/headers"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/server"
+import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import type { Database } from "@/types/database"
+import { buildReportData, type ReportFilters } from "@/lib/exports/report-data"
+import { buildReportWorkbook, buildReportFilename } from "@/lib/exports/xlsx-builder"
+
+export const runtime = "nodejs"
+export const maxDuration = 60
+
+type TypedClient = SupabaseClient<Database>
+
+export async function GET(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const sb = supabase as unknown as TypedClient
+  const { data: profile } = await sb
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+  const role = (profile?.role ?? "rep") as string
+
+  const url = new URL(req.url)
+  const fromParam = url.searchParams.get("from")
+  const toParam = url.searchParams.get("to")
+  const brandSlugParam = url.searchParams.get("brand")
+  const historicoParam = url.searchParams.get("historico") === "true"
+  const statusParam = url.searchParams.get("status") as
+    | "all"
+    | "paid"
+    | "pending"
+    | null
+
+  // Resolver brand: parámetro tiene prioridad sobre cookie del switcher global
+  let brandId: string | null = null
+  if (brandSlugParam) {
+    brandId = await getBrandIdBySlug(brandSlugParam, sb)
+    if (!brandId) {
+      return NextResponse.json(
+        { error: `Marca no encontrada: ${brandSlugParam}` },
+        { status: 400 },
+      )
+    }
+  } else {
+    const cookieStore = await cookies()
+    const cookieSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+    // Si no vino brand en query, default es "Todas" (brandId=null).
+    // No usamos la cookie aquí porque el dialog ya pasa el brand explícito.
+    void cookieSlug
+  }
+
+  // Validar rango si no es histórico
+  if (!historicoParam) {
+    if (!fromParam || !toParam) {
+      return NextResponse.json(
+        { error: "from/to son requeridos cuando historico=false" },
+        { status: 400 },
+      )
+    }
+  }
+
+  const filters: ReportFilters = {
+    from: historicoParam ? null : fromParam,
+    to: historicoParam ? null : toParam,
+    historico: historicoParam,
+    brandId,
+    repId: null,
+    status: statusParam ?? "all",
+  }
+
+  const result = await buildReportData(
+    sb,
+    { userId: user.id, role },
+    filters,
+  )
+
+  if (!result.ok) {
+    const status =
+      result.code === "too_large" ? 413 :
+      result.code === "invalid_range" ? 400 :
+      result.code === "no_brand_access" ? 403 :
+      500
+    return NextResponse.json({ error: result.error, code: result.code }, { status })
+  }
+
+  let buffer: Buffer
+  try {
+    buffer = buildReportWorkbook(result.data)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[exports/report] buildReportWorkbook falló:", message)
+    return NextResponse.json(
+      { error: "No se pudo generar el archivo Excel" },
+      { status: 500 },
+    )
+  }
+
+  const filename = buildReportFilename(result.data)
+
+  return new NextResponse(new Uint8Array(buffer), {
+    status: 200,
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(buffer.length),
+      "Cache-Control": "no-store",
+    },
+  })
+}
