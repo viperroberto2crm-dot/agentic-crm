@@ -56,6 +56,7 @@ export default async function CallsPage({
   ])
 
   const role = (profileRes.data?.role ?? "rep") as string
+  if (role === "provider") redirect("/appointments")
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
 

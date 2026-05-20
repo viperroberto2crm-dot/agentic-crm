@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
+import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -45,6 +46,7 @@ export async function updateLead(id: string, raw: UpdateLeadInput) {
   const { data: profile } = await supabase
     .from("users").select("role").eq("id", user.id).single()
   const role = profile?.role ?? "rep"
+  assertNotProvider(role)
 
   const query = supabase.from("leads").update(input).eq("id", id)
   const { error } = role === "rep"
@@ -66,7 +68,9 @@ export async function deleteLead(id: string) {
   const { data: profile } = await supabase
     .from("users").select("role").eq("id", user.id).single()
 
-  if (profile?.role === "rep") throw new Error("Sin permiso para borrar leads")
+  if (profile?.role === "rep" || profile?.role === "provider") {
+    throw new Error("Sin permiso para borrar leads")
+  }
 
   const { error } = await supabase.from("leads").delete().eq("id", id)
   if (error) throw new Error(error.message)
@@ -104,6 +108,8 @@ export async function registerSale(raw: RegisterSaleInput) {
   const input = RegisterSaleSchema.parse(raw)
 
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -226,6 +232,8 @@ export type CreatePlanInput = z.infer<typeof CreatePlanSchema>
 export async function createPaymentPlan(raw: CreatePlanInput) {
   const input = CreatePlanSchema.parse(raw)
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -290,6 +298,8 @@ export type UpdatePlanInput = z.infer<typeof UpdatePlanSchema>
 export async function updatePaymentPlan(raw: UpdatePlanInput) {
   const input = UpdatePlanSchema.parse(raw)
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -343,6 +353,8 @@ export type UpdateInstallmentInput = z.infer<typeof UpdateInstallmentSchema>
 export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
   const input = UpdateInstallmentSchema.parse(raw)
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -382,6 +394,8 @@ export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
 
 export async function deletePaymentPlan(planId: string, leadId: string) {
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -465,6 +479,8 @@ export type AddAbonoInput = z.infer<typeof AddAbonoSchema>
 export async function addAbono(raw: AddAbonoInput) {
   const input = AddAbonoSchema.parse(raw)
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -493,6 +509,8 @@ export async function addAbono(raw: AddAbonoInput) {
 
 export async function deleteAbono(abonoId: string, leadId: string) {
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 

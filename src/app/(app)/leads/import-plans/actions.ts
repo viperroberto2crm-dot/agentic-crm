@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
+import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -82,6 +83,8 @@ export async function importPaymentPlans(
   brandId: string,
 ): Promise<ImportPlansResult> {
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 

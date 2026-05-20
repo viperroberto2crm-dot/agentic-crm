@@ -11,7 +11,7 @@ export type UserRow = {
   id: string
   name: string
   email: string
-  role: "admin" | "manager" | "rep"
+  role: "admin" | "manager" | "rep" | "provider"
   cell_phone: string | null
   active: boolean
   created_at: string
@@ -21,6 +21,7 @@ const ROLE_CLASS: Record<UserRow["role"], string> = {
   admin: "bg-rose-400/10 text-rose-600 border-rose-400/20",
   manager: "bg-blue-400/10 text-blue-600 border-blue-400/20",
   rep: "bg-emerald-400/10 text-emerald-600 border-emerald-400/20",
+  provider: "bg-violet-400/10 text-violet-600 border-violet-400/20",
 }
 
 type Props = {
@@ -38,6 +39,7 @@ export function UsersTab({ users, brandId, currentUserId }: Props) {
     admin: t("adminRole"),
     manager: t("managerRole"),
     rep: t("repRole"),
+    provider: t("providerRole"),
   }
 
   return (

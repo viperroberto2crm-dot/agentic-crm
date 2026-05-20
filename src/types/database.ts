@@ -1557,7 +1557,7 @@ export type Database = {
       pending_status: "pending" | "approved" | "rejected" | "executed" | "expired"
       task_priority: "low" | "normal" | "high" | "urgent"
       task_status: "open" | "done" | "snoozed" | "cancelled"
-      user_role: "admin" | "manager" | "rep"
+      user_role: "admin" | "manager" | "rep" | "provider"
     }
     CompositeTypes: {
       [_ in never]: never

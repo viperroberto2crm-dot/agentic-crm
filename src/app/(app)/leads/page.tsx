@@ -46,8 +46,26 @@ export default async function LeadsPage({
   const search = typeof sp.search === "string" ? sp.search : null
   const offset = typeof sp.offset === "string" ? parseInt(sp.offset, 10) : 0
 
+  // Providers can only see leads they have at least one appointment with.
+  let providerLeadIds: string[] | null = null
+  if (role === "provider") {
+    const { data: leadIdsRows } = await sb
+      .from("appointments")
+      .select("lead_id")
+      .eq("rep_id", user.id)
+      .not("lead_id", "is", null)
+    providerLeadIds = Array.from(
+      new Set(
+        (leadIdsRows ?? [])
+          .map((r) => r.lead_id)
+          .filter((x): x is string => Boolean(x))
+      )
+    )
+  }
+
   const { leads, total } = await fetchLeads(sb, user.id, role, {
-    brandId, status, source, search, limit: 50, offset,
+    brandId, status, source, search, leadIds: providerLeadIds,
+    limit: 50, offset,
   })
 
   const LIMIT = 50
@@ -61,7 +79,7 @@ export default async function LeadsPage({
             entity="leads"
             extraParams={{ status, source, search }}
           />
-          {role !== "rep" && (
+          {role !== "rep" && role !== "provider" && (
             <>
               <Button asChild size="sm" variant="outline"
                 className="h-9 text-xs gap-1.5 cursor-pointer border-gray-300 text-gray-700 hover:text-gray-900 hover:bg-gray-100"
@@ -81,12 +99,14 @@ export default async function LeadsPage({
               </Button>
             </>
           )}
-          <Button asChild size="sm" className="h-9 text-xs gap-1.5 cursor-pointer" style={{ background: "var(--brand)" }}>
-            <Link href="/leads/new">
-              <Plus className="w-3.5 h-3.5" />
-              {t("newLead")}
-            </Link>
-          </Button>
+          {role !== "provider" && (
+            <Button asChild size="sm" className="h-9 text-xs gap-1.5 cursor-pointer" style={{ background: "var(--brand)" }}>
+              <Link href="/leads/new">
+                <Plus className="w-3.5 h-3.5" />
+                {t("newLead")}
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 

@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/tooltip"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
+type UserRole = "admin" | "manager" | "rep" | "provider"
+
 type NavItem = {
   label: string
   href: string
@@ -34,7 +36,7 @@ type NavItem = {
   count?: number
   urgent?: boolean
   badgeTooltip?: string
-  roles?: Array<"admin" | "manager" | "rep">
+  roles?: Array<UserRole>
 }
 
 export type AppSidebarProps = {
@@ -43,9 +45,12 @@ export type AppSidebarProps = {
   leadCount: number
   taskCount: number
   urgentTasks: boolean
-  userRole: "admin" | "manager" | "rep"
+  userRole: UserRole
   onOpenCommand: () => void
 }
+
+// Providers tienen una vista restringida: solo Appointments y Leads.
+const PROVIDER_ALLOWED_HREFS = new Set<string>(["/appointments", "/leads"])
 
 const NAV_HREFS = [
   { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -161,6 +166,8 @@ function SidebarContent({
   const pathname = usePathname()
   const t = useTranslations("nav")
 
+  const isProvider = userRole === "provider"
+
   const navWithCounts: NavItem[] = NAV_HREFS.map((item) => ({
     label: t(item.key as Parameters<typeof t>[0]),
     href: item.href,
@@ -173,13 +180,15 @@ function SidebarContent({
         : undefined,
     urgent: item.href === "/tasks" ? urgentTasks : undefined,
     badgeTooltip: undefined,
-  }))
+  })).filter((item) =>
+    isProvider ? PROVIDER_ALLOWED_HREFS.has(item.href) : true
+  )
 
   const visibleBottom: NavItem[] = BOTTOM_HREFS.map((item) => ({
     label: t(item.key as Parameters<typeof t>[0]),
     href: item.href,
     icon: item.icon,
-  }))
+  })).filter(() => !isProvider)
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -227,8 +236,8 @@ function SidebarContent({
             collapsed ? "px-1.5" : "px-2"
           )}
         >
-          {/* Agent Q&A */}
-          {collapsed ? (
+          {/* Agent Q&A — oculto para provider (vista restringida) */}
+          {!isProvider && (collapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -256,7 +265,7 @@ function SidebarContent({
                 ⌘K
               </kbd>
             </button>
-          )}
+          ))}
 
           {visibleBottom.map((item) => (
             <NavLink

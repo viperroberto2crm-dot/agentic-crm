@@ -116,6 +116,7 @@ export function EditUserDialog({ open, onClose, user, brandId, currentUserId }: 
               <SelectContent className="bg-white border-border">
                 <SelectItem value="rep" className="text-foreground">{t("repRole")}</SelectItem>
                 <SelectItem value="manager" className="text-foreground">{t("managerRole")}</SelectItem>
+                <SelectItem value="provider" className="text-foreground">{t("providerRole")}</SelectItem>
                 <SelectItem value="admin" className="text-foreground">{t("adminRole")}</SelectItem>
               </SelectContent>
             </Select>

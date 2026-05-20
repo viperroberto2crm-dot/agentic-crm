@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
+import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -49,6 +50,8 @@ export type CreateAppointmentInput = z.input<typeof CreateAppointmentSchema>
 export async function createAppointment(raw: CreateAppointmentInput) {
   const input = CreateAppointmentSchema.parse(raw)
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -90,7 +93,8 @@ export async function updateAppointmentStatus(
   const role = profile?.role ?? "rep"
 
   const base = supabase.from("appointments").update({ status }).eq("id", id)
-  const { error } = role === "rep" ? await base.eq("rep_id", user.id) : await base
+  const scopeToOwn = role === "rep" || role === "provider"
+  const { error } = scopeToOwn ? await base.eq("rep_id", user.id) : await base
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
 }
@@ -138,6 +142,7 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
 
   const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
   const role = profile?.role ?? "rep"
+  assertNotProvider(role)
 
   const isHome = input.type === "home"
   const isClinic = input.type === "clinic"
@@ -177,7 +182,7 @@ export async function fetchAppointmentById(id: string) {
     .select("id, rep_id, lead_id, type, scheduled_at, duration_minutes, service, notes, clinic_id, address_line1, address_line2, city, state, zip, telehealth_link, status")
     .eq("id", id)
 
-  if (role === "rep") q = q.eq("rep_id", user.id)
+  if (role === "rep" || role === "provider") q = q.eq("rep_id", user.id)
 
   const { data } = await q.maybeSingle()
   return data
@@ -190,6 +195,9 @@ export async function fetchLeadsForAppt(brandId: string) {
 
   const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
   const role = profile?.role ?? "rep"
+
+  // Provider no crea appointments; no necesita lista de leads.
+  if (role === "provider") return []
 
   let query = supabase
     .from("leads")

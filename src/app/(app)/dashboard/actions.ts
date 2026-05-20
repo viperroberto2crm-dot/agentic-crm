@@ -9,6 +9,7 @@ import {
   buildSummaryTemplate,
   buildSummaryWithClaude,
 } from "@/lib/agent/daily-insights"
+import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 
 // Cast to bypass @supabase/ssr ↔ @supabase/supabase-js@2.46 generic mismatch
 async function typedClient(): Promise<SupabaseClient<Database>> {
@@ -17,6 +18,8 @@ async function typedClient(): Promise<SupabaseClient<Database>> {
 
 export async function confirmAppointment(appointmentId: string, _: FormData) {
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -35,6 +38,8 @@ export async function dismissUrgentLead(leadId: string, _reason: string, _: Form
   // Resets last_contacted_at so the lead exits "stale" state
   // PHASE B plug-in: queue agent action to log dismissal reason
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -52,6 +57,8 @@ export async function dismissUrgentLead(leadId: string, _reason: string, _: Form
 export async function logQuickCall(leadId: string, _: FormData) {
   // Creates a minimal outbound call record — full modal comes Week 2
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -84,6 +91,8 @@ export async function logQuickCall(leadId: string, _: FormData) {
 
 export async function regenerateAgentSummary(_?: FormData) {
   const sb = await typedClient()
+  const { role } = await getCurrentRole(sb)
+  assertNotProvider(role)
   const { data: { user } } = await sb.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 

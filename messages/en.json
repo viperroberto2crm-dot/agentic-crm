@@ -204,7 +204,8 @@
   "roles": {
     "admin": "Administrator",
     "manager": "Manager",
-    "rep": "Sales rep"
+    "rep": "Sales rep",
+    "provider": "Provider"
   },
   "tasks": {
     "title": "Tasks",
@@ -606,6 +607,7 @@
     "repRole": "Sales rep",
     "managerRole": "Manager",
     "adminRole": "Admin",
+    "providerRole": "Provider",
     "editUser": "Edit user",
     "deleteUser": "Delete user",
     "deleteUserConfirm": "Delete {name}?",

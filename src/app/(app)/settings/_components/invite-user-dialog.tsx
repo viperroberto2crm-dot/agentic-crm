@@ -35,7 +35,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
   const [form, setForm] = useState({
     email: "",
     name: "",
-    role: "rep" as "admin" | "manager" | "rep",
+    role: "rep" as "admin" | "manager" | "rep" | "provider",
     all_brands: false,
     password: randomPassword(),
   })
@@ -141,6 +141,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                 <SelectContent className="bg-white border-border">
                   <SelectItem value="rep" className="text-foreground">{t("repRole")}</SelectItem>
                   <SelectItem value="manager" className="text-foreground">{t("managerRole")}</SelectItem>
+                  <SelectItem value="provider" className="text-foreground">{t("providerRole")}</SelectItem>
                   <SelectItem value="admin" className="text-foreground">{t("adminRole")}</SelectItem>
                 </SelectContent>
               </Select>

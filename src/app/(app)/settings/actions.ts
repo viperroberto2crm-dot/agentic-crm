@@ -136,7 +136,7 @@ export async function updateBrand(raw: UpdateBrandInput) {
 const InviteUserSchema = z.object({
   email: z.string().email("Email inválido"),
   name: z.string().min(1, "Nombre requerido"),
-  role: z.enum(["admin", "manager", "rep"]),
+  role: z.enum(["admin", "manager", "rep", "provider"]),
   brand_id: z.string().uuid().nullable(),
   all_brands: z.boolean().optional().default(false),
   password: z.string().min(8, "Contraseña mínimo 8 caracteres"),
@@ -209,7 +209,7 @@ export async function inviteUser(raw: InviteUserInput): Promise<{ ok: true } | {
 const UpdateUserSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, "Nombre requerido"),
-  role: z.enum(["admin", "manager", "rep"]),
+  role: z.enum(["admin", "manager", "rep", "provider"]),
   active: z.boolean(),
   brand_id: z.string().uuid(),
 })

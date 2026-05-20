@@ -97,6 +97,8 @@ export default async function DashboardPage({
   ])
 
   const profile = profileRes.data
+  const role = profile?.role ?? "rep"
+  if (role === "provider") redirect("/appointments")
 
   // Resolve active date range from URL searchParams.
   const resolvedParams = await searchParams

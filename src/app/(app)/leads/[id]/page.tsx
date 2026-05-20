@@ -72,6 +72,16 @@ export default async function LeadDetailPage({
 
   if (role === "rep" && lead.assigned_rep_id !== user.id) notFound()
 
+  // Providers can only see leads that have at least one appointment with them as rep.
+  if (role === "provider") {
+    const { count: providerApptCount } = await sb
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("lead_id", id)
+      .eq("rep_id", user.id)
+    if (!providerApptCount || providerApptCount === 0) notFound()
+  }
+
   let reps: { id: string; name: string }[] = []
   if (role === "admin" || role === "manager") {
     const { data } = await sb
@@ -138,7 +148,9 @@ export default async function LeadDetailPage({
 
       {justCreated && <JustCreatedBanner />}
 
-      <LeadActions lead={lead} role={role} reps={reps} clinics={clinicsForModal} />
+      {role !== "provider" && (
+        <LeadActions lead={lead} role={role} reps={reps} clinics={clinicsForModal} />
+      )}
 
       <Separator className="bg-border" />
 
@@ -151,12 +163,14 @@ export default async function LeadDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Stat label={t("callCount")} value={calls.length} />
+              {role !== "provider" && <Stat label={t("callCount")} value={calls.length} />}
               <Stat label={t("apptCount")} value={appointments.length} />
-              <Stat label={t("closedSales")} value={
-                (totalCollectedCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
-              } />
-              {totalPendingCents > 0 && (
+              {role !== "provider" && (
+                <Stat label={t("closedSales")} value={
+                  (totalCollectedCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
+                } />
+              )}
+              {role !== "provider" && totalPendingCents > 0 && (
                 <Stat
                   label="Por cobrar"
                   value={
@@ -164,8 +178,8 @@ export default async function LeadDetailPage({
                   }
                 />
               )}
-              {lead.source && <Stat label={t("source")} value={lead.source} />}
-              {lead.ai_score_reason && (
+              {lead.source && role !== "provider" && <Stat label={t("source")} value={lead.source} />}
+              {lead.ai_score_reason && role !== "provider" && (
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{t("scoreReason")}</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">{lead.ai_score_reason}</p>
@@ -184,9 +198,9 @@ export default async function LeadDetailPage({
             </CardHeader>
             <CardContent>
               <ActivityTimeline
-                calls={calls}
+                calls={role === "provider" ? [] : calls}
                 appointments={appointments}
-                sales={sales}
+                sales={role === "provider" ? [] : sales}
                 notes={lead.notes}
               />
             </CardContent>
@@ -194,7 +208,7 @@ export default async function LeadDetailPage({
         </div>
       </div>
 
-      {lead.brand_id && (
+      {lead.brand_id && role !== "provider" && (
         <Card className="bg-white border-border/60">
           <CardContent className="pt-5">
             <PaymentPlansSection

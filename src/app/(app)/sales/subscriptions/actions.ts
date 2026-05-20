@@ -22,7 +22,9 @@ export async function cancelSubscription(raw: z.infer<typeof CancelSchema>) {
   if (!user) throw new Error("Unauthorized")
 
   const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
-  if (profile?.role === "rep") throw new Error("Sin permiso para cancelar suscripciones")
+  if (profile?.role === "rep" || profile?.role === "provider") {
+    throw new Error("Sin permiso para cancelar suscripciones")
+  }
 
   const { error } = await supabase
     .from("subscriptions")

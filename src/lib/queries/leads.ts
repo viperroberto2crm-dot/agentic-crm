@@ -24,6 +24,7 @@ export type LeadsFilters = {
   source?: string | null
   search?: string | null
   repId?: string | null   // managers/admins only
+  leadIds?: string[] | null  // explicit allow-list (used for provider scope)
   limit?: number
   offset?: number
 }
@@ -59,6 +60,16 @@ export async function fetchLeads(
     query = query.eq("assigned_rep_id", userId)
   } else if (filters.repId) {
     query = query.eq("assigned_rep_id", filters.repId)
+  }
+
+  // Providers see only leads that appear in the explicit allow-list
+  // (leadIds is computed by the caller from appointments where rep_id = provider)
+  if (filters.leadIds) {
+    if (filters.leadIds.length === 0) {
+      query = query.eq("id", "00000000-0000-0000-0000-000000000000")
+    } else {
+      query = query.in("id", filters.leadIds)
+    }
   }
 
   if (filters.brandId) {

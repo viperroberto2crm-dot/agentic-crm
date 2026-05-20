@@ -34,7 +34,7 @@ export function AppShell({
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
-  const role = user.role as "admin" | "manager" | "rep"
+  const role = user.role as "admin" | "manager" | "rep" | "provider"
 
   return (
     <BrandProvider brands={brands}>

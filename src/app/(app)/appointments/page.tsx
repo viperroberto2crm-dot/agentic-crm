@@ -73,7 +73,7 @@ export default async function AppointmentsPage({
     .order("scheduled_at", { ascending: false })
     .limit(100)
 
-  if (role === "rep") query = query.eq("rep_id", user.id)
+  if (role === "rep" || role === "provider") query = query.eq("rep_id", user.id)
   if (brandId) query = query.eq("brand_id", brandId)
   if (statusFilter) query = query.eq("status", statusFilter as ApptStatus)
 
@@ -114,6 +114,25 @@ export default async function AppointmentsPage({
       .order("first_name")
       .limit(200)
     if (role === "rep") lq = lq.eq("assigned_rep_id", user.id)
+    if (role === "provider") {
+      const { data: leadIdsRows } = await sb
+        .from("appointments")
+        .select("lead_id")
+        .eq("rep_id", user.id)
+        .not("lead_id", "is", null)
+      const providerLeadIds = Array.from(
+        new Set(
+          (leadIdsRows ?? [])
+            .map((r) => r.lead_id)
+            .filter((x): x is string => Boolean(x))
+        )
+      )
+      if (providerLeadIds.length === 0) {
+        lq = lq.eq("id", "00000000-0000-0000-0000-000000000000")
+      } else {
+        lq = lq.in("id", providerLeadIds)
+      }
+    }
     const { data } = await lq
     leadsForModal = (data ?? []) as typeof leadsForModal
 

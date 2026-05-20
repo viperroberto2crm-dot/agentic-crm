@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -50,6 +51,8 @@ export async function bulkDeleteLeads(
 
 export async function logQuickCall(leadId: string, _: FormData) {
   const supabase = await typedClient()
+  const { userId: _uid, role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
@@ -79,6 +82,8 @@ export async function logQuickCall(leadId: string, _: FormData) {
 
 export async function createLead(formData: FormData) {
   const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 

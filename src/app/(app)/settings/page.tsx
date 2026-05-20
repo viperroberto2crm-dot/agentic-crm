@@ -47,6 +47,7 @@ export default async function SettingsPage({
   const sp = params as Record<string, string | string[] | undefined>
   const tab = typeof sp.tab === "string" ? sp.tab : "perfil"
 
+  if (role === "provider" && tab !== "perfil") redirect("/settings?tab=perfil")
   if (role === "rep" && tab !== "perfil" && tab !== "productos") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "clinicas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "marcas") redirect("/settings?tab=perfil")
@@ -175,11 +176,13 @@ export default async function SettingsPage({
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
-  const tabs = [
-    { value: "perfil", label: t("tabPerfil") },
-    { value: "productos", label: t("tabProductos") },
-    ...adminTabs,
-  ]
+  const tabs = role === "provider"
+    ? [{ value: "perfil", label: t("tabPerfil") }]
+    : [
+        { value: "perfil", label: t("tabPerfil") },
+        { value: "productos", label: t("tabProductos") },
+        ...adminTabs,
+      ]
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
