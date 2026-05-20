@@ -183,13 +183,18 @@ export default async function CallsPage({
               {calls.map((c) => {
                 const cfg = c.outcome ? OUTCOME_CONFIG[c.outcome] : null
                 return (
-                  <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-3 pr-4">
-                      <span className="text-gray-400 text-xs tabular-nums">{fmtDate(c.called_at)}</span>
+                  <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                    <td className="py-3 pr-4 relative">
+                      <Link
+                        href={`/calls/${c.id}`}
+                        className="absolute inset-0 z-0"
+                        aria-label={`Open call ${c.id}`}
+                      />
+                      <span className="text-gray-400 text-xs tabular-nums relative z-0">{fmtDate(c.called_at)}</span>
                     </td>
                     <td className="py-3 pr-4">
                       {c.lead ? (
-                        <Link href={`/leads/${c.lead.id}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">
+                        <Link href={`/leads/${c.lead.id}`} className="relative z-10 text-gray-800 hover:text-gray-900 font-medium transition-colors">
                           {c.lead.first_name} {c.lead.last_name ?? ""}
                         </Link>
                       ) : (

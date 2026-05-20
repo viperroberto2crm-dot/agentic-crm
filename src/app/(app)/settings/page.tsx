@@ -12,6 +12,11 @@ import { UsersTab, type UserRow } from "./_components/users-tab"
 import { ProductsTab, type ProductRow } from "./_components/products-tab"
 import { ClinicsTab, type ClinicRow } from "./_components/clinics-tab"
 import { BrandsTab, type BrandRow } from "./_components/brands-tab"
+import {
+  TrackingNumbersTab,
+  type TrackingNumberRow,
+  type BrandOption,
+} from "./_components/tracking-numbers-tab"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -45,6 +50,7 @@ export default async function SettingsPage({
   if (role === "rep" && tab !== "perfil" && tab !== "productos") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "clinicas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "marcas") redirect("/settings?tab=perfil")
+  if (role !== "admin" && tab === "tracking") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -108,6 +114,32 @@ export default async function SettingsPage({
     }
   }
 
+  // ── Tracking numbers (admin) ────────────────────────────────────────────────
+  let trackingNumbers: TrackingNumberRow[] = []
+  let trackingBrands: BrandOption[] = []
+  if (role === "admin") {
+    try {
+      const admin = createAdminClient()
+      // tracking_numbers no esta en Database types — usamos cast puntual
+      const tnRes = await (admin
+        .from("tracking_numbers" as never)
+        .select("*")
+        .order("active", { ascending: false })
+        .order("created_at", { ascending: false }) as unknown as Promise<{
+          data: TrackingNumberRow[] | null
+          error: { message: string } | null
+        }>)
+      if (tnRes.error) {
+        console.error("[settings] tracking_numbers query error:", tnRes.error.message)
+      }
+      trackingNumbers = (tnRes.data ?? []) as TrackingNumberRow[]
+      // brands para el filtro y el select del dialog (incluye inactivas por si hay TN historicas)
+      trackingBrands = (allBrands ?? []).map((b) => ({ id: b.id, name: b.name }))
+    } catch (e) {
+      console.error("[settings] tracking_numbers fetch threw:", e)
+    }
+  }
+
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
     try {
@@ -139,6 +171,7 @@ export default async function SettingsPage({
         { value: "marca", label: t("tabMarca") },
         { value: "clinicas", label: t("tabClinicas") },
         { value: "marcas", label: t("tabMarcas") },
+        { value: "tracking", label: t("tabTracking") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -201,6 +234,13 @@ export default async function SettingsPage({
         )}
         {tab === "marcas" && role === "admin" && (
           <BrandsTab brands={allBrands} />
+        )}
+        {tab === "tracking" && role === "admin" && (
+          <TrackingNumbersTab
+            trackingNumbers={trackingNumbers}
+            brands={trackingBrands}
+            defaultBrandId={brandId}
+          />
         )}
         {tab === "usuarios" && role === "admin" && (
           brandId
