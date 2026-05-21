@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 import { ReportExportButton } from "@/components/exports/report-export-button"
+import { BRAND_TIMEZONE } from "@/lib/datetime"
 
 export const dynamic = "force-dynamic"
 
@@ -26,6 +27,7 @@ function fmtDate(d: string) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: BRAND_TIMEZONE,
   }).format(new Date(d))
 }
 

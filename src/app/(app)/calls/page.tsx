@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { NewCallButton } from "./_components/new-call-button"
 import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
+import { BRAND_TIMEZONE } from "@/lib/datetime"
 
 type TypedClient = SupabaseClient<Database>
 type CallOutcome = Database["public"]["Enums"]["call_outcome"]
@@ -24,6 +25,7 @@ function fmtDuration(s: number | null) {
 function fmtDate(d: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZone: BRAND_TIMEZONE,
   }).format(new Date(d))
 }
 
