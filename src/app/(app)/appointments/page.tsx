@@ -10,16 +10,14 @@ import { NewAppointmentButton } from "./_components/new-appointment-button"
 import { AppointmentStatusActions } from "./_components/appointment-status-actions"
 import { EditAppointmentButton } from "./_components/edit-appointment-button"
 import { getTranslations } from "next-intl/server"
+import { formatApptDateTime } from "@/lib/datetime"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
 type ApptType = Database["public"]["Enums"]["appointment_type"]
 
 function fmtDate(d: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  }).format(new Date(d))
+  return formatApptDateTime(d)
 }
 
 export default async function AppointmentsPage({

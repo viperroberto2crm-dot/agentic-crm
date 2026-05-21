@@ -114,7 +114,9 @@ export async function fetchTimezone(supabase: SB, userId: string): Promise<strin
     .select("timezone")
     .eq("user_id", userId)
     .maybeSingle()
-  return data?.timezone ?? "America/Mexico_City"
+  // Default a Pacific Time (oficina/clínicas en California). Si un user
+  // específico está en otro TZ debe guardar su preferencia explícita.
+  return data?.timezone ?? "America/Los_Angeles"
 }
 
 // ─── Fetch: brand id from slug ───────────────────────────────────────────────

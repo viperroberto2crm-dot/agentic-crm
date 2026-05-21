@@ -1,6 +1,7 @@
 import { Phone, Calendar, DollarSign, StickyNote } from "lucide-react"
 import { getTranslations } from "next-intl/server"
 import type { Database } from "@/types/database"
+import { BRAND_TIMEZONE } from "@/lib/datetime"
 
 type CallRow = {
   id: string
@@ -39,6 +40,7 @@ function formatDate(d: string) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: BRAND_TIMEZONE,
   }).format(new Date(d))
 }
 
