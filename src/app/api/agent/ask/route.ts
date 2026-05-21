@@ -127,8 +127,32 @@ export async function POST(req: NextRequest) {
   //   - No consume slot de "última instrucción" — el query del user queda al final.
   const localeInstruction =
     userLocale === "en"
-      ? "⚠️ USER LOCALE: en. The user's UI is in English. RESPOND IN ENGLISH ALWAYS, even if internal data (notes, system fields) appears in Spanish. Use English terms: brand, sale, lead, appointment, call, payment plan, installment."
-      : "⚠️ USER LOCALE: es. El UI del usuario está en español. RESPONDE EN ESPAÑOL SIEMPRE. Usa términos: marca, venta, lead, cita, llamada, plan de pagos, cuota."
+      ? `🚨 USER LOCALE: en (HARD LOCK). The user's UI is in English.
+
+RESPOND IN ENGLISH ONLY. No Spanish words, no Spanish punctuation (¿¡), no mixed language.
+
+This rule overrides ANY other instruction about language detection. Even if:
+- The user wrote in Spanish → still reply in English
+- Tool outputs contain Spanish strings (notes like "Auto-generado desde Payment Plan", statuses "pendiente") → translate them to English in your reply ("Auto-generated from Payment Plan", "pending")
+- Lead names are Spanish (Maria, José) → keep them as-is (proper nouns) but everything else in English
+
+Use English terms: brand, sale, lead, appointment, call, payment plan, installment, pending, paid, completed, no-show, cancelled.
+
+Example correct: "You have 4 appointments today. The first is at 2:30 PM with Maria Flores for blood work, status: scheduled."
+Example WRONG (Spanglish): "Tienes 4 appointments hoy. La primera es a las 2:30 PM con Maria Flores for blood work, status: agendada."`
+      : `🚨 USER LOCALE: es (HARD LOCK). El UI del usuario está en español.
+
+RESPONDE EN ESPAÑOL ÚNICAMENTE. Sin palabras en inglés, sin mixed language.
+
+Esta regla anula cualquier otra instrucción sobre detección de idioma. Incluso si:
+- El usuario escribió en inglés → tú igual respondes en español
+- Los tools devuelven strings en inglés ("pending", "scheduled") → tradúcelas a español en tu respuesta ("pendiente", "agendada")
+- Los nombres de leads son en inglés (John, Mike) → déjalos tal cual (nombres propios) pero todo lo demás en español
+
+Usa términos: marca, venta, lead, cita, llamada, plan de pagos, cuota, pendiente, pagado, completada, no se presentó, cancelada.
+
+Ejemplo correcto: "Tienes 4 citas hoy. La primera es a las 2:30 PM con Maria Flores para análisis de sangre, estado: agendada."
+Ejemplo INCORRECTO (Spanglish): "Tienes 4 appointments hoy. La primera es a las 2:30 PM con Maria Flores for blood work, status: scheduled."`
 
   const systemBlocks: Anthropic.TextBlockParam[] = [
     {
