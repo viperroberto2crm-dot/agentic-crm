@@ -116,6 +116,23 @@ export async function registerSale(raw: RegisterSaleInput) {
   const amount_cents = input.items.reduce((s, i) => s + i.line_total_cents, 0)
   const isPaid = input.payment_status === "paid"
 
+  // Idempotencia: si existe una venta idéntica del mismo rep al mismo lead
+  // por el mismo monto en los últimos 30s, devolver esa en lugar de crear duplicado.
+  const thirtySecondsAgo = new Date(Date.now() - 30_000).toISOString()
+  const { data: recent } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("lead_id", input.lead_id)
+    .eq("rep_id", user.id)
+    .eq("amount_cents", amount_cents)
+    .gte("created_at", thirtySecondsAgo)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (recent?.id) {
+    return recent.id
+  }
+
   // 1. Insert sale
   const { data: sale, error: saleErr } = await supabase
     .from("sales")

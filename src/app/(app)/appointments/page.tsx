@@ -242,12 +242,12 @@ export default async function AppointmentsPage({
                     <td className="py-3 text-right">
                       <div className="flex justify-end items-center gap-1">
                         <AppointmentStatusActions appointmentId={a.id} status={a.status} />
-                        {role !== "provider" && (
                         <EditAppointmentButton
                           appointment={{
                             id: a.id,
                             lead_id: a.lead_id,
                             type: a.type,
+                            status: a.status,
                             scheduled_at: a.scheduled_at,
                             duration_minutes: a.duration_minutes,
                             service: a.service,
@@ -257,8 +257,8 @@ export default async function AppointmentsPage({
                           }}
                           leads={leadsForModal}
                           clinics={clinicsForModal}
+                          userRole={role}
                         />
-                        )}
                       </div>
                     </td>
                   </tr>

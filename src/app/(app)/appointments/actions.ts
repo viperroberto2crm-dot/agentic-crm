@@ -103,6 +103,7 @@ const UpdateAppointmentSchema = z
   .object({
     id: z.string().uuid(),
     type: z.enum(["clinic", "home", "telehealth"]),
+    status: z.enum(["scheduled", "confirmed", "completed", "cancelled", "no_show"]),
     scheduled_at: z.string().min(1),
     duration_minutes: z.number().int().min(15).max(480),
     service: z.string().nullable(),
@@ -142,29 +143,33 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
 
   const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
   const role = profile?.role ?? "rep"
-  assertNotProvider(role)
 
   const isHome = input.type === "home"
   const isClinic = input.type === "clinic"
   const isTele = input.type === "telehealth"
 
-  const updates = {
-    type: input.type,
-    scheduled_at: input.scheduled_at,
-    duration_minutes: input.duration_minutes,
-    service: input.service,
-    notes: input.notes,
-    clinic_id: isClinic ? input.clinic_id : null,
-    address_line1: isHome ? input.address_line1 : null,
-    address_line2: isHome ? input.address_line2 : null,
-    city: isHome ? input.city : null,
-    state: isHome ? input.state : null,
-    zip: isHome ? input.zip : null,
-    telehealth_link: isTele ? input.telehealth_link : null,
-  }
+  // Provider solo puede tocar status; el resto de campos se ignoran.
+  const updates = role === "provider"
+    ? { status: input.status }
+    : {
+        type: input.type,
+        status: input.status,
+        scheduled_at: input.scheduled_at,
+        duration_minutes: input.duration_minutes,
+        service: input.service,
+        notes: input.notes,
+        clinic_id: isClinic ? input.clinic_id : null,
+        address_line1: isHome ? input.address_line1 : null,
+        address_line2: isHome ? input.address_line2 : null,
+        city: isHome ? input.city : null,
+        state: isHome ? input.state : null,
+        zip: isHome ? input.zip : null,
+        telehealth_link: isTele ? input.telehealth_link : null,
+      }
 
   const base = supabase.from("appointments").update(updates).eq("id", input.id)
-  const { error } = role === "rep" ? await base.eq("rep_id", user.id) : await base
+  const scopeToOwn = role === "rep" || role === "provider"
+  const { error } = scopeToOwn ? await base.eq("rep_id", user.id) : await base
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
 }

@@ -31,11 +31,13 @@ type ClinicOption = {
 }
 
 type AppointmentType = "clinic" | "home" | "telehealth"
+type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show"
 
 export type EditableAppointment = {
   id: string
   lead_id: string | null
   type: AppointmentType
+  status: AppointmentStatus
   scheduled_at: string
   duration_minutes: number
   service: string | null
@@ -73,11 +75,14 @@ export function EditAppointmentButton({
   appointment,
   leads,
   clinics,
+  userRole,
 }: {
   appointment: EditableAppointment
   leads: Lead[]
   clinics: ClinicOption[]
+  userRole?: string
 }) {
+  const isProvider = userRole === "provider"
   const t = useTranslations("appointments")
   const tc = useTranslations("common")
   const router = useRouter()
@@ -86,6 +91,7 @@ export function EditAppointmentButton({
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     type: appointment.type,
+    status: appointment.status,
     scheduled_at: isoToDatetimeLocal(appointment.scheduled_at),
     duration_minutes: appointment.duration_minutes,
     service: appointment.service ?? "",
@@ -99,6 +105,7 @@ export function EditAppointmentButton({
     if (open) {
       setForm({
         type: appointment.type,
+        status: appointment.status,
         scheduled_at: isoToDatetimeLocal(appointment.scheduled_at),
         duration_minutes: appointment.duration_minutes,
         service: appointment.service ?? "",
@@ -159,6 +166,7 @@ export function EditAppointmentButton({
         await updateAppointment({
           id: appointment.id,
           type: form.type,
+          status: form.status,
           scheduled_at: new Date(form.scheduled_at).toISOString(),
           duration_minutes: form.duration_minutes,
           service: form.service || null,
@@ -212,9 +220,31 @@ export function EditAppointmentButton({
               </div>
             </Field>
 
+            <Field label={t("status")} required>
+              <Select
+                value={form.status}
+                onValueChange={(v) => setForm((p) => ({ ...p, status: v as AppointmentStatus }))}
+              >
+                <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="scheduled" className="text-gray-800">{t("appointmentStatuses.scheduled")}</SelectItem>
+                  <SelectItem value="confirmed" className="text-gray-800">{t("appointmentStatuses.confirmed")}</SelectItem>
+                  <SelectItem value="completed" className="text-gray-800">{t("appointmentStatuses.completed")}</SelectItem>
+                  <SelectItem value="cancelled" className="text-gray-800">{t("appointmentStatuses.cancelled")}</SelectItem>
+                  <SelectItem value="no_show" className="text-gray-800">{t("appointmentStatuses.no_show")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("type")} required>
-                <Select value={form.type} onValueChange={(v) => setForm((p) => ({ ...p, type: v as AppointmentType }))}>
+                <Select
+                  value={form.type}
+                  onValueChange={(v) => setForm((p) => ({ ...p, type: v as AppointmentType }))}
+                  disabled={isProvider}
+                >
                   <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                     <SelectValue />
                   </SelectTrigger>
@@ -231,6 +261,7 @@ export function EditAppointmentButton({
                   className={inputCls}
                   value={form.duration_minutes}
                   onChange={(e) => setForm((p) => ({ ...p, duration_minutes: parseInt(e.target.value) || 30 }))}
+                  disabled={isProvider}
                 />
               </Field>
             </div>
@@ -243,6 +274,7 @@ export function EditAppointmentButton({
                   className={inputCls}
                   value={form.telehealth_link}
                   onChange={(e) => setForm((p) => ({ ...p, telehealth_link: e.target.value }))}
+                  disabled={isProvider}
                 />
               </Field>
             )}
@@ -271,6 +303,7 @@ export function EditAppointmentButton({
                   <Select
                     value={form.clinic_id}
                     onValueChange={(v) => setForm((p) => ({ ...p, clinic_id: v }))}
+                    disabled={isProvider}
                   >
                     <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
                       <SelectValue placeholder={t("selectClinic")} />
@@ -297,6 +330,7 @@ export function EditAppointmentButton({
                 className={`${inputCls} [color-scheme:dark]`}
                 value={form.scheduled_at}
                 onChange={(e) => setForm((p) => ({ ...p, scheduled_at: e.target.value }))}
+                disabled={isProvider}
               />
             </Field>
 
@@ -305,6 +339,7 @@ export function EditAppointmentButton({
                 className={inputCls}
                 value={form.service}
                 onChange={(e) => setForm((p) => ({ ...p, service: e.target.value }))}
+                disabled={isProvider}
               />
             </Field>
 
@@ -313,7 +348,8 @@ export function EditAppointmentButton({
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
+                disabled={isProvider}
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </Field>
 

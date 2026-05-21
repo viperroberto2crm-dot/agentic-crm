@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -185,6 +185,7 @@ export function RegisterSaleModal({
   const [notes, setNotes] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const submittingRef = useRef(false)
 
   // Payment plan mode
   const [planMode, setPlanMode] = useState(false)
@@ -246,6 +247,7 @@ export function RegisterSaleModal({
     planCountNum > 0 ? Math.round(total / planCountNum) : 0
 
   function handleSubmit() {
+    if (submittingRef.current) return
     if (cart.length === 0) {
       setError(t("addAtLeastOne"))
       return
@@ -265,6 +267,7 @@ export function RegisterSaleModal({
         setError(t("planErrorFirstDue"))
         return
       }
+      submittingRef.current = true
       const productName = cart.map((c) => c.product_name).join(" + ")
       startTransition(async () => {
         try {
@@ -286,6 +289,8 @@ export function RegisterSaleModal({
           router.refresh()
         } catch (e) {
           setError(e instanceof Error ? e.message : tc("savingError"))
+        } finally {
+          submittingRef.current = false
         }
       })
       return
@@ -300,6 +305,7 @@ export function RegisterSaleModal({
       items: cart,
     }
 
+    submittingRef.current = true
     startTransition(async () => {
       try {
         await registerSale(payload)
@@ -309,6 +315,8 @@ export function RegisterSaleModal({
         router.refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
+      } finally {
+        submittingRef.current = false
       }
     })
   }
