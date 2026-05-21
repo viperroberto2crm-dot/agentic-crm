@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export type RepOption = { id: string; name: string }
+export type RepOption = { id: string; name: string; role?: string }
 
 /**
  * Celda inline para reasignar el rep de una venta/cita.
@@ -79,7 +79,14 @@ export function RepCellSelect({
                 r.id === currentRepId ? "text-gray-900 font-medium" : "text-gray-700"
               }`}
             >
-              <span className="truncate">{r.name}</span>
+              <span className="truncate flex items-center gap-1.5">
+                {r.name}
+                {r.role === "provider" && (
+                  <span className="text-[9px] px-1 py-0.5 rounded bg-violet-100 text-violet-700 font-medium uppercase tracking-wider">
+                    Prov
+                  </span>
+                )}
+              </span>
               {r.id === currentRepId && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
             </DropdownMenuItem>
           ))

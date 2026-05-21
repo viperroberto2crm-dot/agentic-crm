@@ -166,21 +166,33 @@ export default async function AppointmentsPage({
     clinicsForModal = (clinicsData ?? []) as typeof clinicsForModal
   }
 
-  // Reps disponibles para reasignar (admin/manager only)
+  // Reps + Providers disponibles para asignar citas (admin/manager only).
+  // Provider INCLUIDO porque las citas las atienden los providers.
   const canReassign = role === "admin" || role === "manager"
-  let brandReps: { id: string; name: string }[] = []
+  let brandReps: { id: string; name: string; role: string }[] = []
   if (canReassign && brandId) {
-    const { data: repsData } = await sb
-      .from("users")
-      .select("id, name, user_brands!inner(brand_id)")
-      .eq("active", true)
-      .eq("user_brands.brand_id", brandId)
-      .in("role", ["admin", "manager", "rep"])
-      .order("name")
-    brandReps = (repsData ?? []).map((u) => ({
-      id: u.id as string,
-      name: (u.name as string | null) ?? "—",
-    }))
+    // 2 queries (más confiable que inner join)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ubData } = await (sb as any)
+      .from("user_brands")
+      .select("user_id")
+      .eq("brand_id", brandId)
+    const userIds = ((ubData ?? []) as { user_id: string }[]).map((r) => r.user_id)
+    if (userIds.length > 0) {
+      const { data: repsData } = await sb
+        .from("users")
+        .select("id, name, role")
+        .in("id", userIds)
+        .eq("active", true)
+        .in("role", ["admin", "manager", "rep", "provider"])
+        .order("role") // providers separados visualmente
+        .order("name")
+      brandReps = (repsData ?? []).map((u) => ({
+        id: u.id as string,
+        name: (u.name as string | null) ?? "—",
+        role: (u.role as string | null) ?? "rep",
+      }))
+    }
   }
 
   const tabs = [
@@ -204,6 +216,8 @@ export default async function AppointmentsPage({
               brandId={brandId}
               leads={leadsForModal}
               clinics={clinicsForModal}
+              assignableUsers={brandReps}
+              canAssign={canReassign}
             />
           )}
         </div>

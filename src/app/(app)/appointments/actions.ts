@@ -27,6 +27,9 @@ const CreateAppointmentSchema = z
     state: z.string().nullable().default(null),
     zip: z.string().nullable().default(null),
     telehealth_link: z.string().nullable().default(null),
+    // Si el creador es admin/manager puede asignar a otro user (incl. provider).
+    // null o undefined → se asigna al user logueado.
+    assigned_to: z.string().uuid().nullable().optional(),
   })
   .refine(
     (v) => v.type !== "clinic" || (typeof v.clinic_id === "string" && v.clinic_id.length > 0),
@@ -76,10 +79,16 @@ export async function createAppointment(raw: CreateAppointmentInput) {
   const isClinic = input.type === "clinic"
   const isTele = input.type === "telehealth"
 
+  // assigned_to solo lo respetamos si el user es admin/manager (sino auto al user)
+  let effectiveRepId = user.id
+  if (input.assigned_to && (role === "admin" || role === "manager")) {
+    effectiveRepId = input.assigned_to
+  }
+
   const { error } = await supabase.from("appointments").insert({
     brand_id: input.brand_id,
     lead_id: input.lead_id,
-    rep_id: user.id,
+    rep_id: effectiveRepId,
     type: input.type,
     status: "scheduled",
     scheduled_at: input.scheduled_at,

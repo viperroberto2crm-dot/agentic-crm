@@ -50,10 +50,14 @@ export function NewAppointmentButton({
   brandId,
   leads,
   clinics,
+  assignableUsers = [],
+  canAssign = false,
 }: {
   brandId: string
   leads: Lead[]
   clinics: ClinicOption[]
+  assignableUsers?: { id: string; name: string; role: string }[]
+  canAssign?: boolean
 }) {
   const t = useTranslations("appointments")
   const tc = useTranslations("common")
@@ -71,6 +75,7 @@ export function NewAppointmentButton({
     notes: "",
     clinic_id: "",
     telehealth_link: "",
+    assigned_to: "" as string, // "" = el user logueado (default backend)
   })
 
   useEffect(() => {
@@ -116,6 +121,7 @@ export function NewAppointmentButton({
       notes: "",
       clinic_id: "",
       telehealth_link: "",
+      assigned_to: "",
     })
     setError(null)
   }
@@ -158,6 +164,7 @@ export function NewAppointmentButton({
             form.type === "telehealth"
               ? form.telehealth_link.trim() || null
               : null,
+          assigned_to: form.assigned_to || null,
         })
         router.refresh()
         setOpen(false)
@@ -202,6 +209,32 @@ export function NewAppointmentButton({
                 </SelectContent>
               </Select>
             </Field>
+
+            {canAssign && assignableUsers.length > 0 && (
+              <Field label="Asignar a (provider o rep)">
+                <Select
+                  value={form.assigned_to || "__self__"}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, assigned_to: v === "__self__" ? "" : v }))
+                  }
+                >
+                  <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
+                    <SelectValue placeholder="Yo (default)" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 max-h-52 overflow-y-auto">
+                    <SelectItem value="__self__" className="text-gray-800 italic">
+                      Yo (default)
+                    </SelectItem>
+                    {assignableUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id} className="text-gray-800">
+                        {u.name}
+                        {u.role === "provider" ? " · Proveedor" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("type")} required>
