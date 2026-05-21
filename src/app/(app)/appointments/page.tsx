@@ -161,7 +161,7 @@ export default async function AppointmentsPage({
         <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
-          {brandId && (
+          {brandId && role !== "provider" && (
             <NewAppointmentButton
               brandId={brandId}
               leads={leadsForModal}
@@ -242,6 +242,7 @@ export default async function AppointmentsPage({
                     <td className="py-3 text-right">
                       <div className="flex justify-end items-center gap-1">
                         <AppointmentStatusActions appointmentId={a.id} status={a.status} />
+                        {role !== "provider" && (
                         <EditAppointmentButton
                           appointment={{
                             id: a.id,
@@ -257,6 +258,7 @@ export default async function AppointmentsPage({
                           leads={leadsForModal}
                           clinics={clinicsForModal}
                         />
+                        )}
                       </div>
                     </td>
                   </tr>
