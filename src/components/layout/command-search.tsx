@@ -11,7 +11,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
-import { Sparkles, CornerDownLeft, Clock } from "lucide-react"
+import { Sparkles, CornerDownLeft, Clock, User } from "lucide-react"
+import { AgentMessage } from "./agent-message"
 
 type Message = { role: "user" | "agent"; text: string }
 
@@ -83,33 +84,54 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
         if (!v) setQuery("")
       }}
     >
-      {/* ── Historial de chat ────────────────────────────────────────── */}
+      {/* ── Historial de chat (Claude-style con colores brand) ────────────── */}
       {history.length > 0 && (
-        <div className="px-3 py-3 max-h-52 overflow-y-auto space-y-2.5 border-b border-border bg-white">
+        <div className="px-5 py-4 max-h-[65vh] overflow-y-auto space-y-5 border-b border-border bg-white">
           {history.map((msg, i) => (
-            <div key={i} className={msg.role === "user" ? "flex justify-end" : "flex justify-start"}>
-              <span
-                className={`inline-block text-xs px-3 py-1.5 rounded-xl max-w-[82%] leading-relaxed ${
-                  msg.role === "user"
-                    ? "text-white rounded-br-sm"
-                    : "bg-secondary text-secondary-foreground rounded-bl-sm border border-border"
-                }`}
-                style={msg.role === "user" ? { background: "hsl(190 68% 28%)" } : undefined}
+            <div key={i} className="flex gap-3 items-start">
+              <div
+                className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 border border-border"
+                style={
+                  msg.role === "agent"
+                    ? { background: "var(--brand, #6366f1)", color: "white" }
+                    : { background: "#f3f4f6", color: "#374151" }
+                }
               >
-                {msg.role === "agent" && (
-                  <Sparkles className="w-3 h-3 inline mr-1 opacity-60" />
+                {msg.role === "agent" ? (
+                  <Sparkles className="w-3.5 h-3.5" />
+                ) : (
+                  <User className="w-3.5 h-3.5" />
                 )}
-                {msg.text}
-              </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  {msg.role === "agent" ? "Agente" : "Tú"}
+                </p>
+                {msg.role === "agent" ? (
+                  <div className="text-gray-800">
+                    <AgentMessage text={msg.text} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">
+                    {msg.text}
+                  </p>
+                )}
+              </div>
             </div>
           ))}
           {loading && (
-            <div className="flex justify-start">
-              <span className="inline-flex gap-1 items-center text-xs px-3 py-1.5 rounded-xl rounded-bl-sm bg-secondary text-secondary-foreground border border-border">
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" />
-              </span>
+            <div className="flex gap-3 items-start">
+              <div
+                className="mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 border border-border"
+                style={{ background: "var(--brand, #6366f1)", color: "white" }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <div className="flex-1 flex items-center gap-1 pt-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" />
+              </div>
             </div>
           )}
         </div>
