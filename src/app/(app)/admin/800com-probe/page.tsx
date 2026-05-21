@@ -22,8 +22,22 @@ export default async function EightHundredProbePage() {
   let error: string | null = null
 
   try {
-    const companyId = parseInt(process.env.EIGHTHUNDRED_COMPANY_ID ?? "0", 10)
-    if (!companyId) throw new Error("EIGHTHUNDRED_COMPANY_ID env var missing")
+    // Si no está la env var, lo sacamos directo de tracking_numbers
+    let companyId = parseInt(process.env.EIGHTHUNDRED_COMPANY_ID ?? "0", 10)
+    if (!companyId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (sb as any)
+        .from("tracking_numbers")
+        .select("provider_metadata")
+        .eq("provider", "800com")
+        .limit(1)
+        .maybeSingle()
+      const fromMeta = data?.provider_metadata?.company_id
+      if (typeof fromMeta === "number") companyId = fromMeta
+    }
+    if (!companyId) {
+      throw new Error("No company_id encontrado (ni en env var EIGHTHUNDRED_COMPANY_ID ni en tracking_numbers)")
+    }
 
     const startDate = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
     const endDate = new Date().toISOString()
