@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DateTimeAmPm } from "@/components/ui/datetime-ampm"
 import { createAppointment } from "../actions"
 
 type Lead = {
@@ -282,11 +283,10 @@ export function NewAppointmentButton({
             )}
 
             <Field label={t("dateTime")} required>
-              <Input
-                type="datetime-local"
-                className={`${inputCls} [color-scheme:dark]`}
+              <DateTimeAmPm
                 value={form.scheduled_at}
-                onChange={(e) => setForm((p) => ({ ...p, scheduled_at: e.target.value }))}
+                onChange={(v) => setForm((p) => ({ ...p, scheduled_at: v }))}
+                required
               />
             </Field>
 
