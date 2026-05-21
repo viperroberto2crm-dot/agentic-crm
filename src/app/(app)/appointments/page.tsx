@@ -11,6 +11,7 @@ import { AppointmentStatusActions } from "./_components/appointment-status-actio
 import { EditAppointmentButton } from "./_components/edit-appointment-button"
 import { getTranslations } from "next-intl/server"
 import { formatApptDateTime } from "@/lib/datetime"
+import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
@@ -143,6 +144,23 @@ export default async function AppointmentsPage({
     clinicsForModal = (clinicsData ?? []) as typeof clinicsForModal
   }
 
+  // Reps disponibles para reasignar (admin/manager only)
+  const canReassign = role === "admin" || role === "manager"
+  let brandReps: { id: string; name: string }[] = []
+  if (canReassign && brandId) {
+    const { data: repsData } = await sb
+      .from("users")
+      .select("id, name, user_brands!inner(brand_id)")
+      .eq("active", true)
+      .eq("user_brands.brand_id", brandId)
+      .in("role", ["admin", "manager", "rep"])
+      .order("name")
+    brandReps = (repsData ?? []).map((u) => ({
+      id: u.id as string,
+      name: (u.name as string | null) ?? "—",
+    }))
+  }
+
   const tabs = [
     { value: null,        label: t("allAppts") },
     { value: "scheduled", label: t("scheduledTab") },
@@ -234,7 +252,13 @@ export default async function AppointmentsPage({
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 pr-4 hidden lg:table-cell">
-                        <span className="text-xs text-gray-400">{a.rep?.name ?? "—"}</span>
+                        <RepCellSelectClient
+                          appointmentId={a.id}
+                          currentRepId={a.rep?.id ?? null}
+                          currentRepName={a.rep?.name ?? null}
+                          reps={brandReps}
+                          canEdit={canReassign}
+                        />
                       </td>
                     )}
                     <td className="py-3 text-right">

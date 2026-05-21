@@ -65,6 +65,25 @@ export async function updateTaskStatus(
   revalidatePath("/tasks")
 }
 
+export async function reassignTaskAssignee(
+  taskId: string,
+  newAssigneeId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "admin" && role !== "manager") {
+    return { ok: false, error: "Solo admin/manager pueden reasignar" }
+  }
+  const { error } = await supabase
+    .from("tasks")
+    .update({ assigned_to: newAssigneeId })
+    .eq("id", taskId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath("/tasks")
+  revalidatePath("/dashboard")
+  return { ok: true }
+}
+
 export async function fetchRepsForTasks() {
   const supabase = await typedClient()
   const { data: { user } } = await supabase.auth.getUser()

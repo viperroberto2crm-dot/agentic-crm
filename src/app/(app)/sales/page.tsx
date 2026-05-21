@@ -12,6 +12,7 @@ import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 import { ReportExportButton } from "@/components/exports/report-export-button"
 import { BRAND_TIMEZONE } from "@/lib/datetime"
+import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 
 export const dynamic = "force-dynamic"
 
@@ -91,6 +92,23 @@ export default async function SalesPage({
   }
 
   const { data: salesRaw, count } = await query
+
+  // Reps disponibles para reasignar (admin/manager only)
+  const canReassign = role === "admin" || role === "manager"
+  let brandReps: { id: string; name: string }[] = []
+  if (canReassign && brandId) {
+    const { data: repsData } = await sb
+      .from("users")
+      .select("id, name, user_brands!inner(brand_id)")
+      .eq("active", true)
+      .eq("user_brands.brand_id", brandId)
+      .in("role", ["admin", "manager", "rep"])
+      .order("name")
+    brandReps = (repsData ?? []).map((u) => ({
+      id: u.id as string,
+      name: (u.name as string | null) ?? "—",
+    }))
+  }
 
   type SaleItem = {
     id: string
@@ -349,7 +367,14 @@ export default async function SalesPage({
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 pr-4 hidden lg:table-cell">
-                        <span className="text-xs text-gray-400">{sale.rep?.name ?? "—"}</span>
+                        <RepCellSelectClient
+                          saleId={sale.id}
+                          leadId={sale.lead?.id ?? null}
+                          currentRepId={sale.rep?.id ?? null}
+                          currentRepName={sale.rep?.name ?? null}
+                          reps={brandReps}
+                          canEdit={canReassign}
+                        />
                       </td>
                     )}
                     <td className="py-3 hidden sm:table-cell">

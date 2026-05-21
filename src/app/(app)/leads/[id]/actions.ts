@@ -462,6 +462,27 @@ export async function updateSale(raw: UpdateSaleInput) {
   revalidatePath("/dashboard")
 }
 
+export async function reassignSaleRep(
+  saleId: string,
+  newRepId: string,
+  leadId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "admin" && role !== "manager") {
+    return { ok: false, error: "Solo admin/manager pueden reasignar" }
+  }
+  const { error } = await supabase
+    .from("sales")
+    .update({ rep_id: newRepId })
+    .eq("id", saleId)
+  if (error) return { ok: false, error: error.message }
+  if (leadId) revalidatePath(`/leads/${leadId}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+  return { ok: true }
+}
+
 export async function deleteSale(saleId: string, leadId: string) {
   const supabase = await typedClient()
   const { role } = await getCurrentRole(supabase)

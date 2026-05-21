@@ -191,6 +191,25 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
   revalidatePath("/appointments")
 }
 
+export async function reassignAppointmentRep(
+  appointmentId: string,
+  newRepId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "admin" && role !== "manager") {
+    return { ok: false, error: "Solo admin/manager pueden reasignar" }
+  }
+  const { error } = await supabase
+    .from("appointments")
+    .update({ rep_id: newRepId })
+    .eq("id", appointmentId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath("/appointments")
+  revalidatePath("/dashboard")
+  return { ok: true }
+}
+
 export async function fetchAppointmentById(id: string) {
   const supabase = await typedClient()
   const { data: { user } } = await supabase.auth.getUser()

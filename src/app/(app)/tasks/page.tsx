@@ -8,6 +8,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewTaskButton } from "./_components/new-task-button"
 import { TaskStatusToggle } from "./_components/task-status-toggle"
+import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -216,8 +217,14 @@ export default async function TasksPage({
                         {task.lead.first_name} {task.lead.last_name ?? ""}
                       </Link>
                     )}
-                    {role !== "rep" && task.rep && (
-                      <span className="text-xs text-gray-300">{task.rep.name}</span>
+                    {role !== "rep" && (
+                      <RepCellSelectClient
+                        taskId={task.id}
+                        currentRepId={task.rep?.id ?? null}
+                        currentRepName={task.rep?.name ?? null}
+                        reps={reps}
+                        canEdit={role === "admin" || role === "manager"}
+                      />
                     )}
                   </div>
                 </div>
