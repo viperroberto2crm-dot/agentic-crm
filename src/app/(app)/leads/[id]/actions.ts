@@ -409,6 +409,87 @@ export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
   revalidatePath(`/leads/${input.lead_id}`)
 }
 
+// ── Update / Delete Sale (standalone) ────────────────────────────────────────
+
+const UpdateSaleSchema = z.object({
+  id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  amount_cents: z.number().int().min(0),
+  payment_status: z.enum(["paid", "pending", "partial", "failed", "refunded"]),
+  payment_method: z.enum(["cash", "card", "stripe"]),
+  notes: z.string().nullable(),
+})
+
+export type UpdateSaleInput = z.infer<typeof UpdateSaleSchema>
+
+export async function updateSale(raw: UpdateSaleInput) {
+  const input = UpdateSaleSchema.parse(raw)
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // Bloquear edición de sales auto-generadas desde un payment plan (se manejan
+  // desde el plan). Detectarlas por su sale_id presente en payment_plans.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: linkedPlan } = await sb
+    .from("payment_plans")
+    .select("id")
+    .eq("sale_id", input.id)
+    .maybeSingle()
+  if (linkedPlan?.id) {
+    throw new Error("Esta venta viene de un payment plan. Edítala desde el plan.")
+  }
+
+  const isPaid = input.payment_status === "paid"
+  const { error } = await supabase
+    .from("sales")
+    .update({
+      amount_cents: input.amount_cents,
+      payment_status: input.payment_status,
+      payment_method: input.payment_method,
+      notes: input.notes,
+      paid_at: isPaid ? new Date().toISOString() : null,
+    })
+    .eq("id", input.id)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+}
+
+export async function deleteSale(saleId: string, leadId: string) {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: linkedPlan } = await sb
+    .from("payment_plans")
+    .select("id")
+    .eq("sale_id", saleId)
+    .maybeSingle()
+  if (linkedPlan?.id) {
+    throw new Error("Esta venta viene de un payment plan. Borra el plan para eliminarla.")
+  }
+
+  // Borrar sale_items primero
+  await supabase.from("sale_items").delete().eq("sale_id", saleId)
+  const { error } = await supabase.from("sales").delete().eq("id", saleId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/leads/${leadId}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+}
+
 // ── Extend Payment Plan ───────────────────────────────────────────────────────
 
 const ExtendPlanSchema = z.object({

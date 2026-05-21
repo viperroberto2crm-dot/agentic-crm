@@ -2,6 +2,7 @@ import { Phone, Calendar, DollarSign, StickyNote } from "lucide-react"
 import { getTranslations } from "next-intl/server"
 import type { Database } from "@/types/database"
 import { BRAND_TIMEZONE } from "@/lib/datetime"
+import { SaleActions } from "./sale-actions"
 
 type CallRow = {
   id: string
@@ -56,11 +57,15 @@ export async function ActivityTimeline({
   appointments,
   sales,
   notes,
+  leadId,
+  planSaleIds = [],
 }: {
   calls: CallRow[]
   appointments: ApptRow[]
   sales: SaleRow[]
   notes: string | null
+  leadId?: string
+  planSaleIds?: string[]
 }) {
   const ta = await getTranslations("activity")
   const tCalls = await getTranslations("calls")
@@ -152,6 +157,7 @@ export async function ActivityTimeline({
             style: "currency",
             currency: "USD",
           })
+          const isPlanLinked = planSaleIds.includes(s.id)
           return (
             <div key={s.id} className="flex gap-3">
               <div className="mt-0.5 w-6 h-6 rounded-full bg-emerald-900/40 flex items-center justify-center shrink-0">
@@ -166,6 +172,18 @@ export async function ActivityTimeline({
                 </div>
                 <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(s.created_at)}</p>
               </div>
+              {leadId && (
+                <SaleActions
+                  sale={{
+                    id: s.id,
+                    amount_cents: s.amount_cents,
+                    payment_status: s.payment_status as "paid" | "pending" | "partial" | "failed" | "refunded",
+                    payment_method: s.payment_method as "cash" | "card" | "stripe",
+                  }}
+                  leadId={leadId}
+                  isPlanLinked={isPlanLinked}
+                />
+              )}
             </div>
           )
         }

@@ -202,6 +202,8 @@ export default async function LeadDetailPage({
                 appointments={appointments}
                 sales={role === "provider" ? [] : sales}
                 notes={lead.notes}
+                leadId={role !== "provider" ? id : undefined}
+                planSaleIds={Array.from(planSaleIds)}
               />
             </CardContent>
           </Card>
