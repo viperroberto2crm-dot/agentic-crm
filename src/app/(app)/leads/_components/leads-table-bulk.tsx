@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Phone, Trash2, Loader2 } from "lucide-react"
+import { Phone, Trash2, Loader2, UserPlus, ChevronDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,8 +16,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useTranslations } from "next-intl"
-import { bulkDeleteLeads } from "../actions"
+import { bulkDeleteLeads, bulkAssignLeadsRep } from "../actions"
 
 type LeadStatus =
   | "new" | "contacted" | "qualified" | "appointment_set"
@@ -37,6 +43,7 @@ export type BulkLeadRow = {
 type Props = {
   leads: BulkLeadRow[]
   canBulkDelete: boolean
+  brandReps?: { id: string; name: string }[]
   logQuickCall: (leadId: string, fd: FormData) => Promise<void>
   statusLabels: Record<LeadStatus, string>
   labels: {
@@ -89,6 +96,7 @@ function ScoreBar({ score }: { score: number | null }) {
 export function LeadsTableBulk({
   leads,
   canBulkDelete,
+  brandReps = [],
   logQuickCall,
   statusLabels,
   labels,
@@ -135,6 +143,20 @@ export function LeadsTableBulk({
     })
   }
 
+  function handleBulkAssign(newRepId: string) {
+    setError(null)
+    const ids = Array.from(selected)
+    startTransition(async () => {
+      const result = await bulkAssignLeadsRep(ids, newRepId)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setSelected(new Set())
+      router.refresh()
+    })
+  }
+
   if (leads.length === 0) {
     return (
       <div className="text-center py-16 text-sm text-gray-400">
@@ -167,6 +189,38 @@ export function LeadsTableBulk({
             >
               {labels.cancel}
             </Button>
+            {brandReps.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-xs gap-1.5 text-white hover:bg-gray-800 cursor-pointer border border-gray-700"
+                    disabled={isPending}
+                  >
+                    {isPending ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <UserPlus className="w-3.5 h-3.5" />
+                    )}
+                    Asignar a
+                    <ChevronDown className="w-3 h-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-white border-gray-200 max-h-60 overflow-y-auto">
+                  {brandReps.map((r) => (
+                    <DropdownMenuItem
+                      key={r.id}
+                      onClick={() => handleBulkAssign(r.id)}
+                      disabled={isPending}
+                      className="text-xs cursor-pointer text-gray-700"
+                    >
+                      {r.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button
               size="sm"
               className="h-8 text-xs gap-1.5 bg-red-600 hover:bg-red-700 text-white cursor-pointer"

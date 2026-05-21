@@ -68,6 +68,23 @@ export default async function LeadsPage({
     limit: 50, offset,
   })
 
+  // Reps disponibles para reasignar bulk (admin/manager only)
+  const canReassign = role === "admin" || role === "manager"
+  let brandReps: { id: string; name: string }[] = []
+  if (canReassign && brandId) {
+    const { data: repsData } = await sb
+      .from("users")
+      .select("id, name, user_brands!inner(brand_id)")
+      .eq("active", true)
+      .eq("user_brands.brand_id", brandId)
+      .in("role", ["admin", "manager", "rep"])
+      .order("name")
+    brandReps = (repsData ?? []).map((u) => ({
+      id: u.id as string,
+      name: (u.name as string | null) ?? "—",
+    }))
+  }
+
   const LIMIT = 50
 
   return (
@@ -116,6 +133,7 @@ export default async function LeadsPage({
         <LeadsTableBulk
           leads={leads}
           canBulkDelete={role === "admin" || role === "manager"}
+          brandReps={brandReps}
           logQuickCall={logQuickCall}
           statusLabels={{
             new: ts("new"),

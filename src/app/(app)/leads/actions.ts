@@ -49,6 +49,42 @@ export async function bulkDeleteLeads(
   return { ok: true, deleted: count ?? 0 }
 }
 
+/**
+ * Reasigna múltiples leads a un rep. Solo admin/manager.
+ */
+export async function bulkAssignLeadsRep(
+  ids: string[],
+  newRepId: string,
+): Promise<{ ok: true; updated: number } | { ok: false; error: string }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { ok: false, error: "Sin leads seleccionados" }
+  }
+  if (ids.length > 500) {
+    return { ok: false, error: "Demasiados leads (máx 500)" }
+  }
+
+  const supabase = await typedClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: "No autenticado" }
+
+  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+  const role = profile?.role ?? "rep"
+  if (role !== "admin" && role !== "manager") {
+    return { ok: false, error: "Sin permiso para reasignar leads" }
+  }
+
+  const { error, count } = await supabase
+    .from("leads")
+    .update({ assigned_rep_id: newRepId }, { count: "exact" })
+    .in("id", ids)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath("/leads")
+  revalidatePath("/dashboard")
+  return { ok: true, updated: count ?? 0 }
+}
+
 export async function logQuickCall(leadId: string, _: FormData) {
   const supabase = await typedClient()
   const { userId: _uid, role } = await getCurrentRole(supabase)
