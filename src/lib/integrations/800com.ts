@@ -56,6 +56,45 @@ export type EightHundredCallV2 = {
   // Optional fields that appear on some endpoints / call details
   recordingUrl?: string | null
   voicemailUrl?: string | null
+  // CNAM / caller name — el field name exacto varía. Probamos varios:
+  callerName?: string | null
+  caller_name?: string | null
+  contactName?: string | null
+  contact_name?: string | null
+  contact?: { name?: string | null; firstName?: string | null; lastName?: string | null } | null
+}
+
+/**
+ * Extrae el nombre del caller probando varios fields posibles de la respuesta
+ * 800.com. Devuelve { firstName, lastName } parseando el nombre completo si es
+ * necesario.
+ */
+export function extractCallerName(call: EightHundredCallV2): {
+  firstName: string | null
+  lastName: string | null
+} {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (call as any).callerName
+    ?? (call as any).caller_name
+    ?? (call as any).contactName
+    ?? (call as any).contact_name
+    ?? (call as any).contact?.name
+    ?? null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const firstFromObj = (call as any).contact?.firstName ?? null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lastFromObj = (call as any).contact?.lastName ?? null
+  if (firstFromObj || lastFromObj) {
+    return { firstName: firstFromObj, lastName: lastFromObj }
+  }
+  if (!raw || typeof raw !== "string") return { firstName: null, lastName: null }
+  const trimmed = raw.trim()
+  if (!trimmed) return { firstName: null, lastName: null }
+  // No usar si el "nombre" es solo dígitos (es el teléfono)
+  if (/^\+?\d[\d\s().-]*$/.test(trimmed)) return { firstName: null, lastName: null }
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) return { firstName: parts[0], lastName: null }
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") }
 }
 
 export type EightHundredListResponse = {
@@ -262,18 +301,23 @@ async function createLeadFromCall(
   callerE164: string,
   trackingLabel: string | null,
   campaign: string | null,
+  firstName: string | null,
+  lastName: string | null,
 ): Promise<string | null> {
   // Campaign info goes in notes (source enum is fixed list)
   const noteParts: string[] = ["Auto-creado desde llamada inbound (800.com)"]
   if (trackingLabel) noteParts.push(`Número: ${trackingLabel}`)
   if (campaign) noteParts.push(`Campaña: ${campaign}`)
 
+  // Fallback al teléfono si 800.com no nos dio nombre todavía
+  const effectiveFirst = firstName?.trim() || callerE164
+
   const { data, error } = await sb
     .from("leads")
     .insert({
       brand_id: brandId,
-      first_name: callerE164,
-      last_name: null,
+      first_name: effectiveFirst,
+      last_name: lastName?.trim() || null,
       phone: callerE164,
       email: null,
       status: "new",
@@ -414,12 +458,34 @@ export async function importCallsFromEightHundred(
         continue
       }
 
+      // Extract caller name de CNAM si 800.com lo trae
+      const { firstName, lastName } = extractCallerName(call)
+
       // Lead matching by E.164 caller
       let leadId = await findLeadByPhone(sb, tracking.brand_id, call.caller)
       if (leadId) {
         result.leads_matched++
+        // Si el lead existe pero su first_name es el propio teléfono (auto-creado
+        // antes de tener CNAM), llenarlo con el nombre real si ahora sí lo tenemos.
+        if (firstName) {
+          const { data: existingLead } = await sb
+            .from("leads")
+            .select("first_name, last_name")
+            .eq("id", leadId)
+            .single()
+          const looksLikePhone = existingLead?.first_name?.startsWith("+") || /^\d+$/.test(existingLead?.first_name ?? "")
+          if (looksLikePhone) {
+            await sb.from("leads").update({
+              first_name: firstName,
+              last_name: lastName ?? existingLead?.last_name ?? null,
+            }).eq("id", leadId)
+          }
+        }
       } else if (autoCreate) {
-        leadId = await createLeadFromCall(sb, tracking.brand_id, call.caller, tracking.label, tracking.campaign)
+        leadId = await createLeadFromCall(
+          sb, tracking.brand_id, call.caller, tracking.label, tracking.campaign,
+          firstName, lastName,
+        )
         if (leadId) result.leads_created++
       }
 
