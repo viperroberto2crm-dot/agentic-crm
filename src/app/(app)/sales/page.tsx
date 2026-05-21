@@ -13,6 +13,7 @@ import { ExportButton } from "@/components/exports/export-button"
 import { ReportExportButton } from "@/components/exports/report-export-button"
 import { BRAND_TIMEZONE } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
+import { PatientSearchInput } from "@/components/ui/patient-search-input"
 
 export const dynamic = "force-dynamic"
 
@@ -67,6 +68,26 @@ export default async function SalesPage({
   const sp = params as Record<string, string | string[] | undefined>
   const statusFilter = typeof sp.status === "string" ? sp.status : null
   const groupBy = sp.view === "patient" ? "patient" : "sale"
+  const searchTerm = typeof sp.search === "string" ? sp.search.trim() : null
+
+  // Si hay búsqueda, primero saco los lead_ids que matchean
+  let leadIdsFilter: string[] | null = null
+  if (searchTerm && brandId) {
+    const tokens = searchTerm.replace(/[(),]/g, " ").split(/\s+/).filter(Boolean)
+    const orParts: string[] = []
+    for (const tok of tokens) {
+      const t = tok.replace(/%/g, "")
+      orParts.push(`first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `phone.ilike.%${t}%`)
+    }
+    const { data: matchingLeads } = await sb
+      .from("leads")
+      .select("id")
+      .eq("brand_id", brandId)
+      .or(orParts.join(","))
+      .limit(500)
+    leadIdsFilter = (matchingLeads ?? []).map((l) => l.id)
+    if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
+  }
 
   let query = sb
     .from("sales")
@@ -89,6 +110,10 @@ export default async function SalesPage({
 
   if (statusFilter) {
     query = query.eq("payment_status", statusFilter as Database["public"]["Enums"]["payment_status"])
+  }
+
+  if (leadIdsFilter) {
+    query = query.in("lead_id", leadIdsFilter)
   }
 
   const { data: salesRaw, count } = await query
@@ -190,6 +215,8 @@ export default async function SalesPage({
           <ExportButton entity="sales" extraParams={{ status: statusFilter }} />
         </div>
       </div>
+
+      <PatientSearchInput placeholder="Buscar paciente por nombre o teléfono…" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard

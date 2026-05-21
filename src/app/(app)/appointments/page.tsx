@@ -12,6 +12,7 @@ import { EditAppointmentButton } from "./_components/edit-appointment-button"
 import { getTranslations } from "next-intl/server"
 import { formatApptDateTime } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
+import { PatientSearchInput } from "@/components/ui/patient-search-input"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
@@ -59,6 +60,25 @@ export default async function AppointmentsPage({
 
   const sp = params as Record<string, string | string[] | undefined>
   const statusFilter = typeof sp.status === "string" ? sp.status : null
+  const searchTerm = typeof sp.search === "string" ? sp.search.trim() : null
+
+  let leadIdsFilter: string[] | null = null
+  if (searchTerm && brandId) {
+    const tokens = searchTerm.replace(/[(),]/g, " ").split(/\s+/).filter(Boolean)
+    const orParts: string[] = []
+    for (const tok of tokens) {
+      const t = tok.replace(/%/g, "")
+      orParts.push(`first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `phone.ilike.%${t}%`)
+    }
+    const { data: matchingLeads } = await sb
+      .from("leads")
+      .select("id")
+      .eq("brand_id", brandId)
+      .or(orParts.join(","))
+      .limit(500)
+    leadIdsFilter = (matchingLeads ?? []).map((l) => l.id)
+    if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
+  }
 
   let query = sb
     .from("appointments")
@@ -75,6 +95,7 @@ export default async function AppointmentsPage({
   if (role === "rep" || role === "provider") query = query.eq("rep_id", user.id)
   if (brandId) query = query.eq("brand_id", brandId)
   if (statusFilter) query = query.eq("status", statusFilter as ApptStatus)
+  if (leadIdsFilter) query = query.in("lead_id", leadIdsFilter)
 
   const { data: raw, count } = await query
 
@@ -186,6 +207,8 @@ export default async function AppointmentsPage({
           )}
         </div>
       </div>
+
+      <PatientSearchInput placeholder="Buscar paciente por nombre o teléfono…" />
 
       <div className="flex gap-2 flex-wrap">
         {tabs.map((tab) => {
