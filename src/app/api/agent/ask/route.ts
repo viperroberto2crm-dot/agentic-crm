@@ -392,7 +392,8 @@ export async function POST(req: NextRequest) {
               sb,
               user.id,
               brandId,
-              input as Parameters<typeof executeGetScheduleToday>[3]
+              input as Parameters<typeof executeGetScheduleToday>[3],
+              userRole,
             )
             break
           case "get_sales_kpi":
@@ -400,7 +401,8 @@ export async function POST(req: NextRequest) {
               sb,
               user.id,
               brandId,
-              input as Parameters<typeof executeGetSalesKpi>[3]
+              input as Parameters<typeof executeGetSalesKpi>[3],
+              userRole,
             )
             break
           case "get_calls_summary":
@@ -408,14 +410,16 @@ export async function POST(req: NextRequest) {
               sb,
               user.id,
               brandId,
-              input as Parameters<typeof executeGetCallsSummary>[3]
+              input as Parameters<typeof executeGetCallsSummary>[3],
+              userRole,
             )
             break
           case "get_tasks_open":
             result = await executeGetTasksOpen(
               sb,
               user.id,
-              input as Parameters<typeof executeGetTasksOpen>[2]
+              input as Parameters<typeof executeGetTasksOpen>[2],
+              userRole,
             )
             break
           case "list_brands":

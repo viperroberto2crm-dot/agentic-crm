@@ -1,6 +1,58 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
+import { BRAND_TIMEZONE } from "@/lib/datetime"
+
+/**
+ * Devuelve null si admin/manager (no filtrar por rep_id, ven todo el brand)
+ * o el userId si rep/provider (solo lo suyo).
+ */
+function scopeRep(userId: string, role: string): string | null {
+  return role === "admin" || role === "manager" ? null : userId
+}
+
+/**
+ * Día YYYY-MM-DD en una timezone específica para "hoy".
+ * Resuelve el bug de "hoy" calculado en server UTC cuando son las 9 PM PT
+ * (4 AM UTC del día siguiente).
+ */
+function todayInTz(tz: string = BRAND_TIMEZONE): string {
+  // Formatter para sacar partes en la TZ deseada
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date())
+  const y = parts.find((p) => p.type === "year")?.value ?? "1970"
+  const m = parts.find((p) => p.type === "month")?.value ?? "01"
+  const d = parts.find((p) => p.type === "day")?.value ?? "01"
+  return `${y}-${m}-${d}`
+}
+
+/**
+ * Devuelve UTC ISO del inicio de día de una fecha YYYY-MM-DD en TZ dada.
+ * Ej: dayStartUtc("2026-05-20", "America/Los_Angeles") → "2026-05-20T07:00:00Z" en PDT.
+ */
+function dayStartUtcInTz(ymd: string, tz: string = BRAND_TIMEZONE): string {
+  // Construir Date en UTC interpretando ymd como medianoche en tz.
+  // Truco: usar Intl para encontrar el offset.
+  const [y, m, d] = ymd.split("-").map(Number)
+  // Empezamos con esa fecha a medianoche en UTC
+  const utcMidnight = new Date(Date.UTC(y, m - 1, d, 0, 0, 0))
+  // Calcular qué hora es en tz cuando es utcMidnight
+  const tzParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  }).formatToParts(utcMidnight)
+  const tzHour = parseInt(tzParts.find((p) => p.type === "hour")?.value ?? "0", 10)
+  const tzMin = parseInt(tzParts.find((p) => p.type === "minute")?.value ?? "0", 10)
+  // Offset = utc - tz (ej. en PDT tz=17:00 cuando utc=00:00 → offset = +7h)
+  // Para llevar utcMidnight a "medianoche en tz" hay que sumarle ese offset.
+  const offsetMin = (24 - tzHour) % 24 * 60 - tzMin
+  return new Date(utcMidnight.getTime() + offsetMin * 60_000).toISOString()
+}
 
 type DB = SupabaseClient<Database>
 
@@ -18,6 +70,7 @@ export type GetLeadsInput = {
 
 export type GetScheduleInput = {
   date?: string
+  scope?: Scope
 }
 
 export type GetSalesKpiInput = {
@@ -85,11 +138,16 @@ export const AGENT_TOOLS = [
   },
   {
     name: "get_schedule_today",
-    description: "Get today's appointments and open tasks for the current user.",
+    description: "Get today's appointments and open tasks. Admin/manager ven todas las del brand; rep solo las suyas. Por defecto usa el día de hoy en Pacific Time.",
     input_schema: {
       type: "object" as const,
       properties: {
-        date: { type: "string", description: "ISO date (YYYY-MM-DD), defaults to today" },
+        date: { type: "string", description: "ISO date (YYYY-MM-DD) en Pacific Time, defaults to today PT" },
+        scope: {
+          type: "string",
+          enum: ["current", "all"],
+          description: SCOPE_DESC,
+        },
       },
     },
   },
@@ -162,17 +220,18 @@ export const AGENT_TOOLS = [
 // ── Tool executors ────────────────────────────────────────────────────────────
 
 function periodRange(period = "month"): { gte: string } {
-  const now = new Date()
   if (period === "today") {
-    const start = new Date(now); start.setHours(0, 0, 0, 0)
-    return { gte: start.toISOString() }
+    // Inicio del día PT (no UTC)
+    return { gte: dayStartUtcInTz(todayInTz()) }
   }
   if (period === "week") {
-    const start = new Date(now); start.setDate(now.getDate() - 7)
-    return { gte: start.toISOString() }
+    // Hace 7 días desde ahora — para queries de "última semana" rolling
+    return { gte: new Date(Date.now() - 7 * 86_400_000).toISOString() }
   }
-  const start = new Date(now); start.setDate(1); start.setHours(0, 0, 0, 0)
-  return { gte: start.toISOString() }
+  // Mes: primer día del mes en PT
+  const today = todayInTz()
+  const monthStart = `${today.slice(0, 7)}-01`
+  return { gte: dayStartUtcInTz(monthStart) }
 }
 
 export async function executeListBrands(sb: DB) {
@@ -196,9 +255,13 @@ export async function executeGetLeads(
   if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
   if (input.status) query = query.eq("status", input.status as Database["public"]["Enums"]["lead_status"])
   if (input.days_without_contact) {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - input.days_without_contact)
-    query = query.or(`last_contacted_at.is.null,last_contacted_at.lte.${cutoff.toISOString()}`)
+    // Cutoff = inicio del día PT - N días, para alinear con día de calendario
+    const today = todayInTz()
+    const [y, m, d] = today.split("-").map(Number)
+    const cutoffDate = new Date(Date.UTC(y, m - 1, d - input.days_without_contact))
+    const cutoffYmd = cutoffDate.toISOString().slice(0, 10)
+    const cutoffIso = dayStartUtcInTz(cutoffYmd)
+    query = query.or(`last_contacted_at.is.null,last_contacted_at.lte.${cutoffIso}`)
   }
 
   if (input.query && input.query.trim().length > 0) {
@@ -226,25 +289,36 @@ export async function executeGetLeads(
 }
 
 export async function executeGetScheduleToday(
-  sb: DB, userId: string, brandId: string | null, input: GetScheduleInput
+  sb: DB,
+  userId: string,
+  brandId: string | null,
+  input: GetScheduleInput,
+  role: string = "rep",
 ) {
-  const date = input.date ?? new Date().toISOString().split("T")[0]
-  const start = `${date}T00:00:00.000Z`
-  const end   = `${date}T23:59:59.999Z`
+  // Día PT (no UTC) — fix bug "no hubo citas hoy" a las 9 PM PT.
+  const date = input.date ?? todayInTz()
+  const start = dayStartUtcInTz(date)
+  const nextDay = new Date(new Date(date + "T12:00:00Z").getTime() + 86_400_000)
+  const nextDayYmd = nextDay.toISOString().slice(0, 10)
+  const end = dayStartUtcInTz(nextDayYmd)
 
-  const [apptsRes, tasksRes] = await Promise.all([
-    sb.from("appointments")
-      .select("id, scheduled_at, type, status, service, lead:leads!appointments_lead_id_fkey(first_name, last_name)")
-      .eq("rep_id", userId)
-      .gte("scheduled_at", start)
-      .lte("scheduled_at", end)
-      .order("scheduled_at"),
-    sb.from("tasks")
-      .select("id, title, priority, due_at, status")
-      .eq("assigned_to", userId)
-      .eq("status", "open")
-      .order("priority"),
-  ])
+  const repFilter = scopeRep(userId, role)
+
+  let apptsQ = sb.from("appointments")
+    .select("id, scheduled_at, type, status, service, lead:leads!appointments_lead_id_fkey(first_name, last_name)")
+    .gte("scheduled_at", start)
+    .lt("scheduled_at", end)
+    .order("scheduled_at")
+  if (repFilter) apptsQ = apptsQ.eq("rep_id", repFilter)
+  if (input.scope !== "all" && brandId) apptsQ = apptsQ.eq("brand_id", brandId)
+
+  let tasksQ = sb.from("tasks")
+    .select("id, title, priority, due_at, status")
+    .eq("status", "open")
+    .order("priority")
+  if (repFilter) tasksQ = tasksQ.eq("assigned_to", repFilter)
+
+  const [apptsRes, tasksRes] = await Promise.all([apptsQ, tasksQ])
 
   return {
     appointments: apptsRes.data ?? [],
@@ -253,7 +327,11 @@ export async function executeGetScheduleToday(
 }
 
 export async function executeGetSalesKpi(
-  sb: DB, userId: string, brandId: string | null, input: GetSalesKpiInput
+  sb: DB,
+  userId: string,
+  brandId: string | null,
+  input: GetSalesKpiInput,
+  role: string = "rep",
 ) {
   const { gte } = periodRange(input.period ?? "month")
   const paidRange = { startIso: gte, endIso: new Date().toISOString() }
@@ -277,7 +355,7 @@ export async function executeGetSalesKpi(
       allBrands.map(async (b) => {
         const br = await getSalesBreakdown(sb, {
           brandId: b.id,
-          repId: null,
+          repId: scopeRep(userId, role),
           paidRange,
         })
         return {
@@ -319,7 +397,7 @@ export async function executeGetSalesKpi(
   // scope === "current"
   const br = await getSalesBreakdown(sb, {
     brandId,
-    repId: null,
+    repId: scopeRep(userId, role),
     paidRange,
   })
   return {
@@ -334,7 +412,11 @@ export async function executeGetSalesKpi(
 }
 
 export async function executeGetCallsSummary(
-  sb: DB, userId: string, brandId: string | null, input: GetCallsInput
+  sb: DB,
+  userId: string,
+  brandId: string | null,
+  input: GetCallsInput,
+  role: string = "rep",
 ) {
   const { gte } = periodRange(input.period ?? "week")
 
@@ -371,6 +453,7 @@ export async function executeGetCallsSummary(
     }
   }
 
+  const repFilter = scopeRep(userId, role)
   let query = sbAny
     .from("calls")
     .select("id, outcome, direction, duration_seconds, called_at, brand_id, tracking_number_id")
@@ -379,6 +462,7 @@ export async function executeGetCallsSummary(
     .limit(input.limit ?? 1000)
 
   if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
+  if (repFilter) query = query.eq("rep_id", repFilter)
   if (trackingIds) query = query.in("tracking_number_id", trackingIds)
 
   const { data } = await query
@@ -432,16 +516,20 @@ export async function executeGetCallsSummary(
 }
 
 export async function executeGetTasksOpen(
-  sb: DB, userId: string, input: GetTasksInput
+  sb: DB,
+  userId: string,
+  input: GetTasksInput,
+  role: string = "rep",
 ) {
+  const repFilter = scopeRep(userId, role)
   let query = sb
     .from("tasks")
     .select("id, title, priority, due_at, status, description")
-    .eq("assigned_to", userId)
     .eq("status", "open")
     .order("priority")
     .limit(input.limit ?? 10)
 
+  if (repFilter) query = query.eq("assigned_to", repFilter)
   if (input.priority) query = query.eq("priority", input.priority as Database["public"]["Enums"]["task_priority"])
 
   const { data } = await query
