@@ -55,6 +55,23 @@ export async function createAppointment(raw: CreateAppointmentInput) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
+  // Idempotencia: si el mismo rep creó una cita para el mismo lead a la misma
+  // hora en los últimos 60s, no crear duplicado (probable doble-click o reenvío).
+  const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
+  const { data: recent } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("lead_id", input.lead_id)
+    .eq("rep_id", user.id)
+    .eq("scheduled_at", input.scheduled_at)
+    .gte("created_at", sixtySecondsAgo)
+    .limit(1)
+    .maybeSingle()
+  if (recent?.id) {
+    revalidatePath("/appointments")
+    return
+  }
+
   const isHome = input.type === "home"
   const isClinic = input.type === "clinic"
   const isTele = input.type === "telehealth"

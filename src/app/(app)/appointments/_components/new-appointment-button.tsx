@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -60,6 +60,7 @@ export function NewAppointmentButton({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const submittingRef = useRef(false)
   const [form, setForm] = useState({
     lead_id: "",
     type: "telehealth" as AppointmentType,
@@ -119,6 +120,7 @@ export function NewAppointmentButton({
   }
 
   function handleSave() {
+    if (submittingRef.current) return
     if (!form.lead_id || !form.scheduled_at) {
       setError(t("leadAndDateRequired"))
       return
@@ -132,6 +134,7 @@ export function NewAppointmentButton({
       return
     }
     setError(null)
+    submittingRef.current = true
     startTransition(async () => {
       try {
         await createAppointment({
@@ -160,6 +163,8 @@ export function NewAppointmentButton({
         reset()
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
+      } finally {
+        submittingRef.current = false
       }
     })
   }

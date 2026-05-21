@@ -29,6 +29,8 @@ export type GetCallsInput = {
   period?: "today" | "week" | "month"
   limit?: number
   scope?: Scope
+  source?: string
+  group_by_source?: boolean
 }
 
 export type GetTasksInput = {
@@ -113,7 +115,8 @@ export const AGENT_TOOLS = [
   },
   {
     name: "get_calls_summary",
-    description: "Get calls summary: count, outcomes, duration.",
+    description:
+      "Get calls summary: count, outcomes, duration. Use 'source' to filter by tracking number label (e.g. 'billboard', 'radio', 'buses', 'pulpo') — matches partial/case-insensitive against tracking_numbers.label. Use group_by_source=true to break down by tracking number (useful for 'cuántas llamadas por canal/source/campaña').",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -127,6 +130,14 @@ export const AGENT_TOOLS = [
           type: "string",
           enum: ["current", "all"],
           description: SCOPE_DESC,
+        },
+        source: {
+          type: "string",
+          description: "Filter calls by tracking number label (partial match, case-insensitive). Examples: 'billboard', 'radio', 'buses'.",
+        },
+        group_by_source: {
+          type: "boolean",
+          description: "If true, returns counts grouped by tracking number label.",
         },
       },
     },
@@ -326,21 +337,60 @@ export async function executeGetCallsSummary(
   sb: DB, userId: string, brandId: string | null, input: GetCallsInput
 ) {
   const { gte } = periodRange(input.period ?? "week")
-  let query = sb
+
+  // Si filtran por source o piden group_by, resolvemos tracking_number_ids
+  // contra la tabla tracking_numbers antes de query calls.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sbAny = sb as any
+  let trackingIds: string[] | null = null
+  let trackingMap: Map<string, string> = new Map()
+  if (input.source || input.group_by_source) {
+    let tnQ = sbAny.from("tracking_numbers").select("id, label, brand_id")
+    if (input.scope !== "all" && brandId) tnQ = tnQ.eq("brand_id", brandId)
+    if (input.source && input.source.trim()) {
+      tnQ = tnQ.ilike("label", `%${input.source.trim()}%`)
+    }
+    const { data: tns } = await tnQ
+    trackingMap = new Map(
+      ((tns ?? []) as Array<{ id: string; label: string }>).map((t) => [t.id, t.label]),
+    )
+    if (input.source) {
+      trackingIds = Array.from(trackingMap.keys())
+      if (trackingIds.length === 0) {
+        return {
+          period: input.period ?? "week",
+          scope: input.scope ?? "current",
+          source_filter: input.source,
+          total_calls: 0,
+          connected: 0,
+          connection_rate: "0%",
+          avg_duration_seconds: 0,
+          note: `No existe un tracking number con label que contenga "${input.source}". Tracking numbers disponibles: ver list_brands o usa group_by_source.`,
+        }
+      }
+    }
+  }
+
+  let query = sbAny
     .from("calls")
-    .select("id, outcome, direction, duration_seconds, called_at, brand_id")
+    .select("id, outcome, direction, duration_seconds, called_at, brand_id, tracking_number_id")
     .gte("called_at", gte)
     .order("called_at", { ascending: false })
-    .limit(input.limit ?? 50)
+    .limit(input.limit ?? 1000)
 
   if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
+  if (trackingIds) query = query.in("tracking_number_id", trackingIds)
 
   const { data } = await query
-  const rows = data ?? []
+  const rows = (data ?? []) as Array<{
+    outcome: string | null
+    duration_seconds: number | null
+    tracking_number_id: string | null
+  }>
   const connected = rows.filter((r) => r.outcome === "connected").length
   const totalDuration = rows.reduce((s, r) => s + (r.duration_seconds ?? 0), 0)
 
-  return {
+  const base = {
     period: input.period ?? "week",
     scope: input.scope ?? "current",
     total_calls: rows.length,
@@ -348,6 +398,37 @@ export async function executeGetCallsSummary(
     connection_rate: rows.length > 0 ? `${Math.round((connected / rows.length) * 100)}%` : "0%",
     avg_duration_seconds: rows.length > 0 ? Math.round(totalDuration / rows.length) : 0,
   }
+
+  if (input.source) {
+    return { ...base, source_filter: input.source }
+  }
+
+  if (input.group_by_source) {
+    // Asegurarnos de tener TODOS los tracking_numbers para etiquetar (no solo los del source filter)
+    if (trackingMap.size === 0 || input.source) {
+      let tnQ2 = sbAny.from("tracking_numbers").select("id, label")
+      if (input.scope !== "all" && brandId) tnQ2 = tnQ2.eq("brand_id", brandId)
+      const { data: allTns } = await tnQ2
+      trackingMap = new Map(
+        ((allTns ?? []) as Array<{ id: string; label: string }>).map((t) => [t.id, t.label]),
+      )
+    }
+    const grouped: Record<string, number> = {}
+    let untagged = 0
+    for (const r of rows) {
+      const tnId = r.tracking_number_id
+      if (!tnId) { untagged++; continue }
+      const label = trackingMap.get(tnId) ?? `(tn:${tnId.slice(0, 8)})`
+      grouped[label] = (grouped[label] ?? 0) + 1
+    }
+    return {
+      ...base,
+      by_source: grouped,
+      untagged_calls: untagged,
+    }
+  }
+
+  return base
 }
 
 export async function executeGetTasksOpen(
