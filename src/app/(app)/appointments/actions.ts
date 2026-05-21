@@ -191,6 +191,28 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
   revalidatePath("/appointments")
 }
 
+/**
+ * Borra una cita. Admin/manager pueden borrar cualquiera. Rep solo las suyas.
+ * Provider bloqueado.
+ */
+export async function deleteAppointment(
+  appointmentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: "No autenticado" }
+
+  const base = supabase.from("appointments").delete().eq("id", appointmentId)
+  const { error } = role === "rep" ? await base.eq("rep_id", user.id) : await base
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath("/appointments")
+  revalidatePath("/dashboard")
+  return { ok: true }
+}
+
 export async function reassignAppointmentRep(
   appointmentId: string,
   newRepId: string,

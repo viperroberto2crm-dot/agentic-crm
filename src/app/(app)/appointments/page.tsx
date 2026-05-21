@@ -13,6 +13,7 @@ import { getTranslations } from "next-intl/server"
 import { formatApptDateTime } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { PatientSearchInput } from "@/components/ui/patient-search-input"
+import { DeleteAppointmentButton } from "./_components/delete-appointment-button"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
@@ -304,6 +305,9 @@ export default async function AppointmentsPage({
                           clinics={clinicsForModal}
                           userRole={role}
                         />
+                        {role !== "provider" && (
+                          <DeleteAppointmentButton appointmentId={a.id} />
+                        )}
                       </div>
                     </td>
                   </tr>
