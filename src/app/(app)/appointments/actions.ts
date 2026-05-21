@@ -174,9 +174,10 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
   const isClinic = input.type === "clinic"
   const isTele = input.type === "telehealth"
 
-  // Provider solo puede tocar status; el resto de campos se ignoran.
+  // Provider puede tocar status + notes (sus observaciones clínicas).
+  // El resto de campos los ignora.
   const updates = role === "provider"
-    ? { status: input.status }
+    ? { status: input.status, notes: input.notes }
     : {
         type: input.type,
         status: input.status,

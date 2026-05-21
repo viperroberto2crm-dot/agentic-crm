@@ -343,14 +343,29 @@ export function EditAppointmentButton({
               />
             </Field>
 
-            <Field label={t("notes")}>
+            <Field
+              label={
+                isProvider
+                  ? "Notas de la consulta (qué observaste, producto a aplicar, plan)"
+                  : t("notes")
+              }
+            >
               <textarea
-                rows={2}
+                rows={isProvider ? 5 : 2}
                 value={form.notes}
                 onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                disabled={isProvider}
-                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                placeholder={
+                  isProvider
+                    ? "Ej: Paciente refiere mejoría. Aplicar GLP 2.5mg. Próxima cita en 4 semanas."
+                    : undefined
+                }
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 resize-none"
               />
+              {isProvider && (
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Al guardar con status &quot;Completada&quot;, la cita queda como vista por ti.
+                </p>
+              )}
             </Field>
 
             {error && (
