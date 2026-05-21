@@ -72,17 +72,27 @@ export default async function LeadsPage({
   const canReassign = role === "admin" || role === "manager"
   let brandReps: { id: string; name: string }[] = []
   if (canReassign && brandId) {
-    const { data: repsData } = await sb
-      .from("users")
-      .select("id, name, user_brands!inner(brand_id)")
-      .eq("active", true)
-      .eq("user_brands.brand_id", brandId)
-      .in("role", ["admin", "manager", "rep"])
-      .order("name")
-    brandReps = (repsData ?? []).map((u) => ({
-      id: u.id as string,
-      name: (u.name as string | null) ?? "—",
-    }))
+    // 1) Sacar user_ids del brand
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ubData } = await (sb as any)
+      .from("user_brands")
+      .select("user_id")
+      .eq("brand_id", brandId)
+    const userIds = ((ubData ?? []) as { user_id: string }[]).map((r) => r.user_id)
+    // 2) Sacar info de esos users
+    if (userIds.length > 0) {
+      const { data: repsData } = await sb
+        .from("users")
+        .select("id, name")
+        .in("id", userIds)
+        .eq("active", true)
+        .in("role", ["admin", "manager", "rep"])
+        .order("name")
+      brandReps = (repsData ?? []).map((u) => ({
+        id: u.id as string,
+        name: (u.name as string | null) ?? "—",
+      }))
+    }
   }
 
   const LIMIT = 50
