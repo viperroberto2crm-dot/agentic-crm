@@ -409,6 +409,109 @@ export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
   revalidatePath(`/leads/${input.lead_id}`)
 }
 
+// ── Extend Payment Plan ───────────────────────────────────────────────────────
+
+const ExtendPlanSchema = z.object({
+  plan_id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  installments: z
+    .array(
+      z.object({
+        due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+        amount_cents: z.number().int().min(1),
+      }),
+    )
+    .min(1)
+    .max(52),
+})
+
+export type ExtendPlanInput = z.infer<typeof ExtendPlanSchema>
+
+/**
+ * Agrega N cuotas adicionales al plan. Cada cuota nueva queda con su override
+ * de due_date y amount_cents. Se incrementa installment_count y total_amount_cents
+ * y se sincroniza la sale vinculada.
+ */
+export async function extendPaymentPlan(raw: ExtendPlanInput) {
+  const input = ExtendPlanSchema.parse(raw)
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: plan } = await sb
+    .from("payment_plans")
+    .select("installment_count, total_amount_cents, installment_overrides, sale_id, first_due_date")
+    .eq("id", input.plan_id)
+    .single()
+
+  if (!plan) throw new Error("Plan no encontrado")
+
+  const currentCount = (plan.installment_count as number | null) ?? 0
+  const overrides: Record<string, { due_date?: string; amount_cents?: number }> =
+    (plan.installment_overrides as Record<string, { due_date?: string; amount_cents?: number }>) ?? {}
+
+  for (let i = 0; i < input.installments.length; i++) {
+    const seq = currentCount + i + 1
+    overrides[String(seq)] = {
+      due_date: input.installments[i].due_date,
+      amount_cents: input.installments[i].amount_cents,
+    }
+  }
+
+  const addCents = input.installments.reduce((s, x) => s + x.amount_cents, 0)
+  const newCount = currentCount + input.installments.length
+  const newTotal = (plan.total_amount_cents as number) + addCents
+
+  // Si el plan no tenía schedule (count=0 / first_due_date null), inicializamos
+  // first_due_date con la primera fecha de las cuotas nuevas para que el render
+  // del schedule funcione. installment_amount_cents se mantiene como esté (los
+  // overrides individuales dominan).
+  const initSchedule =
+    currentCount === 0
+      ? {
+          first_due_date: input.installments[0].due_date,
+          frequency_days:
+            input.installments.length > 1
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (new Date(input.installments[1].due_date + "T12:00:00").getTime() -
+                      new Date(input.installments[0].due_date + "T12:00:00").getTime()) /
+                      (1000 * 60 * 60 * 24),
+                  ),
+                )
+              : 7,
+          installment_amount_cents: input.installments[0].amount_cents,
+        }
+      : {}
+
+  const { error } = await sb
+    .from("payment_plans")
+    .update({
+      installment_count: newCount,
+      total_amount_cents: newTotal,
+      installment_overrides: overrides,
+      ...initSchedule,
+    })
+    .eq("id", input.plan_id)
+
+  if (error) throw new Error(error.message)
+
+  // Sincronizar sale vinculada
+  if (plan.sale_id) {
+    await sb.from("sales").update({ amount_cents: newTotal }).eq("id", plan.sale_id)
+    await refreshPlanSaleStatus(supabase, input.plan_id)
+  }
+
+  revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+}
+
 export async function deletePaymentPlan(planId: string, leadId: string) {
   const supabase = await typedClient()
   const { role } = await getCurrentRole(supabase)

@@ -25,6 +25,7 @@ import {
   updatePaymentPlan,
   deletePaymentPlan,
   updateInstallmentOverride,
+  extendPaymentPlan,
   type PaymentPlan,
 } from "../actions"
 
@@ -590,6 +591,283 @@ function EditInstallmentDialog({
   )
 }
 
+// ── Extend Plan (Batch) Dialog ────────────────────────────────────────────────
+
+function ExtendPlanDialog({
+  open,
+  onClose,
+  plan,
+  leadId,
+  lastExistingDueDate,
+}: {
+  open: boolean
+  onClose: () => void
+  plan: PaymentPlan
+  leadId: string
+  lastExistingDueDate: string | null
+}) {
+  const tc = useTranslations("common")
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  const defaultFreq = plan.frequency_days ?? 7
+  const defaultAmount = (
+    (plan.installment_amount_cents ?? 0) / 100
+  ).toFixed(2)
+  const defaultStart =
+    lastExistingDueDate
+      ? addDaysIso(lastExistingDueDate, defaultFreq)
+      : todayIso()
+
+  const [count, setCount] = useState("4")
+  const [frequency, setFrequency] = useState(String(defaultFreq))
+  const [customFreq, setCustomFreq] = useState("")
+  const [amount, setAmount] = useState(defaultAmount || "")
+  const [startDate, setStartDate] = useState(defaultStart)
+
+  function handleClose() {
+    setCount("4")
+    setFrequency(String(defaultFreq))
+    setCustomFreq("")
+    setAmount(defaultAmount || "")
+    setStartDate(defaultStart)
+    setError(null)
+    onClose()
+  }
+
+  function handleSubmit() {
+    setError(null)
+    const n = parseInt(count, 10)
+    const freq =
+      frequency === "custom" ? parseInt(customFreq, 10) || 0 : parseInt(frequency, 10)
+    const amtCents = Math.round(parseFloat(amount || "0") * 100)
+    if (!n || n < 1 || n > 52) { setError("Cantidad inválida (1-52)"); return }
+    if (!freq || freq < 1) { setError("Frecuencia inválida"); return }
+    if (!amtCents || amtCents < 1) { setError("Monto inválido"); return }
+    if (!startDate) { setError("Fecha inicio requerida"); return }
+
+    const items = Array.from({ length: n }, (_, i) => ({
+      due_date: addDaysIso(startDate, i * freq),
+      amount_cents: amtCents,
+    }))
+
+    startTransition(async () => {
+      try {
+        await extendPaymentPlan({
+          plan_id: plan.id,
+          lead_id: leadId,
+          installments: items,
+        })
+        router.refresh()
+        handleClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : tc("savingError"))
+      }
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Agregar pagos</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <p className="text-xs text-gray-500 leading-snug">
+            Continúa el plan con cuotas adicionales. Se agregan al final.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">Cuántos pagos *</label>
+              <Input
+                type="number" min="1" max="52" step="1"
+                value={count}
+                onChange={(e) => setCount(e.target.value)}
+                className="bg-white border-gray-200 text-gray-800 h-9 font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">Monto por cuota *</label>
+              <Input
+                type="number" min="0.01" step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="bg-white border-gray-200 text-gray-800 h-9 font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">Frecuencia *</label>
+              <Select value={frequency} onValueChange={setFrequency}>
+                <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="7" className="text-gray-800">Semanal</SelectItem>
+                  <SelectItem value="14" className="text-gray-800">Quincenal</SelectItem>
+                  <SelectItem value="30" className="text-gray-800">Mensual</SelectItem>
+                  <SelectItem value="custom" className="text-gray-800">Personalizada</SelectItem>
+                </SelectContent>
+              </Select>
+              {frequency === "custom" && (
+                <Input
+                  type="number" min="1" max="365" step="1"
+                  value={customFreq}
+                  onChange={(e) => setCustomFreq(e.target.value)}
+                  placeholder="días"
+                  className="bg-white border-gray-200 text-gray-800 h-9 font-mono mt-1"
+                />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">Primera fecha *</label>
+              <Input
+                type="date" value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-white border-gray-200 text-gray-800 h-9"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">{error}</p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={handleSubmit}
+              className="cursor-pointer"
+              style={{ background: "var(--brand)" }}
+            >
+              {isPending ? (<><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />{tc("saving")}</>) : "Agregar pagos"}
+            </Button>
+            <Button type="button" variant="ghost"
+              className="text-gray-400 hover:text-gray-700"
+              onClick={handleClose} disabled={isPending}>
+              {tc("cancel")}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Add Single Installment Dialog ─────────────────────────────────────────────
+
+function AddInstallmentDialog({
+  open,
+  onClose,
+  plan,
+  leadId,
+}: {
+  open: boolean
+  onClose: () => void
+  plan: PaymentPlan
+  leadId: string
+}) {
+  const tc = useTranslations("common")
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [dueDate, setDueDate] = useState(todayIso())
+  const [amount, setAmount] = useState(
+    plan.installment_amount_cents
+      ? (plan.installment_amount_cents / 100).toFixed(2)
+      : "",
+  )
+
+  function handleClose() {
+    setDueDate(todayIso())
+    setAmount(plan.installment_amount_cents ? (plan.installment_amount_cents / 100).toFixed(2) : "")
+    setError(null)
+    onClose()
+  }
+
+  function handleSubmit() {
+    setError(null)
+    const cents = Math.round(parseFloat(amount || "0") * 100)
+    if (!dueDate) { setError("Fecha requerida"); return }
+    if (!cents || cents < 1) { setError("Monto inválido"); return }
+    startTransition(async () => {
+      try {
+        await extendPaymentPlan({
+          plan_id: plan.id,
+          lead_id: leadId,
+          installments: [{ due_date: dueDate, amount_cents: cents }],
+        })
+        router.refresh()
+        handleClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : tc("savingError"))
+      }
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Agregar pago manual</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <p className="text-xs text-gray-500 leading-snug">
+            Agrega una cuota con fecha y monto específicos al final del plan.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">Fecha *</label>
+              <Input
+                type="date" value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="bg-white border-gray-200 text-gray-800 h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">Monto *</label>
+              <Input
+                type="number" min="0.01" step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="bg-white border-gray-200 text-gray-800 h-9 font-mono"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">{error}</p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={handleSubmit}
+              className="cursor-pointer"
+              style={{ background: "var(--brand)" }}
+            >
+              {isPending ? (<><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />{tc("saving")}</>) : "Agregar"}
+            </Button>
+            <Button type="button" variant="ghost"
+              className="text-gray-400 hover:text-gray-700"
+              onClick={handleClose} disabled={isPending}>
+              {tc("cancel")}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 
 function PlanCard({
@@ -606,6 +884,8 @@ function PlanCard({
   const router = useRouter()
   const [abonoOpen, setAbonoOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [extendOpen, setExtendOpen] = useState(false)
+  const [addOneOpen, setAddOneOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -902,17 +1182,39 @@ function PlanCard({
             </span>
           )}
         </div>
-        {!isSettled && (
+        <div className="flex items-center gap-2">
           <Button
             size="sm"
-            variant="outline"
-            className="h-7 text-xs border-gray-200 text-gray-600 hover:text-gray-900 cursor-pointer"
-            onClick={() => setAbonoOpen(true)}
+            variant="ghost"
+            className="h-7 text-xs text-gray-500 hover:text-gray-900 cursor-pointer"
+            onClick={() => setExtendOpen(true)}
+            title="Agregar varias cuotas al final del plan"
           >
             <Plus className="w-3 h-3 mr-1" />
-            {t("addAbonoShort")}
+            Agregar pagos
           </Button>
-        )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-gray-500 hover:text-gray-900 cursor-pointer"
+            onClick={() => setAddOneOpen(true)}
+            title="Agregar un solo pago con fecha y monto custom"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            Pago manual
+          </Button>
+          {!isSettled && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-gray-200 text-gray-600 hover:text-gray-900 cursor-pointer"
+              onClick={() => setAbonoOpen(true)}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              {t("addAbonoShort")}
+            </Button>
+          )}
+        </div>
       </div>
 
       <AddAbonoDialog
@@ -926,6 +1228,25 @@ function PlanCard({
       <EditPlanDialog
         open={editOpen}
         onClose={() => setEditOpen(false)}
+        plan={plan}
+        leadId={leadId}
+      />
+
+      <ExtendPlanDialog
+        open={extendOpen}
+        onClose={() => setExtendOpen(false)}
+        plan={plan}
+        leadId={leadId}
+        lastExistingDueDate={
+          installments.length > 0
+            ? installments[installments.length - 1].dueDate
+            : null
+        }
+      />
+
+      <AddInstallmentDialog
+        open={addOneOpen}
+        onClose={() => setAddOneOpen(false)}
         plan={plan}
         leadId={leadId}
       />
