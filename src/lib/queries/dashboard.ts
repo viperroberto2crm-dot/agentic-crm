@@ -2,6 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database, Enums } from "@/types/database"
 import { getSalesBreakdown } from "./sales-kpi"
 
+/**
+ * Admin/manager ven datos de todos los reps del brand; rep/provider solo los
+ * suyos. Devuelve null cuando NO se debe filtrar por rep_id.
+ */
+function scopeRep(userId: string, role: string): string | null {
+  return role === "admin" || role === "manager" ? null : userId
+}
+
 // SupabaseClient<Database> uses Database["public"] as Schema (after the GenericSchema fix)
 // Page components must cast their client: `supabase as unknown as SB`
 type SB = SupabaseClient<Database>
@@ -139,14 +147,16 @@ export async function fetchCallsKpi(
   supabase: SB,
   userId: string,
   brandId: string | null,
-  range: DayRange
+  range: DayRange,
+  role: string = "rep"
 ): Promise<CallsKpi> {
+  const repFilter = scopeRep(userId, role)
   let q = supabase
     .from("calls")
     .select("outcome")
-    .eq("rep_id", userId)
     .gte("called_at", range.start)
     .lt("called_at", range.end)
+  if (repFilter) q = q.eq("rep_id", repFilter)
   if (brandId) q = q.eq("brand_id", brandId)
 
   let goalQ = supabase
@@ -176,14 +186,16 @@ export async function fetchApptsKpi(
   supabase: SB,
   userId: string,
   brandId: string | null,
-  range: DayRange
+  range: DayRange,
+  role: string = "rep"
 ): Promise<ApptsKpi> {
+  const repFilter = scopeRep(userId, role)
   let q = supabase
     .from("appointments")
     .select("status")
-    .eq("rep_id", userId)
     .gte("scheduled_at", range.start)
     .lt("scheduled_at", range.end)
+  if (repFilter) q = q.eq("rep_id", repFilter)
   if (brandId) q = q.eq("brand_id", brandId)
 
   const { data } = await q
@@ -204,11 +216,12 @@ export async function fetchSalesKpi(
   supabase: SB,
   userId: string,
   brandId: string | null,
-  range: DayRange
+  range: DayRange,
+  role: string = "rep"
 ): Promise<SalesKpi> {
   const breakdown = await getSalesBreakdown(supabase, {
     brandId,
-    repId: userId,
+    repId: scopeRep(userId, role),
     paidRange: { startIso: range.start, endIso: range.end },
   })
   return {
@@ -222,13 +235,15 @@ export async function fetchSalesKpi(
 export async function fetchPendingKpi(
   supabase: SB,
   userId: string,
-  brandId: string | null
+  brandId: string | null,
+  role: string = "rep"
 ): Promise<PendingKpi> {
   const overdueThreshold = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const repFilter = scopeRep(userId, role)
 
   const breakdown = await getSalesBreakdown(supabase, {
     brandId,
-    repId: userId,
+    repId: repFilter,
   })
 
   // overdue_count: cuántas open están "viejas" (sin cobrar tras 7 días).
@@ -236,9 +251,9 @@ export async function fetchPendingKpi(
   let staleQ = supabase
     .from("sales")
     .select("created_at")
-    .eq("rep_id", userId)
     .in("payment_status", ["pending", "partial"])
     .lt("created_at", overdueThreshold)
+  if (repFilter) staleQ = staleQ.eq("rep_id", repFilter)
   if (brandId) staleQ = staleQ.eq("brand_id", brandId)
   const { data: stale } = await staleQ
 
@@ -255,18 +270,20 @@ export async function fetchTodayAppts(
   supabase: SB,
   userId: string,
   brandId: string | null,
-  range: DayRange
+  range: DayRange,
+  role: string = "rep"
 ): Promise<TodayAppt[]> {
+  const repFilter = scopeRep(userId, role)
   let q = supabase
     .from("appointments")
     .select(
       "id, scheduled_at, duration_minutes, type, status, address_line1, city, telehealth_link, clinics(name), leads!inner(id, first_name, last_name), brands!inner(slug, name)"
     )
-    .eq("rep_id", userId)
     .gte("scheduled_at", range.start)
     .lt("scheduled_at", range.end)
     .neq("status", "cancelled")
     .order("scheduled_at")
+  if (repFilter) q = q.eq("rep_id", repFilter)
   if (brandId) q = q.eq("brand_id", brandId)
 
   const { data } = await q
@@ -306,39 +323,41 @@ export async function fetchUrgentLeads(
   supabase: SB,
   userId: string,
   brandId: string | null,
-  range: DayRange
+  range: DayRange,
+  role: string = "rep"
 ): Promise<UrgentLead[]> {
   const staleThreshold = new Date(Date.now() - 5 * 86_400_000).toISOString()
   // Include today + tomorrow (24h window after start of today)
   const tomorrowEnd = new Date(new Date(range.end).getTime() + 86_400_000).toISOString()
   const overdueThreshold = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const repFilter = scopeRep(userId, role)
 
   let staleQ = supabase
     .from("leads")
     .select("id, first_name, last_name, last_contacted_at")
-    .eq("assigned_rep_id", userId)
     .not("status", "in", "(sold,lost)")
     .or(`last_contacted_at.is.null,last_contacted_at.lt.${staleThreshold}`)
     .limit(5)
+  if (repFilter) staleQ = staleQ.eq("assigned_rep_id", repFilter)
   if (brandId) staleQ = staleQ.eq("brand_id", brandId)
 
   let unconfirmedQ = supabase
     .from("appointments")
     .select("lead_id, leads!inner(id, first_name, last_name, last_contacted_at)")
-    .eq("rep_id", userId)
     .eq("status", "scheduled")
     .gte("scheduled_at", range.start)
     .lt("scheduled_at", tomorrowEnd)
     .limit(5)
+  if (repFilter) unconfirmedQ = unconfirmedQ.eq("rep_id", repFilter)
   if (brandId) unconfirmedQ = unconfirmedQ.eq("brand_id", brandId)
 
   let overdueQ = supabase
     .from("sales")
     .select("lead_id, amount_cents, leads!inner(id, first_name, last_name, last_contacted_at)")
-    .eq("rep_id", userId)
     .eq("payment_status", "pending")
     .lt("created_at", overdueThreshold)
     .limit(5)
+  if (repFilter) overdueQ = overdueQ.eq("rep_id", repFilter)
   if (brandId) overdueQ = overdueQ.eq("brand_id", brandId)
 
   const [staleRes, unconfirmedRes, overdueRes] = await Promise.all([
@@ -430,32 +449,34 @@ export async function fetchPivotStats(
   supabase: SB,
   userId: string,
   brandId: string | null,
-  range: DayRange
+  range: DayRange,
+  role: string = "rep"
 ): Promise<PivotStats> {
   const staleThreshold3d = new Date(Date.now() - 3 * 86_400_000).toISOString()
+  const repFilter = scopeRep(userId, role)
 
   let apptsQ = supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
-    .eq("rep_id", userId)
     .gte("scheduled_at", range.start)
     .lt("scheduled_at", range.end)
     .in("status", ["scheduled", "confirmed"])
+  if (repFilter) apptsQ = apptsQ.eq("rep_id", repFilter)
   if (brandId) apptsQ = apptsQ.eq("brand_id", brandId)
 
   let pendingQ = supabase
     .from("sales")
     .select("amount_cents")
-    .eq("rep_id", userId)
     .eq("payment_status", "pending")
+  if (repFilter) pendingQ = pendingQ.eq("rep_id", repFilter)
   if (brandId) pendingQ = pendingQ.eq("brand_id", brandId)
 
   let staleQ = supabase
     .from("leads")
     .select("id", { count: "exact", head: true })
-    .eq("assigned_rep_id", userId)
     .not("status", "in", "(sold,lost)")
     .or(`last_contacted_at.is.null,last_contacted_at.lt.${staleThreshold3d}`)
+  if (repFilter) staleQ = staleQ.eq("assigned_rep_id", repFilter)
   if (brandId) staleQ = staleQ.eq("brand_id", brandId)
 
   const [apptsRes, pendingRes, staleRes] = await Promise.all([

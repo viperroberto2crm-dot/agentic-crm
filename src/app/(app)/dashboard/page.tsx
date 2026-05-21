@@ -122,14 +122,14 @@ export default async function DashboardPage({
     pivot,
     staleLeadsRaw,
   ] = await Promise.all([
-    fetchCallsKpi(sb, user.id, brandId, range),
-    fetchApptsKpi(sb, user.id, brandId, range),
-    fetchSalesKpi(sb, user.id, brandId, range),
-    fetchPendingKpi(sb, user.id, brandId),
-    fetchTodayAppts(sb, user.id, brandId, range),
-    fetchUrgentLeads(sb, user.id, brandId, range),
+    fetchCallsKpi(sb, user.id, brandId, range, role),
+    fetchApptsKpi(sb, user.id, brandId, range, role),
+    fetchSalesKpi(sb, user.id, brandId, range, role),
+    fetchPendingKpi(sb, user.id, brandId, role),
+    fetchTodayAppts(sb, user.id, brandId, range, role),
+    fetchUrgentLeads(sb, user.id, brandId, range, role),
     fetchAgentSummary(sb, user.id, range),
-    fetchPivotStats(sb, user.id, brandId, range),
+    fetchPivotStats(sb, user.id, brandId, range, role),
     detectStaleLeads(sb, user.id).catch(() => []),
   ])
 
