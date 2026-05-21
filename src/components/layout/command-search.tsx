@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import {
   CommandDialog,
   CommandEmpty,
@@ -25,6 +25,7 @@ type CommandSearchProps = {
 export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchProps) {
   const t = useTranslations("common")
   const tNav = useTranslations("nav")
+  const locale = useLocale()
   const [query, setQuery] = useState("")
   const [history, setHistory] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
@@ -57,7 +58,7 @@ export function CommandSearch({ open, onOpenChange, userRole }: CommandSearchPro
       const res = await fetch("/api/agent/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: text.trim() }),
+        body: JSON.stringify({ query: text.trim(), locale }),
       })
       const data = await res.json()
       const agentMsg: Message = {

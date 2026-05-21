@@ -54,10 +54,11 @@ export async function POST(req: NextRequest) {
   const startedAt = Date.now()
 
   // Auth + parse fuera del try principal para poder responder 400/401 sin tocar DB
-  const { query } = await req.json().catch(() => ({ query: null }))
+  const { query, locale } = await req.json().catch(() => ({ query: null, locale: null }))
   if (!query?.trim()) {
     return NextResponse.json({ error: "Query requerida" }, { status: 400 })
   }
+  const userLocale: "es" | "en" = locale === "en" ? "en" : "es"
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -124,11 +125,20 @@ export async function POST(req: NextRequest) {
   //   - No rompe el patrón user/assistant alternado que espera la API con tool_use.
   //   - Se beneficia del prompt caching (el summary cambia poco entre requests cercanos).
   //   - No consume slot de "última instrucción" — el query del user queda al final.
+  const localeInstruction =
+    userLocale === "en"
+      ? "⚠️ USER LOCALE: en. The user's UI is in English. RESPOND IN ENGLISH ALWAYS, even if internal data (notes, system fields) appears in Spanish. Use English terms: brand, sale, lead, appointment, call, payment plan, installment."
+      : "⚠️ USER LOCALE: es. El UI del usuario está en español. RESPONDE EN ESPAÑOL SIEMPRE. Usa términos: marca, venta, lead, cita, llamada, plan de pagos, cuota."
+
   const systemBlocks: Anthropic.TextBlockParam[] = [
     {
       type: "text",
       text: CRM_SYSTEM_PROMPT,
       cache_control: { type: "ephemeral" },
+    },
+    {
+      type: "text",
+      text: localeInstruction,
     },
   ]
   // ── Capa 5: Skills auto-generadas relevantes al query actual ──
