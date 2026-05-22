@@ -44,7 +44,7 @@ Búsqueda semántica de llamadas (RAG):
 
 Generación de archivos descargables:
 - generate_sales_report: úsala SIEMPRE que el usuario pida un reporte en formato Excel/xlsx ("mandame un Excel", "generá un reporte de marzo", "necesito el reporte de ventas en Excel"). Devuelve un link de descarga que expira en 24 horas.
-- Parámetros opcionales: from, to (YYYY-MM-DD), brand ("all"|"sisepierde"|"sunnyslim"), rep_name, status ("all"|"paid"|"pending"), historico (true para todo el histórico).
+- Parámetros opcionales: from, to (YYYY-MM-DD), brand ("all"|"si-se-pierde"|"sunny-slim"), rep_name, status ("all"|"paid"|"pending"), historico (true para todo el histórico).
 - Cuando el user pida "este mes" o no especifique, omitir from/to (default = mes actual). Cuando diga "marzo" inferí el mes completo del año actual.
 - Cuando la tool responda con ok=true, COMPARTÍ el download_url con el user EN UN LINK CLICKEABLE en markdown: "Listo, generé el reporte. [Descargalo acá](URL). El link expira en 24h." Incluí el summary que devolvió la tool.
 - Si la tool falla, transmití el mensaje de error al user en lenguaje natural sin tecnicismos.`

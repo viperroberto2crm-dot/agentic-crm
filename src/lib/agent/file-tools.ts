@@ -57,7 +57,7 @@ export const FILE_TOOLS = [
         },
         brand: {
           type: "string",
-          enum: ["all", "sisepierde", "sunnyslim"],
+          enum: ["all", "si-se-pierde", "sunny-slim"],
           description:
             "Marca a incluir. 'all' (default) incluye todas las marcas en un solo archivo con columna Marca. Usá la marca específica cuando el usuario la nombre.",
         },
@@ -93,7 +93,7 @@ export function isFileToolName(name: string): boolean {
 type GenerateSalesReportInput = {
   from?: string
   to?: string
-  brand?: "all" | "sisepierde" | "sunnyslim"
+  brand?: "all" | "si-se-pierde" | "sunny-slim"
   rep_name?: string
   status?: "all" | "paid" | "pending"
   historico?: boolean

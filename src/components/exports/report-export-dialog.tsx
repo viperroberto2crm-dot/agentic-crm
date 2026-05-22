@@ -31,8 +31,8 @@ const PRESETS: PresetKey[] = [
 
 const BRAND_OPTIONS = [
   { value: "", labelKey: "brandAll" },
-  { value: "sisepierde", labelKey: null, label: "Si Se Pierde" },
-  { value: "sunnyslim", labelKey: null, label: "SunnySlim" },
+  { value: "si-se-pierde", labelKey: null, label: "Si Se Pierde" },
+  { value: "sunny-slim", labelKey: null, label: "Sunny Slim" },
 ] as const
 
 export type ReportExportParams = {
