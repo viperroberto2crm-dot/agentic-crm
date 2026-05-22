@@ -846,6 +846,8 @@ export type Database = {
           ai_score_reason: string | null
           last_contacted_at: string | null
           created_by: string | null
+          external_id: string | null
+          external_provider: string | null
           created_at: string
           updated_at: string
         }
@@ -871,6 +873,8 @@ export type Database = {
           ai_score_reason?: string | null
           last_contacted_at?: string | null
           created_by?: string | null
+          external_id?: string | null
+          external_provider?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -896,6 +900,8 @@ export type Database = {
           ai_score_reason?: string | null
           last_contacted_at?: string | null
           created_by?: string | null
+          external_id?: string | null
+          external_provider?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1550,7 +1556,7 @@ export type Database = {
       autonomy_level: "suggest_only" | "approve_required" | "auto_with_audit"
       call_direction: "inbound" | "outbound"
       call_outcome: "no_answer" | "voicemail" | "connected" | "appointment_set" | "not_interested" | "callback_requested" | "wrong_number"
-      lead_source: "inbound_call" | "web_form" | "referral" | "whatsapp" | "walk_in" | "social" | "other"
+      lead_source: "inbound_call" | "web_form" | "referral" | "whatsapp" | "walk_in" | "social" | "other" | "facebook"
       lead_status: "new" | "contacted" | "qualified" | "appointment_set" | "sold" | "lost" | "on_hold"
       payment_method: "cash" | "card" | "stripe"
       payment_status: "pending" | "paid" | "failed" | "refunded" | "partial"
