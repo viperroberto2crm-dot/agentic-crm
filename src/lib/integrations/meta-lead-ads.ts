@@ -149,6 +149,122 @@ export async function* iterAllLeads(
   }
 }
 
+/**
+ * Fetch the form structure (questions, name) for a given form_id.
+ * Used by syncFormStructure to refresh tracking_forms metadata.
+ */
+export type MetaFormQuestion = {
+  key: string
+  label: string
+  type: string
+}
+export type MetaForm = {
+  id: string
+  name: string
+  status?: string
+  locale?: string
+  questions: MetaFormQuestion[]
+}
+
+export async function fetchFormStructure(formId: string): Promise<MetaForm> {
+  const token = getPageAccessToken()
+  const params = new URLSearchParams()
+  params.set("access_token", token)
+  params.set("fields", "id,name,status,locale,questions{key,label,type}")
+  const url = `${GRAPH_API_BASE}/${formId}?${params.toString()}`
+  const res = await fetch(url, { cache: "no-store" })
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new Error(`Meta /form ${res.status}: ${body.slice(0, 300)}`)
+  }
+  return (await res.json()) as MetaForm
+}
+
+/**
+ * Slugify a label into a stable lower_snake_case key for custom_fields.
+ * Keeps it short (40 chars) and removes accents/non-alphanumerics.
+ */
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40) || "custom"
+}
+
+/** Standard Meta field keys that map directly to leads columns, not custom_fields. */
+const STANDARD_KEYS = new Set([
+  "FULL_NAME",
+  "FIRST_NAME",
+  "LAST_NAME",
+  "EMAIL",
+  "PHONE",
+  "PHONE_NUMBER",
+])
+
+/**
+ * Refresh tracking_forms.provider_metadata.questions from Meta. Preserves
+ * existing crm_field mappings for known keys; auto-generates crm_field
+ * (slugified label) for new keys. Standard keys (FULL_NAME, EMAIL, PHONE)
+ * are skipped since they map to leads columns directly.
+ *
+ * Non-fatal: if the fetch fails, returns the original form unchanged and logs.
+ */
+async function syncFormStructure(
+  sb: DB,
+  form: TrackingFormRow,
+): Promise<TrackingFormRow> {
+  let metaForm: MetaForm
+  try {
+    metaForm = await fetchFormStructure(form.external_form_id)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn(
+      `[meta-lead-ads] syncFormStructure failed for ${form.external_form_id}: ${msg}`,
+    )
+    return form
+  }
+
+  const existingByKey = new Map(
+    (form.provider_metadata?.questions ?? []).map((q) => [q.key, q]),
+  )
+  const newQuestions: Array<{ key: string; label: string; crm_field: string }> = []
+  for (const q of metaForm.questions ?? []) {
+    if (STANDARD_KEYS.has(q.key.toUpperCase())) continue
+    const existing = existingByKey.get(q.key)
+    const crm_field = existing?.crm_field ?? slugify(q.label)
+    newQuestions.push({ key: q.key, label: q.label, crm_field })
+  }
+
+  // Diff check — avoid useless UPDATEs
+  const newJson = JSON.stringify(newQuestions)
+  const oldJson = JSON.stringify(form.provider_metadata?.questions ?? [])
+  const nameChanged = (metaForm.name?.trim() || "") !== form.name
+  if (newJson === oldJson && !nameChanged) return form
+
+  const newMetadata = { ...form.provider_metadata, questions: newQuestions }
+  const newName = metaForm.name?.trim() || form.name
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any)
+    .from("tracking_forms")
+    .update({ provider_metadata: newMetadata, name: newName })
+    .eq("id", form.id)
+  if (error) {
+    console.warn(
+      `[meta-lead-ads] failed to persist synced form ${form.external_form_id}: ${error.message}`,
+    )
+    return form
+  }
+
+  console.log(
+    `[meta-lead-ads] synced form ${form.external_form_id}: ${newQuestions.length} custom questions`,
+  )
+  return { ...form, provider_metadata: newMetadata, name: newName }
+}
+
 // ── Normalization ────────────────────────────────────────────────────────────
 
 export function splitFullName(fullName: string): {
@@ -332,8 +448,11 @@ export async function importMetaLeadsToCrm(
     return { ...result, duration_ms: Date.now() - t0 }
   }
 
-  for (const form of forms) {
+  for (const formRow of forms) {
     result.forms_processed++
+
+    // Refresh form structure from Meta (auto-sync new/renamed questions)
+    const form = await syncFormStructure(sb, formRow)
 
     const questionMap = new Map<string, { label: string; crm_field: string }>()
     for (const q of form.provider_metadata?.questions ?? []) {
@@ -383,6 +502,18 @@ export async function importMetaLeadsToCrm(
             existingId = await findLeadByPhone(sb, form.brand_id, decoded.phone)
           }
 
+          // Build Q&A block from the form's question map (only includes
+          // fields that the form actually defines, in declaration order).
+          const qaLines: string[] = []
+          for (const q of form.provider_metadata?.questions ?? []) {
+            const value = decoded.customFields[q.crm_field]
+            if (value) qaLines.push(`• ${q.label}: ${value}`)
+          }
+          const qaBlock =
+            qaLines.length > 0
+              ? `\n\n📋 Respuestas del formulario:\n${qaLines.join("\n")}`
+              : ""
+
           if (existingId) {
             // MERGE: keep existing first_name/last_name/email/phone untouched;
             // append Meta data to custom_fields + add note.
@@ -399,10 +530,10 @@ export async function importMetaLeadsToCrm(
             }
 
             const noteDate = lead.created_time.slice(0, 10)
-            const note = `[${noteDate}] Nuevo submission Facebook Lead Form (${form.name})`
-            const mergedNotes = [existingLead?.notes ?? "", note]
+            const newSubmission = `[${noteDate}] Nuevo submission Facebook Lead Form (${form.name})${qaBlock}`
+            const mergedNotes = [existingLead?.notes ?? "", newSubmission]
               .filter(Boolean)
-              .join("\n")
+              .join("\n\n")
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: updErr } = await (sb as any)
@@ -427,6 +558,8 @@ export async function importMetaLeadsToCrm(
           } else {
             // Layer 4: CREATE new lead (pool — no assigned_rep_id)
             const firstName = decoded.firstName?.trim() || "(Sin nombre)"
+            const createdDate = lead.created_time.slice(0, 10)
+            const notes = `Lead capturado desde ${form.name} (Facebook/Instagram Lead Ads · ${createdDate})${qaBlock}`
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: insErr } = await (sb as any).from("leads").insert({
               brand_id: form.brand_id,
@@ -438,7 +571,7 @@ export async function importMetaLeadsToCrm(
               source: "facebook",
               external_id: lead.id,
               external_provider: "meta",
-              notes: `Lead capturado desde ${form.name} (Facebook/Instagram Lead Ads)`,
+              notes,
               custom_fields: customFields,
               last_contacted_at: lead.created_time,
             })
