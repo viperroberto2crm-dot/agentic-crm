@@ -4,16 +4,23 @@ import { cookies } from "next/headers"
 import Link from "next/link"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
 import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { getTranslations } from "next-intl/server"
+import { getLocale, getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 import { ReportExportButton } from "@/components/exports/report-export-button"
 import { BRAND_TIMEZONE } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { PatientSearchInput } from "@/components/ui/patient-search-input"
+import {
+  resolveActiveRange,
+  dateOnlyRangeToUtc,
+  formatYmdForDisplay,
+  type DashboardSearchParams,
+} from "@/lib/dashboard/date-ranges"
+import { DateRangeFilter } from "../dashboard/_components/date-range-filter"
 
 export const dynamic = "force-dynamic"
 
@@ -45,6 +52,8 @@ export default async function SalesPage({
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("sales")
   const tc = await getTranslations("common")
+  const tFilters = await getTranslations("dashboard.filters")
+  const locale = await getLocale()
 
   const STATUS_CONFIG = {
     paid:     { label: t("paid"),     className: "border-emerald-500/40 text-emerald-400" },
@@ -69,6 +78,11 @@ export default async function SalesPage({
   const statusFilter = typeof sp.status === "string" ? sp.status : null
   const groupBy = sp.view === "patient" ? "patient" : "sale"
   const searchTerm = typeof sp.search === "string" ? sp.search.trim() : null
+
+  // Date range filter (mismo patrón que dashboard)
+  const timezone = await fetchTimezone(sb, user.id)
+  const active = resolveActiveRange(sp as DashboardSearchParams, timezone)
+  const range = dateOnlyRangeToUtc(active.from, active.to, timezone)
 
   // Si hay búsqueda, primero saco los lead_ids que matchean
   let leadIdsFilter: string[] | null = null
@@ -97,6 +111,8 @@ export default async function SalesPage({
        rep:users!sales_rep_id_fkey(id, name)`,
       { count: "exact" }
     )
+    .gte("created_at", range.start)
+    .lt("created_at", range.end)
     .order("created_at", { ascending: false })
     .limit(100)
 
@@ -195,9 +211,12 @@ export default async function SalesPage({
   })()
 
   // KPIs agregados — usa el helper compartido para consistencia con Dashboard
+  // paidRange filtra solo lo COBRADO en el rango (lo pendiente no se filtra por
+  // fecha porque "outstanding" siempre es total acumulado)
   const breakdown = await getSalesBreakdown(sb, {
     brandId,
     repId: role === "rep" ? user.id : null,
+    paidRange: { startIso: range.start, endIso: range.end },
   })
   const totalPaidCents = breakdown.collectedCents
   const totalPendingCents = breakdown.outstandingCents
@@ -207,9 +226,23 @@ export default async function SalesPage({
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
+          <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
+          <span className="text-[11px] text-gray-400">
+            {tFilters("showing", {
+              from: formatYmdForDisplay(active.from, locale),
+              to: formatYmdForDisplay(active.to, locale),
+            })}
+          </span>
+        </div>
         <div className="flex items-center gap-3">
+          <DateRangeFilter
+            preset={active.preset}
+            from={active.from}
+            to={active.to}
+            timezone={timezone}
+          />
           <p className="text-xs text-gray-400">{count ?? sales.length} {tc("records")}</p>
           <ReportExportButton defaultBrand={brandSlug ?? ""} />
           <ExportButton entity="sales" extraParams={{ status: statusFilter }} />
