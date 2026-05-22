@@ -43,7 +43,7 @@ export default async function LeadDetailPage({
       .select("id, scheduled_at, type, status, service")
       .eq("lead_id", id).order("scheduled_at", { ascending: false }).limit(20),
     sb.from("sales")
-      .select("id, created_at, amount_cents, payment_status, payment_method")
+      .select("id, created_at, paid_at, amount_cents, payment_status, payment_method")
       .eq("lead_id", id).order("created_at", { ascending: false }).limit(20),
   ])
 

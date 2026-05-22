@@ -25,6 +25,7 @@ type ApptRow = {
 type SaleRow = {
   id: string
   created_at: string
+  paid_at: string | null
   amount_cents: number
   payment_status: Database["public"]["Enums"]["payment_status"]
   payment_method: Database["public"]["Enums"]["payment_method"]
@@ -74,7 +75,7 @@ export async function ActivityTimeline({
   const activities: Activity[] = [
     ...calls.map((c) => ({ kind: "call" as const, date: c.called_at, data: c })),
     ...appointments.map((a) => ({ kind: "appt" as const, date: a.scheduled_at, data: a })),
-    ...sales.map((s) => ({ kind: "sale" as const, date: s.created_at, data: s })),
+    ...sales.map((s) => ({ kind: "sale" as const, date: s.paid_at ?? s.created_at, data: s })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   return (
@@ -170,7 +171,7 @@ export async function ActivityTimeline({
                     · {s.payment_status === "paid" ? ta("salePaid") : ta("salePending")} · {s.payment_method}
                   </span>
                 </div>
-                <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(s.created_at)}</p>
+                <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(s.paid_at ?? s.created_at)}</p>
               </div>
               {leadId && (
                 <SaleActions

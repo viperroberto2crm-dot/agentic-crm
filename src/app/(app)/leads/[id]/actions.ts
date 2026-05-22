@@ -663,7 +663,7 @@ async function refreshPlanSaleStatus(
 
   const { data: abonos } = await sb
     .from("abonos")
-    .select("amount_cents")
+    .select("amount_cents, paid_at")
     .eq("plan_id", planId)
 
   const paid = (abonos ?? []).reduce(
@@ -677,11 +677,24 @@ async function refreshPlanSaleStatus(
   else if (paid >= total) newStatus = "paid"
   else newStatus = "partial"
 
+  // Cuando el plan queda settled, el sale.paid_at refleja la fecha del ÚLTIMO
+  // abono real (la que el rep escribió). Antes se usaba new Date(), lo que
+  // ignoraba correcciones manuales de fecha al editar/agregar abonos.
+  let salePaidAt: string | null = null
+  if (newStatus === "paid") {
+    const maxPaidAt = (abonos ?? [])
+      .map((a: { paid_at: string }) => a.paid_at)
+      .filter(Boolean)
+      .sort()
+      .at(-1)
+    salePaidAt = maxPaidAt ?? new Date().toISOString()
+  }
+
   await sb
     .from("sales")
     .update({
       payment_status: newStatus,
-      paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+      paid_at: salePaidAt,
     })
     .eq("id", plan.sale_id)
 }
