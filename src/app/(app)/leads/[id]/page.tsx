@@ -107,7 +107,7 @@ export default async function LeadDetailPage({
   }>
 
   const sales = (salesRes.data ?? []) as Array<{
-    id: string; created_at: string; amount_cents: number
+    id: string; created_at: string; paid_at: string | null; amount_cents: number
     payment_status: Database["public"]["Enums"]["payment_status"]
     payment_method: Database["public"]["Enums"]["payment_method"]
   }>
