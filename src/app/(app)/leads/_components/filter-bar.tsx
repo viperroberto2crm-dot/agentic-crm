@@ -45,6 +45,7 @@ export function LeadFilterBar({
     whatsapp: tsrc("whatsapp"),
     walk_in: tsrc("walk_in"),
     social: tsrc("social"),
+    facebook: tsrc("facebook"),
     other: tsrc("other"),
   }
 

@@ -11,7 +11,7 @@ async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
 }
 
-const VALID_SOURCES = ["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "other"] as const
+const VALID_SOURCES = ["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "facebook", "other"] as const
 type LeadSource = typeof VALID_SOURCES[number]
 
 const ImportRowSchema = z.object({

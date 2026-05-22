@@ -60,6 +60,7 @@ export default function NewLeadPage() {
     { value: "whatsapp", label: tsrc("whatsapp") },
     { value: "walk_in", label: tsrc("walk_in") },
     { value: "social", label: tsrc("social") },
+    { value: "facebook", label: tsrc("facebook") },
     { value: "other", label: tsrc("other") },
   ]
 

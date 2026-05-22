@@ -24,7 +24,7 @@ const UpdateLeadSchema = z.object({
   phone_alt: z.string().nullable(),
   email: z.string().nullable(),
   status: z.enum(["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold"]),
-  source: z.enum(["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "other"]).nullable(),
+  source: z.enum(["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "facebook", "other"]).nullable(),
   assigned_rep_id: z.string().uuid().nullable(),
   address_line1: z.string().nullable(),
   address_line2: z.string().nullable(),
