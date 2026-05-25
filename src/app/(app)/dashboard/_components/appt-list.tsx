@@ -32,18 +32,21 @@ function apptSubtext(appt: TodayAppt): string {
 export async function TodayApptList({
   appts,
   timezone,
+  label,
 }: {
   appts: TodayAppt[]
   timezone: string
+  label?: string
 }) {
   const t = await getTranslations("dashboard")
   const tAppts = await getTranslations("appointments")
+  const title = label ?? t("apptsToday")
 
   if (appts.length === 0) {
     return (
       <Card className="bg-white border-gray-200">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-gray-500">{t("apptsToday")}</CardTitle>
+          <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-400">
@@ -65,7 +68,7 @@ export async function TodayApptList({
     <Card className="bg-white border-gray-200">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-gray-500">
-          {t("apptsToday")}
+          {title}
           <span className="ml-2 text-gray-400 font-normal text-xs">({appts.length})</span>
         </CardTitle>
       </CardHeader>

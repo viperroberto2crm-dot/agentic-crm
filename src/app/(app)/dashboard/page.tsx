@@ -214,7 +214,7 @@ export default async function DashboardPage({
 
       {/* Section 4 + 5: Today's appointments + Urgent leads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TodayApptList appts={todayAppts} timezone={timezone} />
+        <TodayApptList appts={todayAppts} timezone={timezone} label={apptsLabel} />
         <UrgentLeadList leads={urgentLeads} />
       </div>
 
