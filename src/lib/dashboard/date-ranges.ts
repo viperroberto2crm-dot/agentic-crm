@@ -66,7 +66,14 @@ function ymdInTimezone(
  * return the UTC `Date` that represents midnight at the start of that
  * calendar date in that timezone.
  *
- * Robust to DST: iterates twice to converge on the correct UTC instant.
+ * Algoritmo: tomamos el UTC actual, lo renderizamos en TZ, y tratamos las
+ * partes (year/month/day/hour/minute/second) como si fueran UTC wall-clock
+ * para calcular el drift respecto al objetivo (también wall-clock UTC).
+ * Esto encuentra el UTC instant exacto cuya hora local en TZ es 00:00:00.
+ *
+ * La versión anterior solo comparaba el calendario (día), no la hora, lo que
+ * devolvía cualquier UTC dentro del día TZ — típicamente 5pm en vez de
+ * midnight. Confirmado con tests para LA en PDT y PST.
  */
 function utcMidnightFor(
   year: number,
@@ -74,14 +81,33 @@ function utcMidnightFor(
   day: number,
   timezone: string
 ): Date {
-  // Start with the naive UTC midnight; then adjust by the offset implied by
-  // how that instant renders in the target timezone.
   let utc = Date.UTC(year, month - 1, day, 0, 0, 0, 0)
-  for (let i = 0; i < 2; i++) {
-    const seen = ymdInTimezone(new Date(utc), timezone)
-    const seenUtc = Date.UTC(seen.year, seen.month - 1, seen.day, 0, 0, 0, 0)
-    const targetUtc = Date.UTC(year, month - 1, day, 0, 0, 0, 0)
-    const drift = seenUtc - targetUtc
+  for (let i = 0; i < 3; i++) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(utc))
+    const get = (t: Intl.DateTimeFormatPartTypes): string =>
+      parts.find((p) => p.type === t)?.value ?? "0"
+    let seenHour = parseInt(get("hour"), 10)
+    if (seenHour === 24) seenHour = 0 // algunos locales rinden midnight como "24"
+    const seenWall = Date.UTC(
+      parseInt(get("year"), 10),
+      parseInt(get("month"), 10) - 1,
+      parseInt(get("day"), 10),
+      seenHour,
+      parseInt(get("minute"), 10),
+      parseInt(get("second"), 10),
+      0,
+    )
+    const targetWall = Date.UTC(year, month - 1, day, 0, 0, 0, 0)
+    const drift = seenWall - targetWall
     if (drift === 0) break
     utc -= drift
   }
