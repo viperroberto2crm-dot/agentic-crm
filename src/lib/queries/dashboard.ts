@@ -58,13 +58,22 @@ export type TodayAppt = {
   duration_minutes: number
   type: Enums<"appointment_type">
   status: Enums<"appointment_status">
+  service: string | null
+  notes: string | null
   address_line1: string | null
   city: string | null
   telehealth_link: string | null
+  clinic_id: string | null
   clinic_name: string | null
   lead_id: string
   lead_first_name: string
   lead_last_name: string | null
+  lead_phone: string
+  lead_address_line1: string | null
+  lead_address_line2: string | null
+  lead_city: string | null
+  lead_state: string | null
+  lead_zip: string | null
   brand_slug: string
   brand_name: string
 }
@@ -277,7 +286,7 @@ export async function fetchTodayAppts(
   let q = supabase
     .from("appointments")
     .select(
-      "id, scheduled_at, duration_minutes, type, status, address_line1, city, telehealth_link, clinics(name), leads!inner(id, first_name, last_name), brands!inner(slug, name)"
+      "id, scheduled_at, duration_minutes, type, status, service, notes, address_line1, city, telehealth_link, clinic_id, clinics(name), leads!inner(id, first_name, last_name, phone, address_line1, address_line2, city, state, zip), brands!inner(slug, name)"
     )
     .gte("scheduled_at", range.start)
     .lt("scheduled_at", range.end)
@@ -290,7 +299,17 @@ export async function fetchTodayAppts(
   if (!data) return []
 
   return data.map((row) => {
-    const lead = row.leads as { id: string; first_name: string; last_name: string | null }
+    const lead = row.leads as {
+      id: string
+      first_name: string
+      last_name: string | null
+      phone: string
+      address_line1: string | null
+      address_line2: string | null
+      city: string | null
+      state: string | null
+      zip: string | null
+    }
     const brand = row.brands as { slug: string; name: string }
     const clinic = row.clinics as { name: string } | null
     return {
@@ -299,13 +318,22 @@ export async function fetchTodayAppts(
       duration_minutes: row.duration_minutes,
       type: row.type,
       status: row.status,
+      service: row.service,
+      notes: row.notes,
       address_line1: row.address_line1,
       city: row.city,
       telehealth_link: row.telehealth_link,
+      clinic_id: row.clinic_id,
       clinic_name: clinic?.name ?? null,
       lead_id: lead.id,
       lead_first_name: lead.first_name,
       lead_last_name: lead.last_name,
+      lead_phone: lead.phone,
+      lead_address_line1: lead.address_line1,
+      lead_address_line2: lead.address_line2,
+      lead_city: lead.city,
+      lead_state: lead.state,
+      lead_zip: lead.zip,
       brand_slug: brand.slug,
       brand_name: brand.name,
     }

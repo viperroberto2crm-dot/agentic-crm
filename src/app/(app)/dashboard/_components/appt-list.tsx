@@ -1,10 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
-import { confirmAppointment } from "../actions"
 import type { TodayAppt } from "@/lib/queries/dashboard"
 import { getTranslations } from "next-intl/server"
+import { EditAppointmentButton } from "@/app/(app)/appointments/_components/edit-appointment-button"
+
+type ClinicOption = {
+  id: string
+  name: string
+  address_line1: string | null
+  city: string | null
+  state: string | null
+}
 
 function formatTime(isoString: string, timezone: string): string {
   return new Date(isoString).toLocaleTimeString("en-US", {
@@ -33,13 +40,16 @@ export async function TodayApptList({
   appts,
   timezone,
   label,
+  clinics,
+  userRole,
 }: {
   appts: TodayAppt[]
   timezone: string
   label?: string
+  clinics: ClinicOption[]
+  userRole?: string
 }) {
   const t = await getTranslations("dashboard")
-  const tAppts = await getTranslations("appointments")
   const title = label ?? t("apptsToday")
 
   if (appts.length === 0) {
@@ -90,23 +100,35 @@ export async function TodayApptList({
                 <p className="text-[11px] text-gray-400 truncate">{apptSubtext(appt)}</p>
               </div>
               <div className="shrink-0">
-                {appt.status === "confirmed" ? (
-                  <Badge
-                    className="text-[10px] px-1.5 py-0 border-0 font-normal"
-                    style={{ background: "color-mix(in srgb, var(--brand) 15%, transparent)", color: "var(--brand)" }}
-                  >
-                    {tAppts("appointmentStatuses.confirmed")}
-                  </Badge>
-                ) : (
-                  <form action={confirmAppointment.bind(null, appt.id)}>
-                    <button
-                      type="submit"
-                      className="text-[11px] text-gray-400 border border-gray-300 rounded px-2 py-0.5 hover:text-gray-700 hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      {tAppts("appointmentStatuses.scheduled")}
-                    </button>
-                  </form>
-                )}
+                <EditAppointmentButton
+                  appointment={{
+                    id: appt.id,
+                    lead_id: appt.lead_id,
+                    type: appt.type,
+                    status: appt.status,
+                    scheduled_at: appt.scheduled_at,
+                    duration_minutes: appt.duration_minutes,
+                    service: appt.service,
+                    notes: appt.notes,
+                    clinic_id: appt.clinic_id,
+                    telehealth_link: appt.telehealth_link,
+                  }}
+                  leads={[
+                    {
+                      id: appt.lead_id,
+                      first_name: appt.lead_first_name,
+                      last_name: appt.lead_last_name,
+                      phone: appt.lead_phone,
+                      address_line1: appt.lead_address_line1,
+                      address_line2: appt.lead_address_line2,
+                      city: appt.lead_city,
+                      state: appt.lead_state,
+                      zip: appt.lead_zip,
+                    },
+                  ]}
+                  clinics={clinics}
+                  userRole={userRole}
+                />
               </div>
             </div>
           </div>

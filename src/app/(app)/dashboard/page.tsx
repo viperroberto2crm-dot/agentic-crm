@@ -39,6 +39,14 @@ import type { PivotStats } from "@/lib/queries/dashboard"
 
 type UserProfile = Pick<Tables<"users">, "name" | "role">
 
+type ClinicOption = {
+  id: string
+  name: string
+  address_line1: string | null
+  city: string | null
+  state: string | null
+}
+
 function getGreeting(timezone: string, t: Awaited<ReturnType<typeof getTranslations<"dashboard">>>): string {
   const hour = parseInt(
     new Intl.DateTimeFormat("en-US", {
@@ -129,7 +137,19 @@ export default async function DashboardPage({
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
 
-  // 9 parallel fetches — one per dashboard section
+  // Clinicas para el modal de edit-appointment (solo si hay marca activa)
+  const clinicsForModalPromise: Promise<ClinicOption[]> = (async () => {
+    if (!brandId) return []
+    const { data } = await sb
+      .from("clinics")
+      .select("id, name, address_line1, city, state")
+      .eq("brand_id", brandId)
+      .eq("active", true)
+      .order("name")
+    return (data ?? []) as ClinicOption[]
+  })()
+
+  // 10 parallel fetches — one per dashboard section
   const [
     kpiCalls,
     kpiAppts,
@@ -140,6 +160,7 @@ export default async function DashboardPage({
     summary,
     pivot,
     staleLeadsRaw,
+    clinicsForModal,
   ] = await Promise.all([
     fetchCallsKpi(sb, user.id, brandId, range, role),
     fetchApptsKpi(sb, user.id, brandId, range, role),
@@ -150,6 +171,7 @@ export default async function DashboardPage({
     fetchAgentSummary(sb, user.id, range),
     fetchPivotStats(sb, user.id, brandId, range, role),
     detectStaleLeads(sb, user.id, undefined, brandId).catch(() => []),
+    clinicsForModalPromise,
   ])
 
   const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
@@ -219,7 +241,13 @@ export default async function DashboardPage({
 
       {/* Section 4 + 5: Today's appointments + Urgent leads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TodayApptList appts={todayAppts} timezone={timezone} label={apptsLabel} />
+        <TodayApptList
+          appts={todayAppts}
+          timezone={timezone}
+          label={apptsLabel}
+          clinics={clinicsForModal}
+          userRole={role}
+        />
         <UrgentLeadList leads={urgentLeadsDeduped} />
       </div>
 
