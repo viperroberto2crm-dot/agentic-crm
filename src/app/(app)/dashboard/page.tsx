@@ -23,6 +23,7 @@ import {
   formatYmdForDisplay,
   resolveActiveRange,
   type DashboardSearchParams,
+  type DateRangePreset,
 } from "@/lib/dashboard/date-ranges"
 import { DateRangeFilter } from "./_components/date-range-filter"
 
@@ -49,6 +50,24 @@ function getGreeting(timezone: string, t: Awaited<ReturnType<typeof getTranslati
   if (hour < 12) return t("greetingMorning")
   if (hour < 19) return t("greetingAfternoon")
   return t("greetingEvening")
+}
+
+function buildKpiLabel(
+  kind: "calls" | "appts" | "sales",
+  preset: DateRangePreset,
+  t: Awaited<ReturnType<typeof getTranslations<"dashboard">>>,
+  tFilters: Awaited<ReturnType<typeof getTranslations<"dashboard.filters">>>,
+  customRangeLabel: string,
+): string {
+  if (preset === "today") {
+    return t(`${kind}Today` as "callsToday" | "apptsToday" | "salesToday")
+  }
+  const base = t(`${kind}Label` as "callsLabel" | "apptsLabel" | "salesLabel")
+  const range =
+    preset === "custom"
+      ? customRangeLabel
+      : tFilters(preset)
+  return `${base} — ${range}`
 }
 
 function buildPivotText(pivot: PivotStats, t: Awaited<ReturnType<typeof getTranslations<"dashboard">>>): string {
@@ -151,6 +170,11 @@ export default async function DashboardPage({
     to: toLabel,
   })
 
+  const customRangeLabel = `${fromLabel} – ${toLabel}`
+  const callsLabel = buildKpiLabel("calls", active.preset, t, tFilters, customRangeLabel)
+  const apptsLabel = buildKpiLabel("appts", active.preset, t, tFilters, customRangeLabel)
+  const salesLabel = buildKpiLabel("sales", active.preset, t, tFilters, customRangeLabel)
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
@@ -182,9 +206,9 @@ export default async function DashboardPage({
 
       {/* Section 3: KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <CallsKpiCard data={kpiCalls} />
-        <ApptsKpiCard data={kpiAppts} />
-        <SalesKpiCard data={kpiSales} />
+        <CallsKpiCard data={kpiCalls} label={callsLabel} />
+        <ApptsKpiCard data={kpiAppts} label={apptsLabel} />
+        <SalesKpiCard data={kpiSales} label={salesLabel} />
         <PendingKpiCard data={kpiPending} />
       </div>
 

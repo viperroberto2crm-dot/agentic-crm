@@ -44,7 +44,7 @@ function KpiShell({
   )
 }
 
-export async function CallsKpiCard({ data }: { data: CallsKpi }) {
+export async function CallsKpiCard({ data, label }: { data: CallsKpi; label?: string }) {
   const t = await getTranslations("dashboard")
   const sub =
     data.total === 0
@@ -61,23 +61,23 @@ export async function CallsKpiCard({ data }: { data: CallsKpi }) {
   )
 
   return (
-    <KpiShell label={t("callsToday")} value={value} sub={sub}>
+    <KpiShell label={label ?? t("callsToday")} value={value} sub={sub}>
       {data.goal !== null && <ProgressBar value={data.total} max={data.goal} />}
     </KpiShell>
   )
 }
 
-export async function ApptsKpiCard({ data }: { data: ApptsKpi }) {
+export async function ApptsKpiCard({ data, label }: { data: ApptsKpi; label?: string }) {
   const t = await getTranslations("dashboard")
   const sub =
     data.total === 0
       ? t("noApptsToday")
       : `${data.confirmed} ${t("confirmedLabel")} · ${data.pending} ${t("pendingLabel")}`
 
-  return <KpiShell label={t("apptsToday")} value={data.total} sub={sub} />
+  return <KpiShell label={label ?? t("apptsToday")} value={data.total} sub={sub} />
 }
 
-export async function SalesKpiCard({ data }: { data: SalesKpi }) {
+export async function SalesKpiCard({ data, label }: { data: SalesKpi; label?: string }) {
   const t = await getTranslations("dashboard")
   const sub =
     data.count === 0
@@ -86,7 +86,7 @@ export async function SalesKpiCard({ data }: { data: SalesKpi }) {
 
   return (
     <KpiShell
-      label={t("salesToday")}
+      label={label ?? t("salesToday")}
       value={data.total_cents === 0 ? "$0" : formatCurrency(data.total_cents)}
       sub={sub}
     />
