@@ -149,7 +149,7 @@ export default async function DashboardPage({
     fetchUrgentLeads(sb, user.id, brandId, range, role),
     fetchAgentSummary(sb, user.id, range),
     fetchPivotStats(sb, user.id, brandId, range, role),
-    detectStaleLeads(sb, user.id).catch(() => []),
+    detectStaleLeads(sb, user.id, undefined, brandId).catch(() => []),
   ])
 
   const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
@@ -158,6 +158,11 @@ export default async function DashboardPage({
     brand_name: l.brand_name,
     days_stale: l.days_stale,
   }))
+
+  // Dedup: si un lead ya aparece en "Appointments today", sacarlo de "Urgent leads"
+  // (estaba duplicado en ambas listas, confundía a los reps).
+  const todayApptLeadIds = new Set(todayAppts.map((a) => a.lead_id))
+  const urgentLeadsDeduped = urgentLeads.filter((l) => !todayApptLeadIds.has(l.id))
 
   const greeting = getGreeting(timezone, t)
   const pivotText = buildPivotText(pivot, t)
@@ -215,7 +220,7 @@ export default async function DashboardPage({
       {/* Section 4 + 5: Today's appointments + Urgent leads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TodayApptList appts={todayAppts} timezone={timezone} label={apptsLabel} />
-        <UrgentLeadList leads={urgentLeads} />
+        <UrgentLeadList leads={urgentLeadsDeduped} />
       </div>
 
     </div>

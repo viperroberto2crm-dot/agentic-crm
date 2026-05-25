@@ -44,10 +44,11 @@ export async function detectStaleLeads(
   sb: DB,
   repId: string,
   threshold: number = STALE_DAYS,
+  brandId: string | null = null,
 ): Promise<StaleLead[]> {
   const staleThreshold = new Date(Date.now() - threshold * 86_400_000).toISOString()
 
-  const { data, error } = await sb
+  let q = sb
     .from("leads")
     .select("id, first_name, last_name, brand_id, last_contacted_at, brands!inner(name)")
     .eq("assigned_rep_id", repId)
@@ -55,6 +56,9 @@ export async function detectStaleLeads(
     .or(`last_contacted_at.is.null,last_contacted_at.lt.${staleThreshold}`)
     .order("last_contacted_at", { ascending: true, nullsFirst: true })
     .limit(MAX_LEADS_PER_REP)
+  if (brandId) q = q.eq("brand_id", brandId)
+
+  const { data, error } = await q
 
   if (error) {
     console.error("[daily-insights] detectStaleLeads error:", error.message)

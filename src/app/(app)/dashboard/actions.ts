@@ -34,9 +34,7 @@ export async function confirmAppointment(appointmentId: string, _: FormData) {
   revalidatePath("/dashboard")
 }
 
-export async function dismissUrgentLead(leadId: string, _reason: string, _: FormData) {
-  // Resets last_contacted_at so the lead exits "stale" state
-  // PHASE B plug-in: queue agent action to log dismissal reason
+export async function dismissUrgentLead(leadId: string, reason: string, _: FormData) {
   const supabase = await typedClient()
   const { role } = await getCurrentRole(supabase)
   assertNotProvider(role)
@@ -45,6 +43,18 @@ export async function dismissUrgentLead(leadId: string, _reason: string, _: Form
   } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
+  // unconfirmed_appt: confirmar la cita pendiente. La urgencia es por status de cita,
+  // no por contacto — solo updatear last_contacted_at no la saca del urgent list.
+  if (reason === "unconfirmed_appt") {
+    await supabase
+      .from("appointments")
+      .update({ status: "confirmed" })
+      .eq("lead_id", leadId)
+      .eq("rep_id", user.id)
+      .eq("status", "scheduled")
+  }
+
+  // Siempre updatear last_contacted_at (también saca del estado "stale")
   await supabase
     .from("leads")
     .update({ last_contacted_at: new Date().toISOString() })

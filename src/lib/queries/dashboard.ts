@@ -327,6 +327,7 @@ export async function fetchUrgentLeads(
   role: string = "rep"
 ): Promise<UrgentLead[]> {
   const staleThreshold = new Date(Date.now() - 5 * 86_400_000).toISOString()
+  const nowIso = new Date().toISOString()
   // Include today + tomorrow (24h window after start of today)
   const tomorrowEnd = new Date(new Date(range.end).getTime() + 86_400_000).toISOString()
   const overdueThreshold = new Date(Date.now() - 7 * 86_400_000).toISOString()
@@ -341,11 +342,13 @@ export async function fetchUrgentLeads(
   if (repFilter) staleQ = staleQ.eq("assigned_rep_id", repFilter)
   if (brandId) staleQ = staleQ.eq("brand_id", brandId)
 
+  // Solo citas FUTURAS scheduled — las que ya pasaron no necesitan "confirmación",
+  // necesitan que el rep marque outcome (separado).
   let unconfirmedQ = supabase
     .from("appointments")
     .select("lead_id, leads!inner(id, first_name, last_name, last_contacted_at)")
     .eq("status", "scheduled")
-    .gte("scheduled_at", range.start)
+    .gte("scheduled_at", nowIso)
     .lt("scheduled_at", tomorrowEnd)
     .limit(5)
   if (repFilter) unconfirmedQ = unconfirmedQ.eq("rep_id", repFilter)
