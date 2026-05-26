@@ -4,16 +4,23 @@ import { cookies } from "next/headers"
 import Link from "next/link"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { NewAppointmentButton } from "./_components/new-appointment-button"
 import { AppointmentStatusActions } from "./_components/appointment-status-actions"
 import { EditAppointmentButton } from "./_components/edit-appointment-button"
-import { getTranslations } from "next-intl/server"
+import { getLocale, getTranslations } from "next-intl/server"
 import { formatApptDateTime } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { PatientSearchInput } from "@/components/ui/patient-search-input"
 import { DeleteAppointmentButton } from "./_components/delete-appointment-button"
+import {
+  dateOnlyRangeToUtc,
+  formatYmdForDisplay,
+  resolveActiveRange,
+  type DashboardSearchParams,
+} from "@/lib/dashboard/date-ranges"
+import { DateRangeFilter } from "../dashboard/_components/date-range-filter"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
@@ -50,10 +57,11 @@ export default async function AppointmentsPage({
     telehealth: t("types.telehealth"),
   }
 
-  const [profileRes, cookieStore, params] = await Promise.all([
+  const [profileRes, cookieStore, params, timezone] = await Promise.all([
     sb.from("users").select("role").eq("id", user.id).single(),
     cookies(),
     searchParams,
+    fetchTimezone(sb, user.id),
   ])
 
   const role = (profileRes.data?.role ?? "rep") as string
@@ -63,6 +71,9 @@ export default async function AppointmentsPage({
   const sp = params as Record<string, string | string[] | undefined>
   const statusFilter = typeof sp.status === "string" ? sp.status : null
   const searchTerm = typeof sp.search === "string" ? sp.search.trim() : null
+  const locale = await getLocale()
+  const active = resolveActiveRange(sp as DashboardSearchParams, timezone)
+  const range = dateOnlyRangeToUtc(active.from, active.to, timezone)
 
   let leadIdsFilter: string[] | null = null
   if (searchTerm && brandId) {
@@ -98,6 +109,7 @@ export default async function AppointmentsPage({
   if (brandId) query = query.eq("brand_id", brandId)
   if (statusFilter) query = query.eq("status", statusFilter as ApptStatus)
   if (leadIdsFilter) query = query.in("lead_id", leadIdsFilter)
+  query = query.gte("scheduled_at", range.start).lt("scheduled_at", range.end)
 
   const { data: raw, count } = await query
 
@@ -206,13 +218,27 @@ export default async function AppointmentsPage({
     { value: "no_show",     label: t("noShowTab") },
   ] as const
 
+  const fromLabel = formatYmdForDisplay(active.from, locale)
+  const toLabel = formatYmdForDisplay(active.to, locale)
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
+          <p className="text-[11px] text-gray-400 mt-1 leading-snug">
+            {active.from === active.to ? fromLabel : `${fromLabel} – ${toLabel}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
           <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
+          <DateRangeFilter
+            preset={active.preset}
+            from={active.from}
+            to={active.to}
+            timezone={timezone}
+          />
           {brandId && role !== "provider" && (
             <NewAppointmentButton
               brandId={brandId}
@@ -230,10 +256,18 @@ export default async function AppointmentsPage({
       <div className="flex gap-2 flex-wrap">
         {tabs.map((tab) => {
           const isActive = statusFilter === tab.value
+          // Preservar params de fecha (from/to/preset) y search al cambiar de tab
+          const qs = new URLSearchParams()
+          if (typeof sp.from === "string") qs.set("from", sp.from)
+          if (typeof sp.to === "string") qs.set("to", sp.to)
+          if (typeof sp.preset === "string") qs.set("preset", sp.preset)
+          if (typeof sp.search === "string") qs.set("search", sp.search)
+          if (tab.value) qs.set("status", tab.value)
+          const href = qs.toString() ? `/appointments?${qs.toString()}` : "/appointments"
           return (
             <Link
               key={tab.label}
-              href={tab.value ? `/appointments?status=${tab.value}` : "/appointments"}
+              href={href}
               className={`px-3 py-1 rounded text-xs transition-colors ${
                 isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               }`}
