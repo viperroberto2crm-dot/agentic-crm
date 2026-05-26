@@ -32,7 +32,7 @@ type ClinicOption = {
 }
 
 type AppointmentType = "clinic" | "home" | "telehealth"
-type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show"
+type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show" | "rescheduled"
 
 export type EditableAppointment = {
   id: string
@@ -233,6 +233,7 @@ export function EditAppointmentButton({
                   <SelectItem value="scheduled" className="text-gray-800">{t("appointmentStatuses.scheduled")}</SelectItem>
                   <SelectItem value="confirmed" className="text-gray-800">{t("appointmentStatuses.confirmed")}</SelectItem>
                   <SelectItem value="completed" className="text-gray-800">{t("appointmentStatuses.completed")}</SelectItem>
+                  <SelectItem value="rescheduled" className="text-gray-800">{t("appointmentStatuses.rescheduled")}</SelectItem>
                   <SelectItem value="cancelled" className="text-gray-800">{t("appointmentStatuses.cancelled")}</SelectItem>
                   <SelectItem value="no_show" className="text-gray-800">{t("appointmentStatuses.no_show")}</SelectItem>
                 </SelectContent>

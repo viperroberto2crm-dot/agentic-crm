@@ -36,11 +36,12 @@ export default async function AppointmentsPage({
   const t = await getTranslations("appointments")
 
   const STATUS_CONFIG: Record<ApptStatus, { label: string; cls: string }> = {
-    scheduled: { label: t("appointmentStatuses.scheduled"), cls: "border-blue-500/40 text-blue-400" },
-    confirmed: { label: t("appointmentStatuses.confirmed"), cls: "border-emerald-500/40 text-emerald-400" },
-    completed: { label: t("appointmentStatuses.completed"), cls: "border-zinc-500/40 text-gray-500" },
-    cancelled: { label: t("appointmentStatuses.cancelled"), cls: "border-red-500/40 text-red-400" },
-    no_show:   { label: t("appointmentStatuses.no_show"),   cls: "border-amber-500/40 text-amber-400" },
+    scheduled:   { label: t("appointmentStatuses.scheduled"),   cls: "border-blue-500/40 text-blue-400" },
+    confirmed:   { label: t("appointmentStatuses.confirmed"),   cls: "border-emerald-500/40 text-emerald-400" },
+    completed:   { label: t("appointmentStatuses.completed"),   cls: "border-zinc-500/40 text-gray-500" },
+    cancelled:   { label: t("appointmentStatuses.cancelled"),   cls: "border-red-500/40 text-red-400" },
+    no_show:     { label: t("appointmentStatuses.no_show"),     cls: "border-amber-500/40 text-amber-400" },
+    rescheduled: { label: t("appointmentStatuses.rescheduled"), cls: "border-violet-500/40 text-violet-400" },
   }
 
   const TYPE_LABEL: Record<ApptType, string> = {
@@ -196,12 +197,13 @@ export default async function AppointmentsPage({
   }
 
   const tabs = [
-    { value: null,        label: t("allAppts") },
-    { value: "scheduled", label: t("scheduledTab") },
-    { value: "confirmed", label: t("confirmedTab") },
-    { value: "completed", label: t("completedTab") },
-    { value: "cancelled", label: t("cancelledTab") },
-    { value: "no_show",   label: t("noShowTab") },
+    { value: null,          label: t("allAppts") },
+    { value: "scheduled",   label: t("scheduledTab") },
+    { value: "confirmed",   label: t("confirmedTab") },
+    { value: "completed",   label: t("completedTab") },
+    { value: "rescheduled", label: t("rescheduledTab") },
+    { value: "cancelled",   label: t("cancelledTab") },
+    { value: "no_show",     label: t("noShowTab") },
   ] as const
 
   return (

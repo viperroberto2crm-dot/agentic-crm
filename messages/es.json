@@ -324,11 +324,13 @@
     "selectLead": "Selecciona un lead…",
     "leadAndDateRequired": "Lead y fecha/hora son requeridos",
     "allAppts": "Todas",
+    "status": "Estado",
     "scheduledTab": "Agendadas",
     "confirmedTab": "Confirmadas",
     "completedTab": "Completadas",
     "cancelledTab": "Canceladas",
     "noShowTab": "No show",
+    "rescheduledTab": "Reagendadas",
     "colDateTime": "Fecha / Hora",
     "colType": "Tipo",
     "colStatus": "Status",
@@ -349,7 +351,8 @@
       "confirmed": "Confirmada",
       "completed": "Completada",
       "cancelled": "Cancelada",
-      "no_show": "No se presentó"
+      "no_show": "No se presentó",
+      "rescheduled": "Reagendada"
     },
     "addressFromLead": "Visita en: {address}, {city}, {state} {zip}",
     "addressMissing": "Este lead no tiene dirección registrada. Agrégala primero.",

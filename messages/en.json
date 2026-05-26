@@ -324,11 +324,13 @@
     "selectLead": "Select a lead…",
     "leadAndDateRequired": "Lead and date/time are required",
     "allAppts": "All",
+    "status": "Status",
     "scheduledTab": "Scheduled",
     "confirmedTab": "Confirmed",
     "completedTab": "Completed",
     "cancelledTab": "Cancelled",
     "noShowTab": "No show",
+    "rescheduledTab": "Rescheduled",
     "colDateTime": "Date / Time",
     "colType": "Type",
     "colStatus": "Status",
@@ -349,7 +351,8 @@
       "confirmed": "Confirmed",
       "completed": "Completed",
       "cancelled": "Cancelled",
-      "no_show": "No show"
+      "no_show": "No show",
+      "rescheduled": "Rescheduled"
     },
     "addressFromLead": "Home visit at: {address}, {city}, {state} {zip}",
     "addressMissing": "This lead has no address on file. Add it first.",

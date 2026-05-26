@@ -129,7 +129,7 @@ const UpdateAppointmentSchema = z
   .object({
     id: z.string().uuid(),
     type: z.enum(["clinic", "home", "telehealth"]),
-    status: z.enum(["scheduled", "confirmed", "completed", "cancelled", "no_show"]),
+    status: z.enum(["scheduled", "confirmed", "completed", "cancelled", "no_show", "rescheduled"]),
     scheduled_at: z.string().min(1),
     duration_minutes: z.number().int().min(15).max(480),
     service: z.string().nullable(),

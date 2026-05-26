@@ -1551,7 +1551,7 @@ export type Database = {
       }
     }
     Enums: {
-      appointment_status: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show"
+      appointment_status: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show" | "rescheduled"
       appointment_type: "clinic" | "home" | "telehealth"
       autonomy_level: "suggest_only" | "approve_required" | "auto_with_audit"
       call_direction: "inbound" | "outbound"

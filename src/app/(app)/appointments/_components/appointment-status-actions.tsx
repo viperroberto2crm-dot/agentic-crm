@@ -16,7 +16,7 @@ type Props = {
 
 /**
  * Botones de acción rápida por fila. Solo visible si status='scheduled' o 'confirmed'.
- * Los terminales (completed/cancelled/no_show) no muestran acciones.
+ * Los terminales (completed/cancelled/no_show/rescheduled) no muestran acciones.
  */
 export function AppointmentStatusActions({ appointmentId, status }: Props) {
   const t = useTranslations("appointments")
@@ -24,7 +24,7 @@ export function AppointmentStatusActions({ appointmentId, status }: Props) {
   const [busy, setBusy] = useState<ApptStatus | null>(null)
 
   // No actions for terminal states
-  if (status === "completed" || status === "cancelled" || status === "no_show") {
+  if (status === "completed" || status === "cancelled" || status === "no_show" || status === "rescheduled") {
     return null
   }
 
