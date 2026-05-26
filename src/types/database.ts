@@ -360,6 +360,7 @@ export type Database = {
           brand_id: string
           lead_id: string
           rep_id: string
+          provider_id: string | null
           type: Database["public"]["Enums"]["appointment_type"]
           status: Database["public"]["Enums"]["appointment_status"]
           clinic_id: string | null
@@ -382,6 +383,7 @@ export type Database = {
           brand_id: string
           lead_id: string
           rep_id: string
+          provider_id?: string | null
           type: Database["public"]["Enums"]["appointment_type"]
           status?: Database["public"]["Enums"]["appointment_status"]
           clinic_id?: string | null
@@ -404,6 +406,7 @@ export type Database = {
           brand_id?: string
           lead_id?: string
           rep_id?: string
+          provider_id?: string | null
           type?: Database["public"]["Enums"]["appointment_type"]
           status?: Database["public"]["Enums"]["appointment_status"]
           clinic_id?: string | null
@@ -425,7 +428,8 @@ export type Database = {
           { foreignKeyName: "appointments_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
           { foreignKeyName: "appointments_clinic_id_fkey"; columns: ["clinic_id"]; referencedRelation: "clinics"; referencedColumns: ["id"] },
           { foreignKeyName: "appointments_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] },
-          { foreignKeyName: "appointments_rep_id_fkey"; columns: ["rep_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+          { foreignKeyName: "appointments_rep_id_fkey"; columns: ["rep_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
+          { foreignKeyName: "appointments_provider_id_fkey"; columns: ["provider_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
         ]
       }
       bot_agents: {

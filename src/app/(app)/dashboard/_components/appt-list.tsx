@@ -42,12 +42,16 @@ export async function TodayApptList({
   label,
   clinics,
   userRole,
+  providers = [],
+  canAssign = false,
 }: {
   appts: TodayAppt[]
   timezone: string
   label?: string
   clinics: ClinicOption[]
   userRole?: string
+  providers?: { id: string; name: string }[]
+  canAssign?: boolean
 }) {
   const t = await getTranslations("dashboard")
   const title = label ?? t("apptsToday")
@@ -112,6 +116,7 @@ export async function TodayApptList({
                     notes: appt.notes,
                     clinic_id: appt.clinic_id,
                     telehealth_link: appt.telehealth_link,
+                    provider_id: appt.provider_id,
                   }}
                   leads={[
                     {
@@ -128,6 +133,8 @@ export async function TodayApptList({
                   ]}
                   clinics={clinics}
                   userRole={userRole}
+                  assignableProviders={providers}
+                  canAssign={canAssign}
                 />
               </div>
             </div>

@@ -51,12 +51,14 @@ export function NewAppointmentButton({
   leads,
   clinics,
   assignableUsers = [],
+  assignableProviders = [],
   canAssign = false,
 }: {
   brandId: string
   leads: Lead[]
   clinics: ClinicOption[]
   assignableUsers?: { id: string; name: string; role: string }[]
+  assignableProviders?: { id: string; name: string }[]
   canAssign?: boolean
 }) {
   const t = useTranslations("appointments")
@@ -76,6 +78,7 @@ export function NewAppointmentButton({
     clinic_id: "",
     telehealth_link: "",
     assigned_to: "" as string, // "" = el user logueado (default backend)
+    provider_id: "" as string, // "" = sin provider
   })
 
   useEffect(() => {
@@ -122,6 +125,7 @@ export function NewAppointmentButton({
       clinic_id: "",
       telehealth_link: "",
       assigned_to: "",
+      provider_id: "",
     })
     setError(null)
   }
@@ -165,6 +169,7 @@ export function NewAppointmentButton({
               ? form.telehealth_link.trim() || null
               : null,
           assigned_to: form.assigned_to || null,
+          provider_id: form.provider_id || null,
         })
         router.refresh()
         setOpen(false)
@@ -211,7 +216,7 @@ export function NewAppointmentButton({
             </Field>
 
             {canAssign && assignableUsers.length > 0 && (
-              <Field label="Asignar a (provider o rep)">
+              <Field label="Rep dueño (venta)">
                 <Select
                   value={form.assigned_to || "__self__"}
                   onValueChange={(v) =>
@@ -228,7 +233,31 @@ export function NewAppointmentButton({
                     {assignableUsers.map((u) => (
                       <SelectItem key={u.id} value={u.id} className="text-gray-800">
                         {u.name}
-                        {u.role === "provider" ? " · Proveedor" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+
+            {canAssign && (
+              <Field label="Provider (quien atiende)">
+                <Select
+                  value={form.provider_id || "__none__"}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, provider_id: v === "__none__" ? "" : v }))
+                  }
+                >
+                  <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
+                    <SelectValue placeholder="Sin provider" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 max-h-52 overflow-y-auto">
+                    <SelectItem value="__none__" className="text-gray-500 italic">
+                      Sin provider
+                    </SelectItem>
+                    {assignableProviders.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-gray-800">
+                        {p.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

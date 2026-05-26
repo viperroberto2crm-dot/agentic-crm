@@ -45,7 +45,10 @@ export type EditableAppointment = {
   notes: string | null
   clinic_id: string | null
   telehealth_link: string | null
+  provider_id: string | null
 }
+
+export type ProviderOption = { id: string; name: string }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -77,11 +80,15 @@ export function EditAppointmentButton({
   leads,
   clinics,
   userRole,
+  assignableProviders = [],
+  canAssign = false,
 }: {
   appointment: EditableAppointment
   leads: Lead[]
   clinics: ClinicOption[]
   userRole?: string
+  assignableProviders?: ProviderOption[]
+  canAssign?: boolean
 }) {
   const isProvider = userRole === "provider"
   const t = useTranslations("appointments")
@@ -99,6 +106,7 @@ export function EditAppointmentButton({
     notes: appointment.notes ?? "",
     clinic_id: appointment.clinic_id ?? "",
     telehealth_link: appointment.telehealth_link ?? "",
+    provider_id: appointment.provider_id ?? "",
   })
 
   // Reset form to current appointment values whenever the dialog opens
@@ -113,6 +121,7 @@ export function EditAppointmentButton({
         notes: appointment.notes ?? "",
         clinic_id: appointment.clinic_id ?? "",
         telehealth_link: appointment.telehealth_link ?? "",
+        provider_id: appointment.provider_id ?? "",
       })
       setError(null)
     }
@@ -180,6 +189,8 @@ export function EditAppointmentButton({
           zip: form.type === "home" ? selectedLead?.zip ?? null : null,
           telehealth_link:
             form.type === "telehealth" ? form.telehealth_link.trim() || null : null,
+          // Solo admin/manager mandan provider_id. Si no es canAssign, undefined = no tocar.
+          ...(canAssign ? { provider_id: form.provider_id || null } : {}),
         })
         router.refresh()
         setOpen(false)
@@ -239,6 +250,31 @@ export function EditAppointmentButton({
                 </SelectContent>
               </Select>
             </Field>
+
+            {canAssign && (
+              <Field label="Provider (quien atiende)">
+                <Select
+                  value={form.provider_id || "__none__"}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, provider_id: v === "__none__" ? "" : v }))
+                  }
+                >
+                  <SelectTrigger className="h-9 bg-white border-gray-200 text-gray-700">
+                    <SelectValue placeholder="Sin provider" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 max-h-52 overflow-y-auto">
+                    <SelectItem value="__none__" className="text-gray-500 italic">
+                      Sin provider
+                    </SelectItem>
+                    {assignableProviders.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-gray-800">
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <Field label={t("type")} required>

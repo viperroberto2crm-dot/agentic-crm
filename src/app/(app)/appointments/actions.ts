@@ -27,9 +27,12 @@ const CreateAppointmentSchema = z
     state: z.string().nullable().default(null),
     zip: z.string().nullable().default(null),
     telehealth_link: z.string().nullable().default(null),
-    // Si el creador es admin/manager puede asignar a otro user (incl. provider).
+    // Si el creador es admin/manager puede asignar a otro rep.
     // null o undefined → se asigna al user logueado.
     assigned_to: z.string().uuid().nullable().optional(),
+    // Provider que verá al paciente. Independiente de rep_id (dueño venta).
+    // Solo admin/manager pueden setearlo.
+    provider_id: z.string().uuid().nullable().optional(),
   })
   .refine(
     (v) => v.type !== "clinic" || (typeof v.clinic_id === "string" && v.clinic_id.length > 0),
@@ -72,6 +75,8 @@ export async function createAppointment(raw: CreateAppointmentInput) {
     .maybeSingle()
   if (recent?.id) {
     revalidatePath("/appointments")
+    revalidatePath("/dashboard")
+    revalidatePath(`/leads/${input.lead_id}`)
     return
   }
 
@@ -84,11 +89,15 @@ export async function createAppointment(raw: CreateAppointmentInput) {
   if (input.assigned_to && (role === "admin" || role === "manager")) {
     effectiveRepId = input.assigned_to
   }
+  // provider_id: solo admin/manager pueden setearlo; rep no
+  const effectiveProviderId =
+    role === "admin" || role === "manager" ? input.provider_id ?? null : null
 
   const { error } = await supabase.from("appointments").insert({
     brand_id: input.brand_id,
     lead_id: input.lead_id,
     rep_id: effectiveRepId,
+    provider_id: effectiveProviderId,
     type: input.type,
     status: "scheduled",
     scheduled_at: input.scheduled_at,
@@ -105,6 +114,8 @@ export async function createAppointment(raw: CreateAppointmentInput) {
   })
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
+  revalidatePath("/dashboard")
+  revalidatePath(`/leads/${input.lead_id}`)
 }
 
 export async function updateAppointmentStatus(
@@ -118,11 +129,19 @@ export async function updateAppointmentStatus(
   const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
   const role = profile?.role ?? "rep"
 
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("lead_id")
+    .eq("id", id)
+    .maybeSingle()
+
   const base = supabase.from("appointments").update({ status }).eq("id", id)
   const scopeToOwn = role === "rep" || role === "provider"
   const { error } = scopeToOwn ? await base.eq("rep_id", user.id) : await base
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
+  revalidatePath("/dashboard")
+  if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
 }
 
 const UpdateAppointmentSchema = z
@@ -141,6 +160,9 @@ const UpdateAppointmentSchema = z
     state: z.string().nullable().default(null),
     zip: z.string().nullable().default(null),
     telehealth_link: z.string().nullable().default(null),
+    // Provider que verá al paciente. undefined = no tocar; null = limpiar.
+    // Solo admin/manager pueden setearlo.
+    provider_id: z.string().uuid().nullable().optional(),
   })
   .refine(
     (v) => v.type !== "clinic" || (typeof v.clinic_id === "string" && v.clinic_id.length > 0),
@@ -176,29 +198,43 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
 
   // Provider puede tocar status + notes (sus observaciones clínicas).
   // El resto de campos los ignora.
-  const updates = role === "provider"
-    ? { status: input.status, notes: input.notes }
-    : {
-        type: input.type,
-        status: input.status,
-        scheduled_at: input.scheduled_at,
-        duration_minutes: input.duration_minutes,
-        service: input.service,
-        notes: input.notes,
-        clinic_id: isClinic ? input.clinic_id : null,
-        address_line1: isHome ? input.address_line1 : null,
-        address_line2: isHome ? input.address_line2 : null,
-        city: isHome ? input.city : null,
-        state: isHome ? input.state : null,
-        zip: isHome ? input.zip : null,
-        telehealth_link: isTele ? input.telehealth_link : null,
-      }
+  const baseUpdates =
+    role === "provider"
+      ? { status: input.status, notes: input.notes }
+      : {
+          type: input.type,
+          status: input.status,
+          scheduled_at: input.scheduled_at,
+          duration_minutes: input.duration_minutes,
+          service: input.service,
+          notes: input.notes,
+          clinic_id: isClinic ? input.clinic_id : null,
+          address_line1: isHome ? input.address_line1 : null,
+          address_line2: isHome ? input.address_line2 : null,
+          city: isHome ? input.city : null,
+          state: isHome ? input.state : null,
+          zip: isHome ? input.zip : null,
+          telehealth_link: isTele ? input.telehealth_link : null,
+        }
+  // provider_id solo se actualiza si admin/manager lo envió explícitamente
+  const updates =
+    (role === "admin" || role === "manager") && input.provider_id !== undefined
+      ? { ...baseUpdates, provider_id: input.provider_id }
+      : baseUpdates
+
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("lead_id")
+    .eq("id", input.id)
+    .maybeSingle()
 
   const base = supabase.from("appointments").update(updates).eq("id", input.id)
   const scopeToOwn = role === "rep" || role === "provider"
   const { error } = scopeToOwn ? await base.eq("rep_id", user.id) : await base
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
+  revalidatePath("/dashboard")
+  if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
 }
 
 /**
@@ -214,12 +250,19 @@ export async function deleteAppointment(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: "No autenticado" }
 
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("lead_id")
+    .eq("id", appointmentId)
+    .maybeSingle()
+
   const base = supabase.from("appointments").delete().eq("id", appointmentId)
   const { error } = role === "rep" ? await base.eq("rep_id", user.id) : await base
   if (error) return { ok: false, error: error.message }
 
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
+  if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
   return { ok: true }
 }
 
@@ -232,6 +275,12 @@ export async function reassignAppointmentRep(
   if (role !== "admin" && role !== "manager") {
     return { ok: false, error: "Solo admin/manager pueden reasignar" }
   }
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("lead_id")
+    .eq("id", appointmentId)
+    .maybeSingle()
+
   const { error } = await supabase
     .from("appointments")
     .update({ rep_id: newRepId })
@@ -239,6 +288,33 @@ export async function reassignAppointmentRep(
   if (error) return { ok: false, error: error.message }
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
+  if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
+  return { ok: true }
+}
+
+export async function reassignAppointmentProvider(
+  appointmentId: string,
+  newProviderId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "admin" && role !== "manager") {
+    return { ok: false, error: "Solo admin/manager pueden reasignar provider" }
+  }
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("lead_id")
+    .eq("id", appointmentId)
+    .maybeSingle()
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({ provider_id: newProviderId })
+    .eq("id", appointmentId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath("/appointments")
+  revalidatePath("/dashboard")
+  if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
   return { ok: true }
 }
 

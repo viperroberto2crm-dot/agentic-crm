@@ -12,6 +12,7 @@ import { EditAppointmentButton } from "./_components/edit-appointment-button"
 import { getLocale, getTranslations } from "next-intl/server"
 import { formatApptDateTime } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
+import { ProviderCellSelectClient } from "./_components/provider-cell-select-client"
 import { PatientSearchInput } from "@/components/ui/patient-search-input"
 import { DeleteAppointmentButton } from "./_components/delete-appointment-button"
 import {
@@ -97,15 +98,17 @@ export default async function AppointmentsPage({
     .from("appointments")
     .select(
       `id, scheduled_at, type, status, service, duration_minutes, notes,
-       clinic_id, telehealth_link, lead_id,
+       clinic_id, telehealth_link, lead_id, provider_id,
        lead:leads!appointments_lead_id_fkey(id, first_name, last_name),
-       rep:users!appointments_rep_id_fkey(id, name)`,
+       rep:users!appointments_rep_id_fkey(id, name),
+       provider:users!appointments_provider_id_fkey(id, name)`,
       { count: "exact" }
     )
     .order("scheduled_at", { ascending: false })
     .limit(100)
 
-  if (role === "rep" || role === "provider") query = query.eq("rep_id", user.id)
+  if (role === "rep") query = query.eq("rep_id", user.id)
+  if (role === "provider") query = query.eq("provider_id", user.id)
   if (brandId) query = query.eq("brand_id", brandId)
   if (statusFilter) query = query.eq("status", statusFilter as ApptStatus)
   if (leadIdsFilter) query = query.in("lead_id", leadIdsFilter)
@@ -117,8 +120,10 @@ export default async function AppointmentsPage({
     id: string; scheduled_at: string; type: ApptType; status: ApptStatus
     service: string | null; duration_minutes: number; notes: string | null
     clinic_id: string | null; telehealth_link: string | null; lead_id: string | null
+    provider_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
+    provider: { id: string; name: string } | null
   }
   const appts = (raw ?? []) as unknown as ApptItem[]
 
@@ -152,7 +157,7 @@ export default async function AppointmentsPage({
       const { data: leadIdsRows } = await sb
         .from("appointments")
         .select("lead_id")
-        .eq("rep_id", user.id)
+        .eq("provider_id", user.id)
         .not("lead_id", "is", null)
       const providerLeadIds = Array.from(
         new Set(
@@ -179,12 +184,12 @@ export default async function AppointmentsPage({
     clinicsForModal = (clinicsData ?? []) as typeof clinicsForModal
   }
 
-  // Reps + Providers disponibles para asignar citas (admin/manager only).
-  // Provider INCLUIDO porque las citas las atienden los providers.
+  // Admin/manager pueden reasignar rep o provider de la cita.
+  // brandReps = solo reps/admin/manager (dueños venta). brandProviders = providers (atienden cita).
   const canReassign = role === "admin" || role === "manager"
   let brandReps: { id: string; name: string; role: string }[] = []
+  let brandProviders: { id: string; name: string; role: string }[] = []
   if (canReassign && brandId) {
-    // 2 queries (más confiable que inner join)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: ubData } = await (sb as any)
       .from("user_brands")
@@ -192,19 +197,20 @@ export default async function AppointmentsPage({
       .eq("brand_id", brandId)
     const userIds = ((ubData ?? []) as { user_id: string }[]).map((r) => r.user_id)
     if (userIds.length > 0) {
-      const { data: repsData } = await sb
+      const { data: allUsers } = await sb
         .from("users")
         .select("id, name, role")
         .in("id", userIds)
         .eq("active", true)
         .in("role", ["admin", "manager", "rep", "provider"])
-        .order("role") // providers separados visualmente
         .order("name")
-      brandReps = (repsData ?? []).map((u) => ({
+      const rows = (allUsers ?? []).map((u) => ({
         id: u.id as string,
         name: (u.name as string | null) ?? "—",
         role: (u.role as string | null) ?? "rep",
       }))
+      brandReps = rows.filter((u) => u.role !== "provider")
+      brandProviders = rows.filter((u) => u.role === "provider")
     }
   }
 
@@ -245,6 +251,7 @@ export default async function AppointmentsPage({
               leads={leadsForModal}
               clinics={clinicsForModal}
               assignableUsers={brandReps}
+              assignableProviders={brandProviders}
               canAssign={canReassign}
             />
           )}
@@ -293,6 +300,9 @@ export default async function AppointmentsPage({
                 {role !== "rep" && (
                   <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
                 )}
+                {role !== "rep" && (
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Provider</th>
+                )}
                 <th className="text-right text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2">{t("colActions")}</th>
               </tr>
             </thead>
@@ -335,6 +345,17 @@ export default async function AppointmentsPage({
                         />
                       </td>
                     )}
+                    {role !== "rep" && (
+                      <td className="py-3 pr-4 hidden lg:table-cell">
+                        <ProviderCellSelectClient
+                          appointmentId={a.id}
+                          currentProviderId={a.provider?.id ?? null}
+                          currentProviderName={a.provider?.name ?? null}
+                          providers={brandProviders}
+                          canEdit={canReassign}
+                        />
+                      </td>
+                    )}
                     <td className="py-3 text-right">
                       <div className="flex justify-end items-center gap-1">
                         <AppointmentStatusActions appointmentId={a.id} status={a.status} />
@@ -350,10 +371,13 @@ export default async function AppointmentsPage({
                             notes: a.notes,
                             clinic_id: a.clinic_id,
                             telehealth_link: a.telehealth_link,
+                            provider_id: a.provider?.id ?? null,
                           }}
                           leads={leadsForModal}
                           clinics={clinicsForModal}
                           userRole={role}
+                          assignableProviders={brandProviders}
+                          canAssign={canReassign}
                         />
                         {role !== "provider" && (
                           <DeleteAppointmentButton appointmentId={a.id} />

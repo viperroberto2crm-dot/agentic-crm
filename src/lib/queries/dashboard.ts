@@ -65,6 +65,10 @@ export type TodayAppt = {
   telehealth_link: string | null
   clinic_id: string | null
   clinic_name: string | null
+  provider_id: string | null
+  provider_name: string | null
+  rep_id: string
+  rep_name: string | null
   lead_id: string
   lead_first_name: string
   lead_last_name: string | null
@@ -286,7 +290,7 @@ export async function fetchTodayAppts(
   let q = supabase
     .from("appointments")
     .select(
-      "id, scheduled_at, duration_minutes, type, status, service, notes, address_line1, city, telehealth_link, clinic_id, clinics(name), leads!inner(id, first_name, last_name, phone, address_line1, address_line2, city, state, zip), brands!inner(slug, name)"
+      "id, scheduled_at, duration_minutes, type, status, service, notes, address_line1, city, telehealth_link, clinic_id, rep_id, provider_id, clinics(name), rep:users!appointments_rep_id_fkey(name), provider:users!appointments_provider_id_fkey(name), leads!inner(id, first_name, last_name, phone, address_line1, address_line2, city, state, zip), brands!inner(slug, name)"
     )
     .gte("scheduled_at", range.start)
     .lt("scheduled_at", range.end)
@@ -312,6 +316,8 @@ export async function fetchTodayAppts(
     }
     const brand = row.brands as { slug: string; name: string }
     const clinic = row.clinics as { name: string } | null
+    const rep = (row as unknown as { rep?: { name: string } | null }).rep ?? null
+    const provider = (row as unknown as { provider?: { name: string } | null }).provider ?? null
     return {
       id: row.id,
       scheduled_at: row.scheduled_at,
@@ -325,6 +331,10 @@ export async function fetchTodayAppts(
       telehealth_link: row.telehealth_link,
       clinic_id: row.clinic_id,
       clinic_name: clinic?.name ?? null,
+      provider_id: (row as unknown as { provider_id: string | null }).provider_id ?? null,
+      provider_name: provider?.name ?? null,
+      rep_id: (row as unknown as { rep_id: string }).rep_id,
+      rep_name: rep?.name ?? null,
       lead_id: lead.id,
       lead_first_name: lead.first_name,
       lead_last_name: lead.last_name,

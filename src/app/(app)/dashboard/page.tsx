@@ -149,7 +149,31 @@ export default async function DashboardPage({
     return (data ?? []) as ClinicOption[]
   })()
 
-  // 10 parallel fetches — one per dashboard section
+  // Providers de la marca para el dropdown del modal Edit (solo admin/manager).
+  const canReassign = role === "admin" || role === "manager"
+  const providersForModalPromise: Promise<{ id: string; name: string }[]> = (async () => {
+    if (!brandId || !canReassign) return []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ubData } = await (sb as any)
+      .from("user_brands")
+      .select("user_id")
+      .eq("brand_id", brandId)
+    const userIds = ((ubData ?? []) as { user_id: string }[]).map((r) => r.user_id)
+    if (userIds.length === 0) return []
+    const { data } = await sb
+      .from("users")
+      .select("id, name")
+      .in("id", userIds)
+      .eq("active", true)
+      .eq("role", "provider")
+      .order("name")
+    return ((data ?? []) as { id: string; name: string | null }[]).map((u) => ({
+      id: u.id,
+      name: u.name ?? "—",
+    }))
+  })()
+
+  // 11 parallel fetches — one per dashboard section
   const [
     kpiCalls,
     kpiAppts,
@@ -161,6 +185,7 @@ export default async function DashboardPage({
     pivot,
     staleLeadsRaw,
     clinicsForModal,
+    providersForModal,
   ] = await Promise.all([
     fetchCallsKpi(sb, user.id, brandId, range, role),
     fetchApptsKpi(sb, user.id, brandId, range, role),
@@ -172,6 +197,7 @@ export default async function DashboardPage({
     fetchPivotStats(sb, user.id, brandId, range, role),
     detectStaleLeads(sb, user.id, undefined, brandId).catch(() => []),
     clinicsForModalPromise,
+    providersForModalPromise,
   ])
 
   const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
@@ -247,6 +273,8 @@ export default async function DashboardPage({
           label={apptsLabel}
           clinics={clinicsForModal}
           userRole={role}
+          providers={providersForModal}
+          canAssign={canReassign}
         />
         <UrgentLeadList leads={urgentLeadsDeduped} />
       </div>

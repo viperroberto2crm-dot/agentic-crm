@@ -198,6 +198,7 @@ export async function registerSale(raw: RegisterSaleInput) {
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/dashboard")
   revalidatePath("/sales")
+  revalidatePath("/payments-due")
 
   return sale.id
 }
@@ -295,6 +296,7 @@ export async function createPaymentPlan(raw: CreatePlanInput) {
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
   return data.id as string
 }
 
@@ -355,6 +357,7 @@ export async function updatePaymentPlan(raw: UpdatePlanInput) {
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
 }
 
 const UpdateInstallmentSchema = z.object({
@@ -407,6 +410,7 @@ export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
   if (error) throw new Error(error.message)
 
   revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/payments-due")
 }
 
 // ── Update / Delete Sale (standalone) ────────────────────────────────────────
@@ -612,6 +616,7 @@ export async function extendPaymentPlan(raw: ExtendPlanInput) {
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
 }
 
 export async function deletePaymentPlan(planId: string, leadId: string) {
@@ -645,6 +650,7 @@ export async function deletePaymentPlan(planId: string, leadId: string) {
   revalidatePath(`/leads/${leadId}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
 }
 
 async function refreshPlanSaleStatus(
@@ -740,6 +746,7 @@ export async function addAbono(raw: AddAbonoInput) {
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
 }
 
 export async function deleteAbono(abonoId: string, leadId: string) {
@@ -773,6 +780,7 @@ export async function deleteAbono(abonoId: string, leadId: string) {
   revalidatePath(`/leads/${leadId}`)
   revalidatePath("/sales")
   revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
 }
 
 export async function fetchPaymentPlans(leadId: string): Promise<PaymentPlan[]> {
