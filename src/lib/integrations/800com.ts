@@ -528,3 +528,94 @@ export async function importCallsFromEightHundred(
   result.duration_ms = Date.now() - t0
   return result
 }
+
+// ── Enhanced Caller ID (ECID) ────────────────────────────────────────────────
+// POST /v2/companies/{company}/ecid/lookups
+// Devuelve nombre, dirección, carrier, emails, etc. partiendo del teléfono.
+// IMPORTANTE: cada live-lookup se cobra a la cuenta. Respuestas cacheadas
+// (incluso "not_found") no se cobran de nuevo, salvo forceLive=true.
+// Rate limit: 60/min por company.
+
+export type EnhancedCallerId = {
+  name: string | null
+  firstName: string | null
+  middleName: string | null
+  lastName: string | null
+  alternativeNames: string[]
+  streetLine_1: string | null
+  streetLine_2: string | null
+  city: string | null
+  region: string | null
+  postalCode: string | null
+  zip4: string | null
+  country: string | null
+  addressDeliveryPoint: "SingleUnit" | "MultiUnit" | "POBox" | "PartialAddress" | null
+  addressLocationType: "Address" | "Neighborhood" | "Country" | "ZipPlus4" | "PostalCode" | "City" | "State" | null
+  carrier: string | null
+  lineType: "Landline" | "Premium" | "NonFixedVOIP" | "Mobile" | "FixedVOIP" | "TollFree" | "Other" | "Voicemail" | null
+  emails: string[]
+  ageRange: string | null
+  gender: "Male" | "Female" | null
+  industries: string[]
+  type: string | null
+}
+
+export type EcidLookupResult = {
+  matchStatus: "found" | "not_found"
+  data: EnhancedCallerId | null
+  normalizedPhone: string
+  cacheHit: boolean
+  requestedAt: string
+}
+
+/**
+ * Hace lookup ECID para un teléfono. Si el número no está en formato E.164
+ * (ej. "+1 206-612-9093" o "2066129093"), el server lo normaliza.
+ *
+ * @param phone - Teléfono a buscar
+ * @param forceLive - true = bypass cache (incurre cobro nuevo)
+ */
+export async function lookupEnhancedCallerId(
+  phone: string,
+  forceLive: boolean = false,
+): Promise<EcidLookupResult> {
+  const companyId = getCompanyId()
+  const url = `${API_BASE}/v2/companies/${companyId}/ecid/lookups`
+
+  const body: { number: string; forceLive?: boolean } = { number: phone }
+  if (forceLive) body.forceLive = true
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: getAuthHeader(),
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`800.com ecid lookup ${res.status}: ${text.slice(0, 300)}`)
+  }
+
+  const json = (await res.json()) as {
+    data: EnhancedCallerId | null
+    meta: {
+      number: string
+      matchStatus: "found" | "not_found"
+      requestedAt: string
+      cache: { hit: boolean; mode: "default" | "bypass" }
+    }
+  }
+
+  return {
+    matchStatus: json.meta.matchStatus,
+    data: json.data,
+    normalizedPhone: json.meta.number,
+    cacheHit: json.meta.cache?.hit ?? false,
+    requestedAt: json.meta.requestedAt,
+  }
+}
