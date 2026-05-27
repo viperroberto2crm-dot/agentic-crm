@@ -569,8 +569,30 @@ export type EcidLookupResult = {
 }
 
 /**
+ * Normaliza un teléfono a formato E.164 (con +). 800.com rechaza con 422
+ * si no viene así. Acepta entradas como:
+ *   "+12138845412"     → "+12138845412"  (intocado)
+ *   "12138845412"      → "+12138845412"  (+ prepended)
+ *   "2138845412"       → "+12138845412"  (US 10-digit → +1...)
+ *   "(213) 884-5412"   → "+12138845412"  (strip non-digits)
+ *   "+1 213-884-5412"  → "+12138845412"  (strip + restore)
+ */
+export function normalizeToE164(input: string): string {
+  const trimmed = input.trim()
+  if (!trimmed) return ""
+  // Si ya empieza con +, conservar + y solo limpiar non-digits del resto
+  if (trimmed.startsWith("+")) {
+    const digits = trimmed.slice(1).replace(/\D/g, "")
+    return `+${digits}`
+  }
+  const digits = trimmed.replace(/\D/g, "")
+  if (digits.length === 10) return `+1${digits}` // US 10-digit → assume US
+  return `+${digits}` // Asumir que ya trae country code
+}
+
+/**
  * Hace lookup ECID para un teléfono. Si el número no está en formato E.164
- * (ej. "+1 206-612-9093" o "2066129093"), el server lo normaliza.
+ * (ej. "+1 206-612-9093" o "2066129093"), se normaliza automáticamente.
  *
  * @param phone - Teléfono a buscar
  * @param forceLive - true = bypass cache (incurre cobro nuevo)
@@ -582,7 +604,10 @@ export async function lookupEnhancedCallerId(
   const companyId = getCompanyId()
   const url = `${API_BASE}/v2/companies/${companyId}/ecid/lookups`
 
-  const body: { number: string; forceLive?: boolean } = { number: phone }
+  const normalized = normalizeToE164(phone)
+  if (!normalized) throw new Error("Empty phone number")
+
+  const body: { number: string; forceLive?: boolean } = { number: normalized }
   if (forceLive) body.forceLive = true
 
   const res = await fetch(url, {
