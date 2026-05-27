@@ -30,6 +30,30 @@ export async function createCall(raw: CreateCallInput) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
+  // Idempotencia: si el mismo rep registró una call para el mismo lead en
+  // los últimos 30s, NO crear duplicado. Esto cubre double-click y reenvíos.
+  // El cliente también tiene un useRef guard, pero esto es defensa en profundidad.
+  const thirtySecondsAgo = new Date(Date.now() - 30_000).toISOString()
+  let recentQ = supabase
+    .from("calls")
+    .select("id")
+    .eq("rep_id", user.id)
+    .eq("source", "manual")
+    .gte("created_at", thirtySecondsAgo)
+    .order("created_at", { ascending: false })
+    .limit(1)
+  if (input.lead_id) {
+    recentQ = recentQ.eq("lead_id", input.lead_id)
+  } else {
+    recentQ = recentQ.is("lead_id", null)
+  }
+  const { data: recent } = await recentQ.maybeSingle()
+  if (recent?.id) {
+    // Silencioso: ya existe una call del mismo rep para el mismo lead
+    revalidatePath("/calls")
+    return
+  }
+
   const { error } = await supabase.from("calls").insert({
     brand_id: input.brand_id,
     lead_id: input.lead_id,
@@ -50,6 +74,9 @@ export async function createCall(raw: CreateCallInput) {
   }
 
   revalidatePath("/calls")
+  // También invalidar lead detail y dashboard porque muestran calls
+  if (input.lead_id) revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/dashboard")
 }
 
 export async function fetchLeadsForCall(brandId: string) {

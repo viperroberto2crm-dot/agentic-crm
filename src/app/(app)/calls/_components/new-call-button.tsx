@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Phone } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -30,16 +30,24 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  // Default 'inbound' — la operación no hace outbound; la mayoría son
+  // clientes llamando. Si en el futuro alguna marca hace outbound, lo cambian
+  // en el dropdown manualmente.
+  const submittingRef = useRef(false)
   const [form, setForm] = useState({
     lead_id: "none",
-    direction: "outbound" as "inbound" | "outbound",
+    direction: "inbound" as "inbound" | "outbound",
     outcome: "none" as string,
     duration_seconds: "",
     notes: "",
   })
 
   function handleSave() {
+    // Guard contra double-click: si ya está en vuelo un submit, ignorar.
+    // El isPending de useTransition tiene ~50ms de delay y permite race.
+    if (submittingRef.current) return
     setError(null)
+    submittingRef.current = true
     startTransition(async () => {
       try {
         await createCall({
@@ -52,9 +60,11 @@ export function NewCallButton({ brandId, leads }: { brandId: string; leads: Lead
         })
         router.refresh()
         setOpen(false)
-        setForm({ lead_id: "none", direction: "outbound", outcome: "none", duration_seconds: "", notes: "" })
+        setForm({ lead_id: "none", direction: "inbound", outcome: "none", duration_seconds: "", notes: "" })
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
+      } finally {
+        submittingRef.current = false
       }
     })
   }
