@@ -190,7 +190,8 @@
     "appointment_set": "Appointment set",
     "sold": "Sold",
     "lost": "Lost",
-    "on_hold": "On hold"
+    "on_hold": "On hold",
+    "not_interested": "Not interested"
   },
   "source": {
     "inbound_call": "Inbound call",

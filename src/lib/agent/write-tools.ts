@@ -88,7 +88,7 @@ export const WRITE_TOOLS = [
         lead_id: { type: "string", description: "UUID del lead" },
         new_status: {
           type: "string",
-          enum: ["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold"],
+          enum: ["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold", "not_interested"],
           description: "Nuevo status",
         },
         reason: {

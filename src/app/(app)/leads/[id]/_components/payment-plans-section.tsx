@@ -22,6 +22,7 @@ import {
 import {
   addAbono,
   deleteAbono,
+  updateAbono,
   updatePaymentPlan,
   deletePaymentPlan,
   updateInstallmentOverride,
@@ -193,6 +194,165 @@ function AddAbonoDialog({
                 </>
               ) : (
                 t("confirmAbono")
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-gray-400 hover:text-gray-700"
+              onClick={handleClose}
+              disabled={isPending}
+            >
+              {tc("cancel")}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Edit Abono Dialog ─────────────────────────────────────────────────────────
+
+function EditAbonoDialog({
+  open,
+  onClose,
+  abonoId,
+  leadId,
+  initialAmountCents,
+  initialPaidAt,
+  initialMethod,
+  initialNotes,
+}: {
+  open: boolean
+  onClose: () => void
+  abonoId: string
+  leadId: string
+  initialAmountCents: number
+  initialPaidAt: string
+  initialMethod: string
+  initialNotes: string | null
+}) {
+  const t = useTranslations("plans")
+  const tc = useTranslations("common")
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [amountDollars, setAmountDollars] = useState((initialAmountCents / 100).toFixed(2))
+  // paid_at del DB es timestamptz/date; tomamos solo el YYYY-MM-DD
+  const [paidAt, setPaidAt] = useState(initialPaidAt.slice(0, 10))
+  const [method, setMethod] = useState(initialMethod || "cash")
+  const [notes, setNotes] = useState(initialNotes ?? "")
+
+  function handleClose() {
+    setError(null)
+    onClose()
+  }
+
+  function handleSubmit() {
+    const cents = Math.round(parseFloat(amountDollars || "0") * 100)
+    if (cents <= 0) {
+      setError(t("amount") + " > 0")
+      return
+    }
+    setError(null)
+    startTransition(async () => {
+      try {
+        await updateAbono({
+          abono_id: abonoId,
+          lead_id: leadId,
+          amount_cents: cents,
+          paid_at: paidAt,
+          payment_method: method,
+          notes: notes.trim() || null,
+        })
+        router.refresh()
+        handleClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : tc("savingError"))
+      }
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">{tc("edit")} · {t("addAbono")}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">{t("amount")} *</label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={amountDollars}
+                onChange={(e) => setAmountDollars(e.target.value)}
+                placeholder="0.00"
+                className="bg-white border-gray-200 text-gray-800 h-9 font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-500">{t("paymentDate")}</label>
+              <Input
+                type="date"
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+                className="bg-white border-gray-200 text-gray-800 h-9"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">{t("paymentMethod")}</label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-gray-200">
+                <SelectItem value="cash" className="text-gray-800">{t("cash")}</SelectItem>
+                <SelectItem value="card" className="text-gray-800">{t("card")}</SelectItem>
+                <SelectItem value="transfer" className="text-gray-800">{t("transfer")}</SelectItem>
+                <SelectItem value="check" className="text-gray-800">{t("check")}</SelectItem>
+                <SelectItem value="other" className="text-gray-800">{t("other")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">{t("abonoNotes")}</label>
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={t("abonoNotesPlaceholder")}
+              className="bg-white border-gray-200 text-gray-800 h-9"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              disabled={isPending || !amountDollars || parseFloat(amountDollars) <= 0}
+              onClick={handleSubmit}
+              className="cursor-pointer"
+              style={{ background: "var(--brand)" }}
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  {tc("saving")}
+                </>
+              ) : (
+                tc("save")
               )}
             </Button>
             <Button
@@ -890,6 +1050,7 @@ function PlanCard({
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingInstallment, setEditingInstallment] = useState<number | null>(null)
+  const [editingAbonoId, setEditingAbonoId] = useState<string | null>(null)
 
   async function handleDeletePlan() {
     setIsDeleting(true)
@@ -1147,9 +1308,17 @@ function PlanCard({
                 )}
                 <button
                   type="button"
+                  onClick={() => setEditingAbonoId(abono.id)}
+                  title={tc("edit")}
+                  className="text-gray-200 hover:text-gray-600 transition-colors ml-1"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
                   disabled={deletingId === abono.id}
                   onClick={() => handleDeleteAbono(abono.id)}
-                  className="text-gray-200 hover:text-red-400 transition-colors ml-1"
+                  className="text-gray-200 hover:text-red-400 transition-colors"
                 >
                   {deletingId === abono.id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -1273,6 +1442,23 @@ function PlanCard({
             currentAmountCents={inst.expectedCents}
             defaultDueDate={defaultDueDate}
             defaultAmountCents={defaultAmountCents}
+          />
+        )
+      })()}
+
+      {editingAbonoId != null && (() => {
+        const abono = plan.abonos.find((a) => a.id === editingAbonoId)
+        if (!abono) return null
+        return (
+          <EditAbonoDialog
+            open={true}
+            onClose={() => setEditingAbonoId(null)}
+            abonoId={abono.id}
+            leadId={leadId}
+            initialAmountCents={abono.amount_cents}
+            initialPaidAt={abono.paid_at}
+            initialMethod={abono.payment_method}
+            initialNotes={abono.notes ?? null}
           />
         )
       })()}

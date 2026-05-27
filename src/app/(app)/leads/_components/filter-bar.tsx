@@ -36,6 +36,7 @@ export function LeadFilterBar({
     sold: ts("sold"),
     lost: ts("lost"),
     on_hold: ts("on_hold"),
+    not_interested: ts("not_interested"),
   }
 
   const SOURCE_LABELS: Record<LeadSource, string> = {

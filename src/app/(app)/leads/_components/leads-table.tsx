@@ -36,6 +36,7 @@ export async function LeadsTable({ leads, logQuickCall }: {
     sold:            { label: ts("sold"),            className: "border-emerald-500/40 text-emerald-400" },
     lost:            { label: ts("lost"),            className: "border-red-500/40 text-red-500" },
     on_hold:         { label: ts("on_hold"),         className: "border-yellow-500/40 text-yellow-500" },
+    not_interested:  { label: ts("not_interested"),  className: "border-zinc-500/40 text-gray-500" },
   }
 
   if (leads.length === 0) {

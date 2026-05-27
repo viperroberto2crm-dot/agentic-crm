@@ -153,6 +153,7 @@ export default async function LeadsPage({
             sold: ts("sold"),
             lost: ts("lost"),
             on_hold: ts("on_hold"),
+            not_interested: ts("not_interested"),
           }}
           labels={{
             noLeadsFilter: t("noLeadsFilter"),

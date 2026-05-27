@@ -14,6 +14,7 @@ const STATUS_CLASS: Record<LeadStatus, string> = {
   sold:            "border-emerald-500/40 text-emerald-400",
   lost:            "border-red-500/40 text-red-500",
   on_hold:         "border-yellow-500/40 text-yellow-500",
+  not_interested:  "border-zinc-500/40 text-gray-500",
 }
 
 type Props = {

@@ -72,6 +72,7 @@ export function EditLeadModal({
     { value: "sold", label: ts("sold") },
     { value: "lost", label: ts("lost") },
     { value: "on_hold", label: ts("on_hold") },
+    { value: "not_interested", label: ts("not_interested") },
   ]
 
   const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [

@@ -23,7 +23,7 @@ const UpdateLeadSchema = z.object({
   ),
   phone_alt: z.string().nullable(),
   email: z.string().nullable(),
-  status: z.enum(["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold"]),
+  status: z.enum(["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold", "not_interested"]),
   source: z.enum(["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "facebook", "other"]).nullable(),
   assigned_rep_id: z.string().uuid().nullable(),
   address_line1: z.string().nullable(),
@@ -742,6 +742,57 @@ export async function addAbono(raw: AddAbonoInput) {
   if (error) throw new Error(error.message)
 
   await refreshPlanSaleStatus(supabase, input.plan_id)
+
+  revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/sales")
+  revalidatePath("/dashboard")
+  revalidatePath("/payments-due")
+}
+
+const UpdateAbonoSchema = z.object({
+  abono_id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  amount_cents: z.number().int().min(1),
+  paid_at: z.string().min(1),
+  payment_method: z.string().min(1),
+  notes: z.string().nullable(),
+})
+
+export type UpdateAbonoInput = z.infer<typeof UpdateAbonoSchema>
+
+export async function updateAbono(raw: UpdateAbonoInput) {
+  const input = UpdateAbonoSchema.parse(raw)
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  // Capturar plan_id antes para recalcular status del plan/sale
+  const { data: abonoRow } = await sb
+    .from("abonos")
+    .select("plan_id")
+    .eq("id", input.abono_id)
+    .single()
+
+  const { error } = await sb
+    .from("abonos")
+    .update({
+      amount_cents: input.amount_cents,
+      paid_at: input.paid_at,
+      payment_method: input.payment_method,
+      notes: input.notes,
+    })
+    .eq("id", input.abono_id)
+
+  if (error) throw new Error(error.message)
+
+  if (abonoRow?.plan_id) {
+    await refreshPlanSaleStatus(supabase, abonoRow.plan_id as string)
+  }
 
   revalidatePath(`/leads/${input.lead_id}`)
   revalidatePath("/sales")

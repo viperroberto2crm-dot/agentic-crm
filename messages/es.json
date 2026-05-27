@@ -190,7 +190,8 @@
     "appointment_set": "Cita agendada",
     "sold": "Vendido",
     "lost": "Perdido",
-    "on_hold": "En espera"
+    "on_hold": "En espera",
+    "not_interested": "No interesado"
   },
   "source": {
     "inbound_call": "Llamada entrante",
