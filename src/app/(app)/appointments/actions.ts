@@ -136,8 +136,14 @@ export async function updateAppointmentStatus(
     .maybeSingle()
 
   const base = supabase.from("appointments").update({ status }).eq("id", id)
-  const scopeToOwn = role === "rep" || role === "provider"
-  const { error } = scopeToOwn ? await base.eq("rep_id", user.id) : await base
+  // Provider está en provider_id (separado de rep_id desde commit 779a819).
+  // Filtrar por el campo correcto para no recibir 0 rows silenciosamente.
+  const { error } =
+    role === "rep"
+      ? await base.eq("rep_id", user.id)
+      : role === "provider"
+        ? await base.eq("provider_id", user.id)
+        : await base
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
@@ -229,8 +235,13 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
     .maybeSingle()
 
   const base = supabase.from("appointments").update(updates).eq("id", input.id)
-  const scopeToOwn = role === "rep" || role === "provider"
-  const { error } = scopeToOwn ? await base.eq("rep_id", user.id) : await base
+  // Provider está en provider_id (separado de rep_id desde commit 779a819).
+  const { error } =
+    role === "rep"
+      ? await base.eq("rep_id", user.id)
+      : role === "provider"
+        ? await base.eq("provider_id", user.id)
+        : await base
   if (error) throw new Error(error.message)
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
@@ -328,10 +339,12 @@ export async function fetchAppointmentById(id: string) {
 
   let q = supabase
     .from("appointments")
-    .select("id, rep_id, lead_id, type, scheduled_at, duration_minutes, service, notes, clinic_id, address_line1, address_line2, city, state, zip, telehealth_link, status")
+    .select("id, rep_id, provider_id, lead_id, type, scheduled_at, duration_minutes, service, notes, clinic_id, address_line1, address_line2, city, state, zip, telehealth_link, status")
     .eq("id", id)
 
-  if (role === "rep" || role === "provider") q = q.eq("rep_id", user.id)
+  // Provider está en provider_id (separado de rep_id desde commit 779a819).
+  if (role === "rep") q = q.eq("rep_id", user.id)
+  if (role === "provider") q = q.eq("provider_id", user.id)
 
   const { data } = await q.maybeSingle()
   return data

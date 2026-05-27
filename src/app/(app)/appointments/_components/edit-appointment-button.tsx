@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DateTimeAmPm } from "@/components/ui/datetime-ampm"
 import { updateAppointment } from "../actions"
+import { isoToBrandLocal, brandLocalToIso } from "@/lib/appointment-tz"
 
 type Lead = {
   id: string
@@ -63,18 +64,6 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 const inputCls = "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 h-9"
 
-/**
- * Convierte un ISO string a formato local datetime-local input (YYYY-MM-DDTHH:mm).
- * Le aplica la timezone del browser para que el datetime-local muestre la hora local.
- */
-function isoToDatetimeLocal(iso: string): string {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ""
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 export function EditAppointmentButton({
   appointment,
   leads,
@@ -100,7 +89,7 @@ export function EditAppointmentButton({
   const [form, setForm] = useState({
     type: appointment.type,
     status: appointment.status,
-    scheduled_at: isoToDatetimeLocal(appointment.scheduled_at),
+    scheduled_at: isoToBrandLocal(appointment.scheduled_at),
     duration_minutes: appointment.duration_minutes,
     service: appointment.service ?? "",
     notes: appointment.notes ?? "",
@@ -115,7 +104,7 @@ export function EditAppointmentButton({
       setForm({
         type: appointment.type,
         status: appointment.status,
-        scheduled_at: isoToDatetimeLocal(appointment.scheduled_at),
+        scheduled_at: isoToBrandLocal(appointment.scheduled_at),
         duration_minutes: appointment.duration_minutes,
         service: appointment.service ?? "",
         notes: appointment.notes ?? "",
@@ -177,7 +166,9 @@ export function EditAppointmentButton({
           id: appointment.id,
           type: form.type,
           status: form.status,
-          scheduled_at: new Date(form.scheduled_at).toISOString(),
+          // Interpreta la hora del form como BRAND_TZ y convierte a UTC.
+          // NO usar new Date(...).toISOString() porque eso usa la TZ del browser.
+          scheduled_at: brandLocalToIso(form.scheduled_at),
           duration_minutes: form.duration_minutes,
           service: form.service || null,
           notes: form.notes || null,

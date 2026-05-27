@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DateTimeAmPm } from "@/components/ui/datetime-ampm"
 import { createAppointment } from "../actions"
+import { brandLocalToIso } from "@/lib/appointment-tz"
 
 type Lead = {
   id: string
@@ -152,7 +153,9 @@ export function NewAppointmentButton({
           brand_id: brandId,
           lead_id: form.lead_id,
           type: form.type,
-          scheduled_at: new Date(form.scheduled_at).toISOString(),
+          // Interpreta como BRAND_TZ, no la TZ del browser, para evitar
+          // desfases cuando el creador y otros editores están en zonas distintas.
+          scheduled_at: brandLocalToIso(form.scheduled_at),
           duration_minutes: form.duration_minutes,
           service: form.service || null,
           notes: form.notes || null,
