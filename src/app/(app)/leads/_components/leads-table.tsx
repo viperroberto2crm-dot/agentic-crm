@@ -119,15 +119,19 @@ export async function LeadsTable({ leads, logQuickCall }: {
                 </td>
 
                 <td className="py-3 w-8">
-                  <form action={logQuickCall.bind(null, lead.id)}>
-                    <button
-                      type="submit"
+                  {/* tel: link interim — abre dialer del dispositivo.
+                      Cuando se integre Twilio, esto vuelve a ser un botón que dispara
+                      llamada via API + webhook registra la call. */}
+                  {lead.phone ? (
+                    <a
+                      href={`tel:${lead.phone}`}
                       title={t("quickCallTitle")}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-zinc-300 cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-zinc-300"
                     >
                       <Phone className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
+                    </a>
+                  ) : null}
                 </td>
               </tr>
             )
