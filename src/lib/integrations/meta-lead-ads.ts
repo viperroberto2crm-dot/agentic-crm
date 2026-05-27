@@ -560,6 +560,12 @@ export async function importMetaLeadsToCrm(
             const firstName = decoded.firstName?.trim() || "(Sin nombre)"
             const createdDate = lead.created_time.slice(0, 10)
             const notes = `Lead capturado desde ${form.name} (Facebook/Instagram Lead Ads · ${createdDate})${qaBlock}`
+            // NOTA: NO llamar maybeEnrichLead aquí. Meta Lead Ads ya trae
+            // first_name/last_name/email/phone del form, así que el enrich
+            // tendría poco valor adicional. Y al ser un cron batch que puede
+            // procesar muchos leads de golpe, las llamadas síncronas a ECID
+            // saturarían el rate limit (60/min) de 800.com. Si se necesita
+            // enriquecer dirección, usar /admin/ecid-backfill manualmente.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: insErr } = await (sb as any).from("leads").insert({
               brand_id: form.brand_id,

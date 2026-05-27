@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
+import { maybeEnrichLead } from "@/lib/integrations/ecid-enrich"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -152,6 +153,13 @@ export async function createLead(formData: FormData) {
     .single()
 
   if (error) throw new Error(error.message)
+
+  // Fire-and-forget: NO await. El lookup tarda ~500ms-2s y bloquearía el
+  // form submit del rep. La función ya silent-failea internamente, y si
+  // enriquece, el siguiente refresh del lead lo muestra.
+  void maybeEnrichLead(supabase, data.id).catch((e) => {
+    console.warn("[createLead] enrich error:", e instanceof Error ? e.message : e)
+  })
 
   revalidatePath("/leads")
   return data.id

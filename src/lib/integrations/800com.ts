@@ -18,6 +18,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { maybeEnrichLead } from "./ecid-enrich"
 
 type DB = SupabaseClient<Database>
 
@@ -330,7 +331,11 @@ async function createLeadFromCall(
     console.error("[800com] createLeadFromCall error:", error.message)
     return null
   }
-  return data?.id ?? null
+  const newId = data?.id ?? null
+  if (newId) {
+    await maybeEnrichLead(sb, newId)
+  }
+  return newId
 }
 
 /**
