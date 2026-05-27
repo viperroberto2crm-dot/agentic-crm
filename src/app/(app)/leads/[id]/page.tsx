@@ -72,13 +72,17 @@ export default async function LeadDetailPage({
 
   if (role === "rep" && lead.assigned_rep_id !== user.id) notFound()
 
-  // Providers can only see leads that have at least one appointment with them as rep.
+  // Providers can only see leads that have at least one appointment where they
+  // are assigned as provider. Bug fix 2026-05-27: este check filtraba por
+  // rep_id (legacy de antes del split rep/provider). Después de commit 779a819
+  // los providers están en provider_id, así que con rep_id siempre era 0 y
+  // notFound() bloqueaba a los providers de ver CUALQUIER lead.
   if (role === "provider") {
     const { count: providerApptCount } = await sb
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .eq("lead_id", id)
-      .eq("rep_id", user.id)
+      .eq("provider_id", user.id)
     if (!providerApptCount || providerApptCount === 0) notFound()
   }
 
