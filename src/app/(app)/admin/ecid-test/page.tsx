@@ -157,31 +157,31 @@ export default async function EcidTestPage({
                 <Row label="Gender" value={result.data.gender} />
                 <Row label="Type" value={result.data.type} />
               </div>
-              {result.data.emails.length > 0 && (
+              {(result.data.emails?.length ?? 0) > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-1">Emails</p>
                   <ul className="text-sm font-mono">
-                    {result.data.emails.map((e) => (
+                    {result.data.emails!.map((e) => (
                       <li key={e}>{e}</li>
                     ))}
                   </ul>
                 </div>
               )}
-              {result.data.alternativeNames.length > 0 && (
+              {(result.data.alternativeNames?.length ?? 0) > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-1">Alt names</p>
                   <ul className="text-sm">
-                    {result.data.alternativeNames.map((n) => (
+                    {result.data.alternativeNames!.map((n) => (
                       <li key={n}>{n}</li>
                     ))}
                   </ul>
                 </div>
               )}
-              {result.data.industries.length > 0 && (
+              {(result.data.industries?.length ?? 0) > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-1">Industries</p>
                   <ul className="text-sm">
-                    {result.data.industries.map((i) => (
+                    {result.data.industries!.map((i) => (
                       <li key={i}>{i}</li>
                     ))}
                   </ul>

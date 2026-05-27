@@ -541,7 +541,7 @@ export type EnhancedCallerId = {
   firstName: string | null
   middleName: string | null
   lastName: string | null
-  alternativeNames: string[]
+  alternativeNames: string[] | null
   streetLine_1: string | null
   streetLine_2: string | null
   city: string | null
@@ -553,10 +553,10 @@ export type EnhancedCallerId = {
   addressLocationType: "Address" | "Neighborhood" | "Country" | "ZipPlus4" | "PostalCode" | "City" | "State" | null
   carrier: string | null
   lineType: "Landline" | "Premium" | "NonFixedVOIP" | "Mobile" | "FixedVOIP" | "TollFree" | "Other" | "Voicemail" | null
-  emails: string[]
+  emails: string[] | null
   ageRange: string | null
   gender: "Male" | "Female" | null
-  industries: string[]
+  industries: string[] | null
   type: string | null
 }
 
