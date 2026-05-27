@@ -42,6 +42,7 @@ export default async function AppointmentsPage({
 
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("appointments")
+  const tc = await getTranslations("common")
 
   const STATUS_CONFIG: Record<ApptStatus, { label: string; cls: string }> = {
     scheduled:   { label: t("appointmentStatuses.scheduled"),   cls: "border-blue-500/40 text-blue-400" },
@@ -258,7 +259,7 @@ export default async function AppointmentsPage({
         </div>
       </div>
 
-      <PatientSearchInput placeholder="Buscar paciente por nombre o teléfono…" />
+      <PatientSearchInput placeholder={tc("searchPatientPlaceholder")} />
 
       <div className="flex gap-2 flex-wrap">
         {tabs.map((tab) => {
@@ -293,15 +294,15 @@ export default async function AppointmentsPage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDateTime")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colLead")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colType")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colService")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colRep")}</th>
                 )}
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Provider</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colProvider")}</th>
                 )}
                 <th className="text-right text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2">{t("colActions")}</th>
               </tr>

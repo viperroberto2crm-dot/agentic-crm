@@ -225,7 +225,7 @@ export default async function PaymentsDuePage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
-                  Lead
+                  {tc("colLead")}
                 </th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">
                   {t("product")}

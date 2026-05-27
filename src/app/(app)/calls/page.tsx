@@ -41,6 +41,7 @@ export default async function CallsPage({
 
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("calls")
+  const tc = await getTranslations("common")
 
   const OUTCOME_CONFIG: Record<CallOutcome, { label: string; cls: string }> = {
     connected:           { label: t("outcomes.connected"),          cls: "border-emerald-500/40 text-emerald-400" },
@@ -151,7 +152,7 @@ export default async function CallsPage({
         </div>
       </div>
 
-      <PatientSearchInput placeholder="Buscar paciente por nombre o teléfono…" />
+      <PatientSearchInput placeholder={tc("searchPatientPlaceholder")} />
 
       <div className="flex gap-2 flex-wrap">
         {outcomeTabs.map((tab) => {
@@ -196,7 +197,7 @@ export default async function CallsPage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDate")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Lead</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colLead")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colDir")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutcome")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colDuration")}</th>

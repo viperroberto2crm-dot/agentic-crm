@@ -249,7 +249,7 @@ export default async function SalesPage({
         </div>
       </div>
 
-      <PatientSearchInput placeholder="Buscar paciente por nombre o teléfono…" />
+      <PatientSearchInput placeholder={tc("searchPatientPlaceholder")} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
@@ -306,8 +306,8 @@ export default async function SalesPage({
         </div>
         <div className="inline-flex border border-gray-200 rounded-md overflow-hidden text-xs">
           {([
-            { value: "sale", label: "Por venta" },
-            { value: "patient", label: "Por paciente" },
+            { value: "sale", label: t("viewBySale") },
+            { value: "patient", label: t("viewByPatient") },
           ] as const).map((v) => {
             const isActive = groupBy === v.value
             const qs = new URLSearchParams()
@@ -338,14 +338,14 @@ export default async function SalesPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Paciente</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Cobrado</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Pendiente</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">Pagos</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPatient")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colCollected")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutstanding")}</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPayments")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colRep")}</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">Última actividad</th>
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">{t("colLastActivity")}</th>
               </tr>
             </thead>
             <tbody>
