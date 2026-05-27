@@ -113,9 +113,27 @@ export async function createAppointment(raw: CreateAppointmentInput) {
     telehealth_link: isTele ? input.telehealth_link : null,
   })
   if (error) throw new Error(error.message)
+
+  // Auto-mover el lead status de new/contacted/qualified → appointment_set.
+  // NO tocar si está en sold/lost/on_hold/not_interested/appointment_set.
+  // Reps frecuentemente olvidan cambiar el status manualmente y el lead se
+  // queda en "new" aunque ya tenga cita agendada (visualmente confunde).
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("status")
+    .eq("id", input.lead_id)
+    .maybeSingle()
+  if (leadRow?.status && (["new", "contacted", "qualified"] as const).includes(leadRow.status as "new" | "contacted" | "qualified")) {
+    await supabase
+      .from("leads")
+      .update({ status: "appointment_set" })
+      .eq("id", input.lead_id)
+  }
+
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
   revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/leads")
 }
 
 export async function updateAppointmentStatus(
