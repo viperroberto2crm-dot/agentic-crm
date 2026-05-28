@@ -693,6 +693,7 @@
       "price": "Precio (USD)",
       "displayPrice": "Precio tachado (USD)",
       "cadence": "Cadencia",
+      "cadenceOneTime": "Pago único",
       "cadenceWeekly": "Semanal",
       "cadenceMonthly": "Mensual",
       "cadenceAnnual": "Anual",

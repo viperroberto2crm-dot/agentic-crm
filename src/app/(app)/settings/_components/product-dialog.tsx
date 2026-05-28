@@ -45,7 +45,7 @@ type FormState = {
   price: string
   display_price: string
   display_unit: string
-  cadence: "weekly" | "monthly" | "annual"
+  cadence: "one_time" | "weekly" | "monthly" | "annual"
   recurring: boolean
   best_value: boolean
   active: boolean
@@ -93,7 +93,7 @@ function defaultForm(product?: ProductRow): FormState {
     price: centsToDisplay(product.price_cents),
     display_price: centsToDisplay(product.display_price_cents),
     display_unit: product.display_unit ?? "",
-    cadence: (product.cadence as "weekly" | "monthly" | "annual") ?? "monthly",
+    cadence: (product.cadence as "one_time" | "weekly" | "monthly" | "annual") ?? "monthly",
     recurring: product.recurring,
     best_value: product.best_value,
     active: product.active,
@@ -113,6 +113,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
   const serviceRef = useRef<HTMLInputElement>(null)
 
   const CADENCE_LABELS: Record<string, string> = {
+    one_time: t("cadenceOneTime"),
     weekly: t("cadenceWeekly"),
     monthly: t("cadenceMonthly"),
     annual: t("cadenceAnnual"),
@@ -268,7 +269,12 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
             <Field label={t("cadence")} required>
               <Select
                 value={form.cadence}
-                onValueChange={(v) => set("cadence", v as "weekly" | "monthly" | "annual")}
+                onValueChange={(v) => {
+                  const next = v as "one_time" | "weekly" | "monthly" | "annual"
+                  set("cadence", next)
+                  // Si es pago único, forzar recurring=false (no tiene sentido recurring + one_time)
+                  if (next === "one_time") set("recurring", false)
+                }}
               >
                 <SelectTrigger className={inputCls}>
                   <SelectValue />

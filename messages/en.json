@@ -693,6 +693,7 @@
       "price": "Price (USD)",
       "displayPrice": "Strikethrough price (USD)",
       "cadence": "Cadence",
+      "cadenceOneTime": "One-time",
       "cadenceWeekly": "Weekly",
       "cadenceMonthly": "Monthly",
       "cadenceAnnual": "Annual",
