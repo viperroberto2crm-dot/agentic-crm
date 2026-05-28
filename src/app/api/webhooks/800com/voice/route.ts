@@ -22,7 +22,7 @@
  *      events: [call_started, call_completed, call_decorated, call_updated]
  */
 
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
@@ -341,14 +341,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing data" }, { status: 400 })
   }
 
-  const sb = createAdminClient() as unknown as DB
-  const result = await handleCallEvent(sb, feature, body.data)
-  console.log(
-    `[800com webhook] feature=${feature} call_id=${body.data.id} action=${result.action}${
-      "reason" in result && result.reason ? ` reason=${result.reason}` : ""
-    }`,
-  )
-  return NextResponse.json(result)
+  // Deferir el trabajo pesado (DB queries + insert) para responder 200
+  // inmediatamente. 800.com tiene un timeout corto: en cold start de Vercel
+  // las queries tardan ~3-5s y 800.com da timeout (httpResponseCode: 0).
+  // Con after() respondemos en <100ms y procesamos en background, sin perder
+  // ningún evento. El INSERT llega ~1-2s después → Realtime → toast.
+  const data = body.data
+  const callId = data.id
+  after(async () => {
+    try {
+      const sb = createAdminClient() as unknown as DB
+      const result = await handleCallEvent(sb, feature, data)
+      console.log(
+        `[800com webhook] feature=${feature} call_id=${callId} action=${result.action}${
+          "reason" in result && result.reason ? ` reason=${result.reason}` : ""
+        }`,
+      )
+    } catch (err) {
+      console.error(
+        `[800com webhook] background error feature=${feature} call_id=${callId}:`,
+        err instanceof Error ? err.message : String(err),
+      )
+    }
+  })
+
+  return NextResponse.json({ ok: true, accepted: true, feature })
 }
 
 export async function GET() {
