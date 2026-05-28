@@ -76,10 +76,15 @@ export async function registerWebhook(): Promise<
       return { ok: false, error: "EIGHTHUNDRED_WEBHOOK_SECRET no configurado" }
     }
 
+    // IMPORTANTE: NO usar VERCEL_URL — ese apunta al deployment actual con
+    // hash (ej. proyectosagentic-c0nau7zmw-…vercel.app) que está protegido
+    // por Vercel deployment protection. POSTs externos a esos URLs reciben
+    // 401 antes de llegar al endpoint. Usar siempre el production alias.
     const baseUrl =
       process.env.NEXT_PUBLIC_SITE_URL ??
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
-      "https://proyectosagentic-crm.vercel.app"
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : "https://proyectosagentic-crm.vercel.app")
     const webhookUrl = `${baseUrl}/api/webhooks/800com/voice?secret=${encodeURIComponent(secret)}`
 
     const res = await fetch(
