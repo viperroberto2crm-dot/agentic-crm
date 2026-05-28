@@ -194,6 +194,11 @@ export function RegisterSaleModal({
   const [planCustomFreq, setPlanCustomFreq] = useState("")
   const [planFirstDue, setPlanFirstDue] = useState(todayIso())
 
+  // Custom item (sin producto del catálogo)
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customName, setCustomName] = useState("")
+  const [customAmount, setCustomAmount] = useState("")
+
   useEffect(() => {
     if (!open) return
     setLoadingProducts(true)
@@ -220,6 +225,32 @@ export function RegisterSaleModal({
         notes: null,
       },
     ])
+  }
+
+  function addCustomToCart() {
+    const name = customName.trim()
+    const amountNum = parseFloat(customAmount.replace(/[^0-9.]/g, ""))
+    if (!name || !Number.isFinite(amountNum) || amountNum <= 0) return
+    const cents = Math.round(amountNum * 100)
+    setCart((prev) => [
+      ...prev,
+      {
+        product_id: null,
+        product_name: name,
+        product_category: "custom",
+        cadence: "one_time",
+        billing_cycle_days: null,
+        quantity: 1,
+        unit_price_cents: cents,
+        discount_cents: 0,
+        line_total_cents: cents,
+        notes: null,
+      },
+    ])
+    // Reset y cerrar form
+    setCustomName("")
+    setCustomAmount("")
+    setCustomOpen(false)
   }
 
   function removeFromCart(idx: number) {
@@ -357,6 +388,67 @@ export function RegisterSaleModal({
                       addLabel={t("addToCart")}
                     />
                   ))}
+                </div>
+              )}
+
+              {/* Custom item — venta manual sin producto del catálogo */}
+              {!customOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setCustomOpen(true)}
+                  className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {t("addCustomItem")}
+                </button>
+              ) : (
+                <div className="mt-3 bg-gray-50 border border-gray-200 rounded p-3 space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">
+                    {t("customItemTitle")}
+                  </p>
+                  <div className="grid grid-cols-[1fr_120px] gap-2">
+                    <Input
+                      placeholder={t("customItemNamePlaceholder")}
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      className="h-8 bg-white border-gray-200 text-gray-800 text-sm"
+                      autoFocus
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={customAmount}
+                      onChange={(e) => setCustomAmount(e.target.value)}
+                      className="h-8 bg-white border-gray-200 text-gray-800 text-sm font-mono"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={addCustomToCart}
+                      disabled={!customName.trim() || !customAmount || parseFloat(customAmount) <= 0}
+                      className="h-7 cursor-pointer"
+                      style={{ background: "var(--brand)" }}
+                    >
+                      {tc("add")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setCustomOpen(false)
+                        setCustomName("")
+                        setCustomAmount("")
+                      }}
+                      className="h-7 text-gray-400 hover:text-gray-700"
+                    >
+                      {tc("cancel")}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
