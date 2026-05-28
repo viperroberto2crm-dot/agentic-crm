@@ -3,7 +3,9 @@ import { redirect } from "next/navigation"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { listWebhooks, registerWebhook, deleteWebhook } from "./actions"
+import { fetchWebhookHistory, fetchWebhookHistoryDetail } from "./webhook-history"
 import { RegisterWebhookClient } from "./_components/register-webhook-client"
+import { WebhookHistoryViewer } from "./_components/webhook-history-viewer"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -74,6 +76,23 @@ export default async function EightHundredWebhookRegisterPage() {
         registerAction={registerWebhook}
         deleteAction={deleteWebhook}
       />
+
+      <div className="space-y-2 pt-4 border-t border-gray-200">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">
+            Delivery history
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Qué eventos 800.com intentó enviar y qué respondió nuestro endpoint.
+            Útil para diagnosticar por qué un call no aparece en /calls.
+          </p>
+        </div>
+        <WebhookHistoryViewer
+          webhookIds={webhooks.ok ? webhooks.webhooks.map((w) => w.id) : []}
+          loadHistory={fetchWebhookHistory}
+          loadDetail={fetchWebhookHistoryDetail}
+        />
+      </div>
     </div>
   )
 }
