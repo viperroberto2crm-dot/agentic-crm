@@ -5,6 +5,7 @@ import { BrandProvider, type Brand } from "@/context/brand-context"
 import { AppSidebar } from "./app-sidebar"
 import { TopBar } from "./top-bar"
 import { CommandSearch } from "./command-search"
+import { IncomingCallToast } from "@/components/incoming-call-toast"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -68,6 +69,9 @@ export function AppShell({
         onOpenChange={setCommandOpen}
         userRole={role}
       />
+
+      {/* Global screen pop para llamadas entrantes via Supabase Realtime */}
+      <IncomingCallToast />
     </BrandProvider>
   )
 }
