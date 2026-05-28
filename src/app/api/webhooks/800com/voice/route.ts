@@ -32,37 +32,64 @@ type DB = SupabaseClient<Database>
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+/**
+ * Shape REAL que envía 800.com v2 (descubierto via delivery history):
+ *
+ *   {
+ *     "type": "call_started",
+ *     "data": {
+ *       "id": 138260337,
+ *       "caller": "+17149260731",
+ *       "dialed": "+18883073743",
+ *       "result": "missed",          ← se usa para outcome (en completed)
+ *       "status": "Started",         ← evento, NO outcome
+ *       "numberId": 416682,          ← flat, NO data.number.id
+ *       "isInbound": true,           ← boolean, NO direction
+ *       "startedAt": "...",
+ *       "answeredAt": "..." | null,
+ *       "endedAt": "..." | null,
+ *       "recordingUrl": "..." | null,
+ *       ...
+ *     }
+ *   }
+ */
+type WebhookFeature = "call_started" | "call_completed" | "call_decorated" | "call_updated" | "sms_received"
+
 type CallObject = {
   id: number | string
-  parentId?: number | null
   caller?: string
   dialed?: string
+  // Direction: 800.com manda isInbound boolean; toleramos también 'direction' por si acaso
+  isInbound?: boolean
   direction?: "inbound" | "outbound"
-  status?: "missed" | "answered" | "voicemail" | "hungup"
+  // Outcome: 800.com manda result en call_completed
+  result?: "missed" | "answered" | "voicemail" | "hungup"
+  // status es el estado del evento ("Started", "Completed", ...) NO el outcome
+  status?: string | null
   startedAt?: string
   endedAt?: string | null
   answeredAt?: string | null
-  ringDuration?: number | null
   duration?: number | null
   recordingUrl?: string | null
+  voicemailUrl?: string | null
   recording?: string | null
   transcription?: unknown
-  number?: { id?: string; number?: string; label?: string | null } | null
-  forwardNumber?: string
-  answeredBy?: string | null
-  disconnectCause?: string | null
-  disconnectCauseMessage?: string | null
+  // Number tracking id: 800.com manda numberId flat
+  numberId?: number
+  number?: { id?: string | number; number?: string; label?: string | null } | null
 }
 
 type WebhookBody = {
-  feature?: "call_started" | "call_completed" | "call_decorated" | "call_updated" | "sms_received"
+  // 800.com v2 envía 'type'; aceptamos 'feature' como fallback por si cambia
+  type?: WebhookFeature
+  feature?: WebhookFeature
   data?: CallObject
 }
 
-function mapStatusToOutcome(
-  status: CallObject["status"],
+function mapResultToOutcome(
+  result: CallObject["result"],
 ): Database["public"]["Enums"]["call_outcome"] | null {
-  switch (status) {
+  switch (result) {
     case "answered":
       return "connected"
     case "voicemail":
@@ -172,7 +199,7 @@ async function resolveTracking(
 
 async function handleCallEvent(
   sb: DB,
-  feature: NonNullable<WebhookBody["feature"]>,
+  feature: WebhookFeature,
   call: CallObject,
 ): Promise<{ ok: true; action: "inserted" | "updated" | "skipped"; reason?: string }> {
   const externalId = String(call.id)
@@ -190,7 +217,9 @@ async function handleCallEvent(
   if (existing?.id) {
     const updates: Record<string, unknown> = {}
     if (feature === "call_completed" || feature === "call_updated") {
-      const outcome = mapStatusToOutcome(call.status)
+      // En call_completed, result contiene el outcome real.
+      // En call_started, result="missed" porque aún no se contestó — no usar.
+      const outcome = mapResultToOutcome(call.result)
       if (outcome) updates.outcome = outcome
       if (typeof call.duration === "number") updates.duration_seconds = call.duration
     }
@@ -215,7 +244,8 @@ async function handleCallEvent(
   }
 
   // CASO 2: no existe → INSERT (call nueva, probablemente call_started)
-  const trackingId = call.number?.id ?? null
+  // 800.com manda numberId flat; toleramos también number.id por si cambia
+  const trackingId = call.numberId ?? call.number?.id ?? null
   const dialedNumber = call.dialed ?? call.number?.number ?? null
   const tracking = await resolveTracking(sb, trackingId, dialedNumber)
   if (!tracking) {
@@ -229,9 +259,15 @@ async function handleCallEvent(
   const callerE164 = call.caller ?? ""
   const leadId = callerE164 ? await findLeadByPhone(sb, tracking.brand_id, callerE164) : null
 
-  const direction: Database["public"]["Enums"]["call_direction"] =
-    call.direction === "outbound" ? "outbound" : "inbound"
-  const outcome = mapStatusToOutcome(call.status)
+  // Dirección: 800.com manda isInbound boolean
+  const isInbound = call.isInbound === true || call.direction === "inbound" || call.direction === undefined
+  const direction: Database["public"]["Enums"]["call_direction"] = isInbound ? "inbound" : "outbound"
+  // En call_started, NO mapear result (siempre será "missed" antes de contestar).
+  // Solo mapear si el evento es completed/updated.
+  const outcome =
+    feature === "call_completed" || feature === "call_updated"
+      ? mapResultToOutcome(call.result)
+      : null
   const recordingUrl = recordingUrlOf(call)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,12 +326,14 @@ export async function POST(request: Request) {
   // para descubrir cualquier campo no documentado)
   console.log("[800com webhook] received:", JSON.stringify(body).slice(0, 500))
 
-  if (!body.feature) {
-    return NextResponse.json({ error: "missing feature" }, { status: 400 })
+  // 800.com manda 'type'; aceptamos 'feature' como fallback
+  const feature = body.type ?? body.feature
+  if (!feature) {
+    return NextResponse.json({ error: "missing type/feature" }, { status: 400 })
   }
 
   // sms_received se ignora por ahora (no impacta calls table)
-  if (body.feature === "sms_received") {
+  if (feature === "sms_received") {
     return NextResponse.json({ ok: true, action: "ignored_sms" })
   }
 
@@ -304,9 +342,9 @@ export async function POST(request: Request) {
   }
 
   const sb = createAdminClient() as unknown as DB
-  const result = await handleCallEvent(sb, body.feature, body.data)
+  const result = await handleCallEvent(sb, feature, body.data)
   console.log(
-    `[800com webhook] feature=${body.feature} call_id=${body.data.id} action=${result.action}${
+    `[800com webhook] feature=${feature} call_id=${body.data.id} action=${result.action}${
       "reason" in result && result.reason ? ` reason=${result.reason}` : ""
     }`,
   )
