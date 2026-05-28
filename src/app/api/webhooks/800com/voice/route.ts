@@ -109,37 +109,65 @@ async function findLeadByPhone(
 
 /**
  * Resolver tracking number → brand + rep fallback.
- * El tracking number id viene en data.number.id (string).
+ *
+ * 800.com payload trae data.number.id (string o number) que matchea con
+ * tracking_numbers.provider_metadata.number_id en nuestra DB. NO existe
+ * columna `external_id` en tracking_numbers — el matching es por el JSON
+ * metadata (mismo patrón que el cron polling de 800com.ts).
+ *
+ * Si number.id no resuelve, intentamos también match por phone_e164 contra
+ * data.dialed (el número marcado por el cliente).
  */
 async function resolveTracking(
   sb: DB,
-  trackingNumberId: string | null,
+  trackingNumberId: string | number | null,
+  dialedE164: string | null,
 ): Promise<{ brand_id: string; rep_id: string } | null> {
-  if (!trackingNumberId) return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (sb as any)
+  let query: any = (sb as any)
     .from("tracking_numbers")
-    .select("brand_id, default_rep_id, provider_metadata")
+    .select("id, brand_id, phone_e164, provider_metadata")
     .eq("provider", "800com")
-    .eq("external_id", trackingNumberId)
-    .maybeSingle()
-  if (!data?.brand_id) return null
+    .eq("active", true)
+  // Trae todos los tracking_numbers de 800com (es lista corta, ~pocos)
+  const { data: rows } = await query
+  if (!rows || rows.length === 0) return null
 
-  // Fallback rep si tracking no tiene default_rep_id
-  let repId: string | null = data.default_rep_id ?? null
-  if (!repId) {
-    const { data: anyUser } = await sb
-      .from("users")
-      .select("id")
-      .eq("active", true)
-      .in("role", ["admin", "manager", "rep"])
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    repId = anyUser?.id ?? null
+  type Row = { id: string; brand_id: string; phone_e164: string | null; provider_metadata: { number_id?: number } | null }
+  const list = rows as Row[]
+
+  // Match 1: por number_id en provider_metadata
+  let matched: Row | null = null
+  if (trackingNumberId != null) {
+    const nidNum = typeof trackingNumberId === "string" ? parseInt(trackingNumberId, 10) : trackingNumberId
+    matched =
+      list.find((r) => typeof r.provider_metadata?.number_id === "number" && r.provider_metadata.number_id === nidNum) ??
+      null
   }
+  // Match 2 (fallback): por phone_e164 contra el número marcado
+  if (!matched && dialedE164) {
+    const normalized = dialedE164.replace(/[^\d+]/g, "")
+    matched =
+      list.find((r) => {
+        const p = (r.phone_e164 ?? "").replace(/[^\d+]/g, "")
+        return p && (p === normalized || p.endsWith(normalized.slice(-10)))
+      }) ?? null
+  }
+  if (!matched) return null
+
+  // Rep fallback: primer admin/manager/rep activo
+  const { data: anyUser } = await sb
+    .from("users")
+    .select("id")
+    .eq("active", true)
+    .in("role", ["admin", "manager", "rep"])
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const repId = anyUser?.id ?? null
   if (!repId) return null
-  return { brand_id: data.brand_id, rep_id: repId }
+
+  return { brand_id: matched.brand_id, rep_id: repId }
 }
 
 async function handleCallEvent(
@@ -188,12 +216,13 @@ async function handleCallEvent(
 
   // CASO 2: no existe → INSERT (call nueva, probablemente call_started)
   const trackingId = call.number?.id ?? null
-  const tracking = await resolveTracking(sb, trackingId)
+  const dialedNumber = call.dialed ?? call.number?.number ?? null
+  const tracking = await resolveTracking(sb, trackingId, dialedNumber)
   if (!tracking) {
     return {
       ok: true,
       action: "skipped",
-      reason: `tracking_number ${trackingId} no encontrado en CRM`,
+      reason: `tracking_number id=${trackingId} dialed=${dialedNumber} no encontrado en tracking_numbers (provider=800com)`,
     }
   }
 
@@ -276,6 +305,11 @@ export async function POST(request: Request) {
 
   const sb = createAdminClient() as unknown as DB
   const result = await handleCallEvent(sb, body.feature, body.data)
+  console.log(
+    `[800com webhook] feature=${body.feature} call_id=${body.data.id} action=${result.action}${
+      "reason" in result && result.reason ? ` reason=${result.reason}` : ""
+    }`,
+  )
   return NextResponse.json(result)
 }
 

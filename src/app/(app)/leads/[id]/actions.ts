@@ -422,6 +422,9 @@ const UpdateSaleSchema = z.object({
   payment_status: z.enum(["paid", "pending", "partial", "failed", "refunded"]),
   payment_method: z.enum(["cash", "card", "stripe"]),
   notes: z.string().nullable(),
+  // Fecha de pago opcional. Si viene como YYYY-MM-DD el rep la corrigió manualmente.
+  // Si undefined: usar comportamiento anterior (auto-now si paid, null si no).
+  paid_at: z.string().optional(),
 })
 
 export type UpdateSaleInput = z.infer<typeof UpdateSaleSchema>
@@ -448,6 +451,16 @@ export async function updateSale(raw: UpdateSaleInput) {
   }
 
   const isPaid = input.payment_status === "paid"
+  // Resolución de paid_at:
+  //   - Si el rep envió fecha explícita (YYYY-MM-DD) → usar esa al mediodía UTC
+  //   - Si no envió y status=paid → conservar el comportamiento anterior (now)
+  //   - Si no envió y status!=paid → null (no pagado)
+  const paidAtValue = input.paid_at
+    ? new Date(input.paid_at + "T12:00:00Z").toISOString()
+    : isPaid
+      ? new Date().toISOString()
+      : null
+
   const { error } = await supabase
     .from("sales")
     .update({
@@ -455,7 +468,7 @@ export async function updateSale(raw: UpdateSaleInput) {
       payment_status: input.payment_status,
       payment_method: input.payment_method,
       notes: input.notes,
-      paid_at: isPaid ? new Date().toISOString() : null,
+      paid_at: paidAtValue,
     })
     .eq("id", input.id)
 

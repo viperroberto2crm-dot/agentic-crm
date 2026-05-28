@@ -15,6 +15,7 @@ type Sale = {
   payment_status: "paid" | "pending" | "partial" | "failed" | "refunded"
   payment_method: "cash" | "card" | "stripe"
   notes?: string | null
+  paid_at?: string | null
 }
 
 export function SaleActions({
@@ -119,6 +120,8 @@ function EditSaleDialog({
   const [status, setStatus] = useState<Sale["payment_status"]>(sale.payment_status)
   const [method, setMethod] = useState<Sale["payment_method"]>(sale.payment_method)
   const [notes, setNotes] = useState(sale.notes ?? "")
+  // paid_at del DB es ISO timestamp; lo dejamos vacío si no hay valor previo
+  const [paidAt, setPaidAt] = useState(sale.paid_at ? sale.paid_at.slice(0, 10) : "")
 
   function handleSubmit() {
     setError(null)
@@ -136,6 +139,9 @@ function EditSaleDialog({
           payment_status: status,
           payment_method: method,
           notes: notes.trim() || null,
+          // Si el rep editó la fecha, mándala. Si la dejó vacía, undefined =
+          // dejar que el server decida (auto-now si status=paid)
+          paid_at: paidAt ? paidAt : undefined,
         })
         router.refresh()
         onClose()
@@ -177,6 +183,19 @@ function EditSaleDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-gray-500">Fecha de pago</label>
+            <Input
+              type="date"
+              value={paidAt}
+              onChange={(e) => setPaidAt(e.target.value)}
+              className="bg-white border-gray-200 text-gray-800 h-9"
+            />
+            {status === "paid" && !paidAt && (
+              <p className="text-[10px] text-gray-400">Si la dejas vacía, se usa hoy</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
