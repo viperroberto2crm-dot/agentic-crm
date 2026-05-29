@@ -145,7 +145,6 @@ async function enrichCall(call: CallRow): Promise<IncomingCall> {
 export function IncomingCallToast() {
   const router = useRouter()
   const [calls, setCalls] = useState<IncomingCall[]>([])
-  const [rtStatus, setRtStatus] = useState<"connecting" | "subscribed" | "error" | "closed">("connecting")
   const audioPrimedRef = useRef(false)
 
   // Prime audio context — Chrome requiere user gesture antes de reproducir audio
@@ -165,27 +164,20 @@ export function IncomingCallToast() {
 
   useEffect(() => {
     const sb = createClient()
-    console.log("[IncomingCallToast] mounting — fetching session…")
 
     let channel: ReturnType<typeof sb.channel> | null = null
     let cancelled = false
 
     async function setup() {
-      // CRÍTICO: Antes de suscribir, asegurar que el JWT del usuario está
-      // adjunto al websocket de Realtime. Sin esto, Realtime trata al cliente
-      // como 'anon' y RLS filtra TODOS los broadcasts de postgres_changes.
-      // @supabase/ssr no siempre lo hace automáticamente a tiempo.
+      // Adjuntar el JWT del usuario al websocket de Realtime antes de
+      // suscribir. Sin esto, Realtime trata al cliente como 'anon' y RLS
+      // filtra TODOS los broadcasts de postgres_changes (@supabase/ssr no
+      // siempre lo adjunta a tiempo).
       const { data: sessionData } = await sb.auth.getSession()
       if (cancelled) return
       const token = sessionData.session?.access_token
-      if (token) {
-        sb.realtime.setAuth(token)
-        console.log("[IncomingCallToast] realtime auth token set")
-      } else {
-        console.warn("[IncomingCallToast] NO session — broadcasts likely blocked by RLS")
-      }
+      if (token) sb.realtime.setAuth(token)
 
-      console.log("[IncomingCallToast] subscribing to calls INSERT…")
       channel = sb
         .channel("incoming_calls")
         .on(
@@ -196,16 +188,9 @@ export function IncomingCallToast() {
             table: "calls",
           },
           async (payload) => {
-            console.log("[IncomingCallToast] INSERT event received:", payload.new)
             const row = payload.new as CallRow
-            if (row.direction !== "inbound") {
-              console.log("[IncomingCallToast] ignored: direction !== inbound", row.direction)
-              return
-            }
-            if (row.outcome != null) {
-              console.log("[IncomingCallToast] ignored: outcome already set", row.outcome)
-              return
-            }
+            if (row.direction !== "inbound") return
+            if (row.outcome != null) return
 
             const enriched = await enrichCall(row)
             setCalls((prev) => {
@@ -220,12 +205,7 @@ export function IncomingCallToast() {
             }, AUTO_DISMISS_MS)
           },
         )
-        .subscribe((status, err) => {
-          console.log("[IncomingCallToast] subscription status:", status, err ?? "")
-          if (status === "SUBSCRIBED") setRtStatus("subscribed")
-          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setRtStatus("error")
-          else if (status === "CLOSED") setRtStatus("closed")
-        })
+        .subscribe()
     }
 
     setup()
@@ -240,36 +220,10 @@ export function IncomingCallToast() {
     setCalls((prev) => prev.filter((c) => c.callId !== callId))
   }
 
-  // Debug: indicador de status de Realtime en la esquina (esquina inferior izquierda)
-  const statusIndicator = (
-    <div
-      className="fixed bottom-2 left-2 z-[99] text-[10px] font-mono px-2 py-0.5 rounded shadow-sm select-none"
-      style={{
-        background:
-          rtStatus === "subscribed"
-            ? "rgba(16, 185, 129, 0.15)"
-            : rtStatus === "error"
-              ? "rgba(220, 38, 38, 0.15)"
-              : "rgba(156, 163, 175, 0.15)",
-        color:
-          rtStatus === "subscribed"
-            ? "#065f46"
-            : rtStatus === "error"
-              ? "#991b1b"
-              : "#374151",
-      }}
-      title="Estado de Supabase Realtime para llamadas entrantes"
-    >
-      ● realtime: {rtStatus}
-    </div>
-  )
-
-  if (calls.length === 0) return statusIndicator
+  if (calls.length === 0) return null
 
   return (
-    <>
-      {statusIndicator}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
       {calls.map((call) => (
         <div
           key={call.callId}
@@ -356,7 +310,6 @@ export function IncomingCallToast() {
           </div>
         </div>
       ))}
-      </div>
-    </>
+    </div>
   )
 }
