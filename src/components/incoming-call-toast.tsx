@@ -145,6 +145,7 @@ async function enrichCall(call: CallRow): Promise<IncomingCall> {
 export function IncomingCallToast() {
   const router = useRouter()
   const [calls, setCalls] = useState<IncomingCall[]>([])
+  const [rtStatus, setRtStatus] = useState<"connecting" | "subscribed" | "error" | "closed">("connecting")
   const audioPrimedRef = useRef(false)
 
   // Prime audio context — Chrome requiere user gesture antes de reproducir audio
@@ -164,6 +165,7 @@ export function IncomingCallToast() {
 
   useEffect(() => {
     const sb = createClient()
+    console.log("[IncomingCallToast] subscribing to calls INSERT…")
 
     // Suscripción a INSERTs en calls — filtro: outcome IS NULL (ringing)
     const channel = sb
@@ -176,10 +178,17 @@ export function IncomingCallToast() {
           table: "calls",
         },
         async (payload) => {
+          console.log("[IncomingCallToast] INSERT event received:", payload.new)
           const row = payload.new as CallRow
           // Solo mostrar si es una call entrando (ringing): direction inbound + outcome null
-          if (row.direction !== "inbound") return
-          if (row.outcome != null) return // ya completada, no es ringing
+          if (row.direction !== "inbound") {
+            console.log("[IncomingCallToast] ignored: direction !== inbound", row.direction)
+            return
+          }
+          if (row.outcome != null) {
+            console.log("[IncomingCallToast] ignored: outcome already set", row.outcome)
+            return
+          }
 
           const enriched = await enrichCall(row)
           setCalls((prev) => {
@@ -196,7 +205,12 @@ export function IncomingCallToast() {
           }, AUTO_DISMISS_MS)
         },
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log("[IncomingCallToast] subscription status:", status, err ?? "")
+        if (status === "SUBSCRIBED") setRtStatus("subscribed")
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setRtStatus("error")
+        else if (status === "CLOSED") setRtStatus("closed")
+      })
 
     return () => {
       sb.removeChannel(channel)
@@ -207,10 +221,36 @@ export function IncomingCallToast() {
     setCalls((prev) => prev.filter((c) => c.callId !== callId))
   }
 
-  if (calls.length === 0) return null
+  // Debug: indicador de status de Realtime en la esquina (esquina inferior izquierda)
+  const statusIndicator = (
+    <div
+      className="fixed bottom-2 left-2 z-[99] text-[10px] font-mono px-2 py-0.5 rounded shadow-sm select-none"
+      style={{
+        background:
+          rtStatus === "subscribed"
+            ? "rgba(16, 185, 129, 0.15)"
+            : rtStatus === "error"
+              ? "rgba(220, 38, 38, 0.15)"
+              : "rgba(156, 163, 175, 0.15)",
+        color:
+          rtStatus === "subscribed"
+            ? "#065f46"
+            : rtStatus === "error"
+              ? "#991b1b"
+              : "#374151",
+      }}
+      title="Estado de Supabase Realtime para llamadas entrantes"
+    >
+      ● realtime: {rtStatus}
+    </div>
+  )
+
+  if (calls.length === 0) return statusIndicator
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+    <>
+      {statusIndicator}
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
       {calls.map((call) => (
         <div
           key={call.callId}
@@ -297,6 +337,7 @@ export function IncomingCallToast() {
           </div>
         </div>
       ))}
-    </div>
+      </div>
+    </>
   )
 }
