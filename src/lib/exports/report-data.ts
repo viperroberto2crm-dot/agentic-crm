@@ -123,7 +123,7 @@ type PlanRow = {
   installment_amount_cents: number | null
   frequency_days: number | null
   first_due_date: string | null
-  installment_overrides: Record<string, { due_date?: string; amount_cents?: number }> | null
+  installment_overrides: Record<string, { due_date?: string; amount_cents?: number; deleted?: boolean }> | null
 }
 
 type AbonoRow = {
@@ -181,6 +181,7 @@ function computeNextInstallment(
   const baseDate = new Date(plan.first_due_date + "T00:00:00")
   for (let seq = 1; seq <= plan.installment_count; seq++) {
     const ov = overrides[String(seq)] ?? {}
+    if (ov.deleted === true) continue // cuota borrada, no cuenta
     const dueDate = ov.due_date
       ?? new Date(baseDate.getTime() + (seq - 1) * plan.frequency_days * 86_400_000).toISOString().slice(0, 10)
     const amount = ov.amount_cents ?? defaultAmount

@@ -5,8 +5,8 @@ import Link from "next/link"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
-import { Badge } from "@/components/ui/badge"
 import { getTranslations } from "next-intl/server"
+import { PaymentsTable } from "./_components/payments-table"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -35,6 +35,12 @@ function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((b - a) / 86_400_000)
 }
 
+type InstallmentOverride = {
+  due_date?: string
+  amount_cents?: number
+  deleted?: boolean
+}
+
 type RawPlan = {
   id: string
   product_name: string
@@ -43,6 +49,7 @@ type RawPlan = {
   installment_amount_cents: number | null
   frequency_days: number
   first_due_date: string
+  installment_overrides: Record<string, InstallmentOverride> | null
   lead: {
     id: string
     first_name: string
@@ -81,12 +88,15 @@ export default async function PaymentsDuePage({
   const filter = typeof sp.filter === "string" ? sp.filter : null
 
   // Fetch all plans with schedule (installment_count NOT NULL).
+  // installment_overrides necesario para reflejar ediciones individuales de
+  // cuota (fecha/monto custom o cuota borrada) — sin esto, la siguiente cuota
+  // mostrada usa el schedule original e ignora cambios manuales.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = (sb as any)
     .from("payment_plans")
     .select(
       `id, product_name, total_amount_cents, installment_count, installment_amount_cents,
-       frequency_days, first_due_date,
+       frequency_days, first_due_date, installment_overrides,
        lead:leads!payment_plans_lead_id_fkey(id, first_name, last_name, brand_id, assigned_rep_id),
        abonos(id, amount_cents, paid_at)`
     )
@@ -132,25 +142,38 @@ export default async function PaymentsDuePage({
     // Scope: reps only see plans for their own leads.
     if (role === "rep" && plan.lead.assigned_rep_id !== user.id) continue
 
-    const paidCount = plan.abonos.length
-    const totalCount = plan.installment_count
-    if (paidCount >= totalCount) continue // fully paid -> not pending
-
-    const expectedCents =
+    const overrides = plan.installment_overrides ?? {}
+    const baseExpected =
       plan.installment_amount_cents ??
-      Math.round(plan.total_amount_cents / totalCount)
+      Math.round(plan.total_amount_cents / plan.installment_count)
 
-    // Next pending installment is index = paidCount (0-based)
-    const nextDueDate = addDaysIso(plan.first_due_date, paidCount * plan.frequency_days)
-    const daysRemaining = daysBetween(today, nextDueDate)
+    // Construir cuotas visibles aplicando overrides; saltar las deleted.
+    const visible: { seq: number; dueDate: string; amountCents: number }[] = []
+    for (let i = 0; i < plan.installment_count; i++) {
+      const seq = i + 1
+      const o = overrides[String(seq)] ?? {}
+      if (o.deleted === true) continue
+      const dueDate = o.due_date ?? addDaysIso(plan.first_due_date, i * plan.frequency_days)
+      const amountCents = o.amount_cents ?? baseExpected
+      visible.push({ seq, dueDate, amountCents })
+    }
+
+    const paidCount = plan.abonos.length
+    const totalCount = visible.length
+    if (paidCount >= totalCount) continue // fully paid → not pending
+
+    // Los abonos se asignan en orden a las cuotas visibles; la siguiente
+    // pendiente es la posición paidCount (0-based).
+    const next = visible[paidCount]
+    const daysRemaining = daysBetween(today, next.dueDate)
 
     rows.push({
       planId: plan.id,
       leadId: plan.lead.id,
       leadName: `${plan.lead.first_name} ${plan.lead.last_name ?? ""}`.trim(),
       productName: plan.product_name,
-      nextAmountCents: expectedCents,
-      nextDueDate,
+      nextAmountCents: next.amountCents,
+      nextDueDate: next.dueDate,
       daysRemaining,
       paidCount,
       totalCount,
@@ -217,96 +240,22 @@ export default async function PaymentsDuePage({
         })}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
-        {filteredRows.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">{t("empty")}</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
-                  {tc("colLead")}
-                </th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">
-                  {t("product")}
-                </th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
-                  {t("nextPaymentAmount")}
-                </th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
-                  {t("dueOn")}
-                </th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
-                  {t("daysRemaining")}
-                </th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">
-                  {t("progress")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row) => {
-                const isOverdue = row.daysRemaining < 0
-                const isSoon = row.daysRemaining >= 0 && row.daysRemaining <= 3
-                return (
-                  <tr
-                    key={row.planId}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="py-3 pr-4">
-                      <Link
-                        href={`/leads/${row.leadId}`}
-                        className="text-gray-800 hover:text-gray-900 font-medium"
-                      >
-                        {row.leadName}
-                      </Link>
-                    </td>
-                    <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-gray-500">{row.productName}</span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className="text-gray-900 font-medium tabular-nums">
-                        {fmtCents(row.nextAmountCents)}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className="text-xs text-gray-500 font-mono">
-                        {fmtDate(row.nextDueDate)}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      {isOverdue ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 font-normal border-red-500/40 text-red-500"
-                        >
-                          {Math.abs(row.daysRemaining)} {t("daysOverdue")}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] px-1.5 py-0 font-normal ${
-                            isSoon
-                              ? "border-amber-500/40 text-amber-600"
-                              : "border-zinc-600 text-gray-500"
-                          }`}
-                        >
-                          {row.daysRemaining} {t("daysRemainingShort")}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-3 hidden lg:table-cell">
-                      <span className="text-xs text-gray-400 tabular-nums">
-                        {row.paidCount} / {row.totalCount}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <PaymentsTable
+        rows={filteredRows}
+        labels={{
+          empty: t("empty"),
+          colLead: tc("colLead"),
+          product: t("product"),
+          nextPaymentAmount: t("nextPaymentAmount"),
+          dueOn: t("dueOn"),
+          daysRemaining: t("daysRemaining"),
+          daysRemainingShort: t("daysRemainingShort"),
+          daysOverdue: t("daysOverdue"),
+          progress: t("progress"),
+          searchPlaceholder: `${tc("search")}…`,
+          records: tc("records"),
+        }}
+      />
     </div>
   )
 }
