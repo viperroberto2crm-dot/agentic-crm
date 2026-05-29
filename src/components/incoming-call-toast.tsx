@@ -165,55 +165,74 @@ export function IncomingCallToast() {
 
   useEffect(() => {
     const sb = createClient()
-    console.log("[IncomingCallToast] subscribing to calls INSERT…")
+    console.log("[IncomingCallToast] mounting — fetching session…")
 
-    // Suscripción a INSERTs en calls — filtro: outcome IS NULL (ringing)
-    const channel = sb
-      .channel("incoming_calls")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "calls",
-        },
-        async (payload) => {
-          console.log("[IncomingCallToast] INSERT event received:", payload.new)
-          const row = payload.new as CallRow
-          // Solo mostrar si es una call entrando (ringing): direction inbound + outcome null
-          if (row.direction !== "inbound") {
-            console.log("[IncomingCallToast] ignored: direction !== inbound", row.direction)
-            return
-          }
-          if (row.outcome != null) {
-            console.log("[IncomingCallToast] ignored: outcome already set", row.outcome)
-            return
-          }
+    let channel: ReturnType<typeof sb.channel> | null = null
+    let cancelled = false
 
-          const enriched = await enrichCall(row)
-          setCalls((prev) => {
-            // Dedup por callId
-            if (prev.some((c) => c.callId === enriched.callId)) return prev
-            return [enriched, ...prev]
-          })
+    async function setup() {
+      // CRÍTICO: Antes de suscribir, asegurar que el JWT del usuario está
+      // adjunto al websocket de Realtime. Sin esto, Realtime trata al cliente
+      // como 'anon' y RLS filtra TODOS los broadcasts de postgres_changes.
+      // @supabase/ssr no siempre lo hace automáticamente a tiempo.
+      const { data: sessionData } = await sb.auth.getSession()
+      if (cancelled) return
+      const token = sessionData.session?.access_token
+      if (token) {
+        sb.realtime.setAuth(token)
+        console.log("[IncomingCallToast] realtime auth token set")
+      } else {
+        console.warn("[IncomingCallToast] NO session — broadcasts likely blocked by RLS")
+      }
 
-          if (audioPrimedRef.current) playBell()
+      console.log("[IncomingCallToast] subscribing to calls INSERT…")
+      channel = sb
+        .channel("incoming_calls")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "calls",
+          },
+          async (payload) => {
+            console.log("[IncomingCallToast] INSERT event received:", payload.new)
+            const row = payload.new as CallRow
+            if (row.direction !== "inbound") {
+              console.log("[IncomingCallToast] ignored: direction !== inbound", row.direction)
+              return
+            }
+            if (row.outcome != null) {
+              console.log("[IncomingCallToast] ignored: outcome already set", row.outcome)
+              return
+            }
 
-          // Auto-dismiss después de N segundos
-          setTimeout(() => {
-            setCalls((prev) => prev.filter((c) => c.callId !== enriched.callId))
-          }, AUTO_DISMISS_MS)
-        },
-      )
-      .subscribe((status, err) => {
-        console.log("[IncomingCallToast] subscription status:", status, err ?? "")
-        if (status === "SUBSCRIBED") setRtStatus("subscribed")
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setRtStatus("error")
-        else if (status === "CLOSED") setRtStatus("closed")
-      })
+            const enriched = await enrichCall(row)
+            setCalls((prev) => {
+              if (prev.some((c) => c.callId === enriched.callId)) return prev
+              return [enriched, ...prev]
+            })
+
+            if (audioPrimedRef.current) playBell()
+
+            setTimeout(() => {
+              setCalls((prev) => prev.filter((c) => c.callId !== enriched.callId))
+            }, AUTO_DISMISS_MS)
+          },
+        )
+        .subscribe((status, err) => {
+          console.log("[IncomingCallToast] subscription status:", status, err ?? "")
+          if (status === "SUBSCRIBED") setRtStatus("subscribed")
+          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setRtStatus("error")
+          else if (status === "CLOSED") setRtStatus("closed")
+        })
+    }
+
+    setup()
 
     return () => {
-      sb.removeChannel(channel)
+      cancelled = true
+      if (channel) sb.removeChannel(channel)
     }
   }, [])
 
