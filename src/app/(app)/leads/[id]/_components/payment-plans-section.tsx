@@ -1334,7 +1334,12 @@ function PlanCard({
                   label: t("schedule.overdueLabel"),
                 },
               }[inst.status]
-              const isClickable = inst.status !== "paid"
+              // Clickeable si NO hay abono asignado 1-a-1 a esta cuota.
+              // Esto permite editar fechas en cuotas pintadas paid-by-bulk
+              // (plan settled donde 1 abono cubre todas las cuotas).
+              // Las cuotas con abono real siguen no-clickeables (editar el
+              // abono directamente desde la lista de abonos abajo).
+              const isClickable = inst.abono == null
               const tooltip = isClickable
                 ? `${inst.index}. ${cfg.label} · ${fmtDate(inst.dueDate)} · ${fmtCents(inst.expectedCents)} (click para editar)`
                 : `${inst.index}. ${cfg.label} · ${fmtDate(inst.abono?.paid_at ?? inst.dueDate)} · ${fmtCents(inst.expectedCents)}`
