@@ -313,11 +313,15 @@ export function RegisterSaleModal({
             frequency_days: planFreqDays,
             first_due_date: planFirstDue,
           })
+          // router.refresh() PRIMERO para que el round-trip RSC inicie antes
+          // de cerrar el modal. Si onClose() / state resets corren antes, el
+          // re-render local puede pisar la actualización y el plan nuevo no
+          // aparece en PaymentPlansSection hasta F5 manual.
+          router.refresh()
+          onClose()
           setCart([])
           setNotes("")
           setPlanMode(false)
-          onClose()
-          router.refresh()
         } catch (e) {
           setError(e instanceof Error ? e.message : tc("savingError"))
         } finally {
@@ -340,10 +344,11 @@ export function RegisterSaleModal({
     startTransition(async () => {
       try {
         await registerSale(payload)
+        // Mismo orden que createPaymentPlan: refresh ANTES de cerrar/resetear.
+        router.refresh()
+        onClose()
         setCart([])
         setNotes("")
-        onClose()
-        router.refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : tc("savingError"))
       } finally {
