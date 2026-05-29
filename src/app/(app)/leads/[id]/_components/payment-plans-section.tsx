@@ -1170,7 +1170,14 @@ function PlanCard({
     return visible.map((v, idx) => {
       const abono = idx < paidCount ? sortedAbonos[idx] : null
       let status: InstallmentState["status"]
-      if (abono) {
+      // Si el plan está saldado por monto total (balance = 0), pintar todas
+      // las cuotas como paid aunque no haya abonos 1-a-1. Caso: cliente paga
+      // los $300 en un solo abono pero el schedule mantiene 4 cuotas para
+      // seguimiento de citas. Sin esto, las cuotas 2-4 aparecen overdue/future
+      // a pesar del "Settled" del footer y confunden a los reps.
+      if (isSettled) {
+        status = "paid"
+      } else if (abono) {
         status = "paid"
       } else if (!nextAssigned) {
         status = cmpDateIso(v.dueDate, today) < 0 ? "overdue" : "next"

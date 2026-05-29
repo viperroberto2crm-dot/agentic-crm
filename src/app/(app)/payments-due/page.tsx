@@ -158,6 +158,13 @@ export default async function PaymentsDuePage({
       visible.push({ seq, dueDate, amountCents })
     }
 
+    // Considerar fully-paid por MONTO también: si los abonos cubren el
+    // total_amount_cents (aunque haya menos abonos que cuotas), el plan está
+    // saldado y no debe seguir apareciendo como overdue. Esto pasa cuando el
+    // cliente paga todo en un solo abono pero el schedule se mantiene para
+    // tracking de citas/sesiones.
+    const paidCents = plan.abonos.reduce((s, a) => s + a.amount_cents, 0)
+    if (plan.total_amount_cents > 0 && paidCents >= plan.total_amount_cents) continue
     const paidCount = plan.abonos.length
     const totalCount = visible.length
     if (paidCount >= totalCount) continue // fully paid → not pending
