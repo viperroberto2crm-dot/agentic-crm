@@ -216,6 +216,7 @@ export type Abono = {
 export type InstallmentOverride = {
   due_date?: string
   amount_cents?: number
+  deleted?: boolean
 }
 
 export type PaymentPlan = {
@@ -405,6 +406,65 @@ export async function updateInstallmentOverride(raw: UpdateInstallmentInput) {
   const { error } = await sb
     .from("payment_plans")
     .update({ installment_overrides: overrides })
+    .eq("id", input.plan_id)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/leads/${input.lead_id}`)
+  revalidatePath("/payments-due")
+}
+
+// ── Delete single installment ────────────────────────────────────────────────
+
+const DeleteInstallmentSchema = z.object({
+  plan_id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  sequence: z.number().int().min(1),
+})
+
+export async function deleteInstallment(
+  raw: z.infer<typeof DeleteInstallmentSchema>,
+) {
+  const input = DeleteInstallmentSchema.parse(raw)
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: plan } = await sb
+    .from("payment_plans")
+    .select("installment_amount_cents, total_amount_cents, installment_overrides")
+    .eq("id", input.plan_id)
+    .single()
+
+  if (!plan) throw new Error("Plan no encontrado")
+
+  const overrides: Record<string, InstallmentOverride> =
+    (plan.installment_overrides as Record<string, InstallmentOverride>) ?? {}
+
+  const key = String(input.sequence)
+  const existing = overrides[key] ?? {}
+  // Restar el monto de esta cuota del total esperado, para que el balance
+  // siga consistente. Usa el override de monto si existe, sino el monto base.
+  const amountToSubtract =
+    existing.amount_cents ?? (plan.installment_amount_cents as number | null) ?? 0
+
+  overrides[key] = { ...existing, deleted: true }
+
+  const newTotal = Math.max(
+    0,
+    ((plan.total_amount_cents as number | null) ?? 0) - amountToSubtract,
+  )
+
+  const { error } = await sb
+    .from("payment_plans")
+    .update({
+      installment_overrides: overrides,
+      total_amount_cents: newTotal,
+    })
     .eq("id", input.plan_id)
 
   if (error) throw new Error(error.message)

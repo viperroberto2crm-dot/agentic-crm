@@ -26,6 +26,7 @@ import {
   updatePaymentPlan,
   deletePaymentPlan,
   updateInstallmentOverride,
+  deleteInstallment,
   extendPaymentPlan,
   type PaymentPlan,
 } from "../actions"
@@ -620,12 +621,32 @@ function EditInstallmentDialog({
   const [error, setError] = useState<string | null>(null)
   const [dueDate, setDueDate] = useState(currentDueDate)
   const [amount, setAmount] = useState((currentAmountCents / 100).toFixed(2))
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   function handleClose() {
     setDueDate(currentDueDate)
     setAmount((currentAmountCents / 100).toFixed(2))
     setError(null)
+    setConfirmDelete(false)
     onClose()
+  }
+
+  function handleDelete() {
+    setError(null)
+    startTransition(async () => {
+      try {
+        await deleteInstallment({
+          plan_id: planId,
+          lead_id: leadId,
+          sequence,
+        })
+        router.refresh()
+        handleClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error eliminando")
+        setConfirmDelete(false)
+      }
+    })
   }
 
   function handleSubmit() {
@@ -716,16 +737,49 @@ function EditInstallmentDialog({
           )}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-xs text-gray-500"
-              onClick={handleReset}
-              disabled={isPending}
-            >
-              Restaurar default
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs text-gray-500"
+                onClick={handleReset}
+                disabled={isPending}
+              >
+                Restaurar default
+              </Button>
+              {confirmDelete ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isPending}
+                    className="px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 rounded"
+                  >
+                    {isPending ? "…" : "Confirmar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={isPending}
+                    className="px-2 py-1 text-[11px] text-gray-400 hover:bg-gray-100 rounded"
+                  >
+                    {tc("cancel")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={isPending}
+                  className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded inline-flex items-center gap-1"
+                  title="Eliminar esta cuota del plan"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Eliminar
+                </button>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -1101,24 +1155,36 @@ function PlanCard({
     const start = plan.first_due_date as string
     const expected = plan.installment_amount_cents ?? Math.round(plan.total_amount_cents / count)
     const paidCount = sortedAbonos.length
-    let nextAssigned = false
-    return Array.from({ length: count }, (_, i) => {
+    // Construir todas las cuotas filtrando las marcadas como deleted.
+    // Los abonos se asignan a las cuotas VISIBLES en orden (no a las deleted).
+    const visible: Array<{ seq: number; dueDate: string; expectedCents: number }> = []
+    for (let i = 0; i < count; i++) {
       const seq = i + 1
-      // Aplicar override de fecha y/o monto si existe
       const override = (plan.installment_overrides ?? {})[String(seq)] ?? {}
+      if (override.deleted === true) continue
       const dueDate = override.due_date ?? addDaysIso(start, i * freq)
       const expectedCents = override.amount_cents ?? expected
-      const abono = i < paidCount ? sortedAbonos[i] : null
+      visible.push({ seq, dueDate, expectedCents })
+    }
+    let nextAssigned = false
+    return visible.map((v, idx) => {
+      const abono = idx < paidCount ? sortedAbonos[idx] : null
       let status: InstallmentState["status"]
       if (abono) {
         status = "paid"
       } else if (!nextAssigned) {
-        status = cmpDateIso(dueDate, today) < 0 ? "overdue" : "next"
+        status = cmpDateIso(v.dueDate, today) < 0 ? "overdue" : "next"
         nextAssigned = true
       } else {
-        status = cmpDateIso(dueDate, today) < 0 ? "overdue" : "future"
+        status = cmpDateIso(v.dueDate, today) < 0 ? "overdue" : "future"
       }
-      return { index: seq, dueDate, expectedCents, status, abono }
+      return {
+        index: v.seq,
+        dueDate: v.dueDate,
+        expectedCents: v.expectedCents,
+        status,
+        abono,
+      }
     })
   })()
 
