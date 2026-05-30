@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
+import { getReportDict, type ReportLang, type ReportDict } from "./translations"
 
 type SB = SupabaseClient<Database>
 type PaymentStatus = Database["public"]["Enums"]["payment_status"]
@@ -26,6 +27,8 @@ export type ReportContext = {
   userId: string
   /** rol del user actual: rep | manager | admin */
   role: "rep" | "manager" | "admin" | string
+  /** idioma para los textos generados (status, tipo, periodo, etc.). Default "es" */
+  lang?: ReportLang
 }
 
 export type ReportFilters = {
@@ -64,7 +67,8 @@ export type TransaccionRow = {
   brand_name: string
   lead_name: string
   rep_name: string | null
-  tipo: "Venta" | "Abono plan"
+  /** Texto del tipo de transacción ya traducido al lang del request */
+  tipo: string
   producto: string | null
   monto_cents: number
   metodo_pago: string | null
@@ -147,8 +151,8 @@ type LeadInfo = {
   assigned_rep_id: string | null
 }
 
-function formatPeriodLabel(filters: ReportFilters): string {
-  if (filters.historico || (!filters.from && !filters.to)) return "Histórico completo"
+function formatPeriodLabel(filters: ReportFilters, d: ReportDict): string {
+  if (filters.historico || (!filters.from && !filters.to)) return d.periodoHistorico
   const fmt = (iso: string) => iso.slice(0, 10)
   return `${filters.from ? fmt(filters.from) : "—"} → ${filters.to ? fmt(filters.to) : "—"}`
 }
@@ -200,18 +204,19 @@ function computeNextInstallment(
 function computePlanStatusText(
   plan: PlanRow,
   abonosOfPlan: AbonoRow[],
+  d: ReportDict,
 ): string {
   const totalPaid = abonosOfPlan.reduce((s, a) => s + a.amount_cents, 0)
-  if (totalPaid >= plan.total_amount_cents) return "Plan completo"
+  if (totalPaid >= plan.total_amount_cents) return d.statusPlanCompleto
 
   const next = computeNextInstallment(plan, abonosOfPlan)
-  if (!next.fecha) return "Al día"
+  if (!next.fecha) return d.statusAlDia
 
   const today = new Date()
   const due = new Date(next.fecha + "T00:00:00")
   const diffDays = Math.floor((today.getTime() - due.getTime()) / 86_400_000)
-  if (diffDays > 0) return `Atrasado ${diffDays} día${diffDays !== 1 ? "s" : ""}`
-  return "Al día"
+  if (diffDays > 0) return d.statusAtrasado(diffDays)
+  return d.statusAlDia
 }
 
 /**
@@ -234,6 +239,9 @@ export async function buildReportData(
   if (!filters.historico && filters.from && filters.to && filters.from > filters.to) {
     return { ok: false, error: "El rango es inválido (from > to)", code: "invalid_range" }
   }
+
+  // Idioma para textos generados (status, tipo, periodo, marca "Todas")
+  const d = getReportDict(ctx.lang ?? "es")
 
   const { repId } = resolveScope(ctx, filters)
   const useRange = !filters.historico && filters.from && filters.to
@@ -413,7 +421,7 @@ export async function buildReportData(
 
     // Próxima cuota: tomamos la primera entre todos los planes del lead
     let proximaCuota: { fecha: string | null; amountCents: number | null } = { fecha: null, amountCents: null }
-    let statusText = standaloneSales.length === grp.sales.length && grp.plans.length === 0 ? "Sin plan" : "Al día"
+    let statusText = standaloneSales.length === grp.sales.length && grp.plans.length === 0 ? d.statusSinPlan : d.statusAlDia
 
     for (const p of grp.plans) {
       const ab = abonosByPlan.get(p.id) ?? []
@@ -421,10 +429,13 @@ export async function buildReportData(
       if (next.fecha && (!proximaCuota.fecha || next.fecha < proximaCuota.fecha)) {
         proximaCuota = next
       }
-      const planStatus = computePlanStatusText(p, ab)
-      // El status text más "grave" se queda — atrasado > al día > completo
-      if (planStatus.startsWith("Atrasado")) statusText = planStatus
-      else if (statusText === "Sin plan") statusText = planStatus
+      const planStatus = computePlanStatusText(p, ab, d)
+      // El status text más "grave" se queda — atrasado > al día > completo.
+      // Comparamos contra el dict actual (no string literal) para que funcione
+      // en ambos idiomas.
+      const atrasadoMarker = d.statusAtrasado(0).split(" ")[0] // "Atrasado" o "Overdue"
+      if (planStatus.startsWith(atrasadoMarker)) statusText = planStatus
+      else if (statusText === d.statusSinPlan) statusText = planStatus
     }
 
     resumen.push({
@@ -471,7 +482,7 @@ export async function buildReportData(
       brand_name: brandsMap.get(s.brand_id) ?? "—",
       lead_name: lead ? fullName(lead.first_name, lead.last_name) : "—",
       rep_name: rep,
-      tipo: "Venta",
+      tipo: d.tipoVenta,
       producto: null,
       monto_cents: s.amount_cents,
       metodo_pago: s.payment_method,
@@ -495,7 +506,7 @@ export async function buildReportData(
         brand_name: brandsMap.get(a.brand_id) ?? "—",
         lead_name: lead ? fullName(lead.first_name, lead.last_name) : "—",
         rep_name: rep,
-        tipo: "Abono plan",
+        tipo: d.tipoAbonoPlan,
         producto: plan.product_name,
         monto_cents: a.amount_cents,
         metodo_pago: a.payment_method,
@@ -544,8 +555,8 @@ export async function buildReportData(
     : allSales.filter((s) => !planSaleIds.has(s.id)).length
 
   const kpis: Kpis = {
-    periodo_label: formatPeriodLabel(filters),
-    marca_label: filters.brandId ? (brandsMap.get(filters.brandId) ?? "—") : "Todas",
+    periodo_label: formatPeriodLabel(filters, d),
+    marca_label: filters.brandId ? (brandsMap.get(filters.brandId) ?? "—") : d.marcaTodas,
     total_cobrado_cents: breakdown.collectedCents,
     total_por_cobrar_cents: breakdown.outstandingCents,
     ventas_nuevas_count: ventasNuevasCount,

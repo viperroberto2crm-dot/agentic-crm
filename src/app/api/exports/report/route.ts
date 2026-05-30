@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { cookies } from "next/headers"
+import { getLocale } from "next-intl/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import type { Database } from "@/types/database"
 import { buildReportData, type ReportFilters } from "@/lib/exports/report-data"
 import { buildReportWorkbook, buildReportFilename } from "@/lib/exports/xlsx-builder"
+import { isReportLang, type ReportLang } from "@/lib/exports/translations"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -75,9 +77,21 @@ export async function GET(req: NextRequest) {
     status: statusParam ?? "all",
   }
 
+  // Idioma: query param `?lang=en|es` tiene prioridad (para que el bot pueda
+  // pedir explícito). Si no, usa el locale activo del usuario en next-intl
+  // (cookie NEXT_LOCALE seteada por LocaleSwitcher).
+  const langParam = url.searchParams.get("lang")
+  let lang: ReportLang
+  if (isReportLang(langParam)) {
+    lang = langParam
+  } else {
+    const locale = await getLocale()
+    lang = isReportLang(locale) ? locale : "es"
+  }
+
   const result = await buildReportData(
     sb,
-    { userId: user.id, role },
+    { userId: user.id, role, lang },
     filters,
   )
 
@@ -92,7 +106,7 @@ export async function GET(req: NextRequest) {
 
   let buffer: Buffer
   try {
-    buffer = buildReportWorkbook(result.data)
+    buffer = buildReportWorkbook(result.data, lang)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error("[exports/report] buildReportWorkbook falló:", message)
@@ -102,7 +116,7 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const filename = buildReportFilename(result.data)
+  const filename = buildReportFilename(result.data, lang)
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
