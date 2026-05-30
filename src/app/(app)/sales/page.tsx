@@ -265,6 +265,65 @@ export default async function SalesPage({
 
   const sales = (salesRaw ?? []) as unknown as SaleItem[]
 
+  // Para la vista "Por paciente" traemos info de planes/abonos por sale para
+  // calcular collected (en rango) y outstanding (balance real) correctamente.
+  // Sin esto: paidCents/pendingCents usaban amount_cents total → inflaban en
+  // sales paid con plan (sumaban cobros viejos) y en partial (sumaban total
+  // del plan sin restar abonos hechos).
+  type SalePlanInfo = {
+    paidInRange: number
+    paidAllTime: number
+    totalAmount: number
+  }
+  const salePlanInfo = new Map<string, SalePlanInfo>()
+  if (groupBy === "patient" && sales.length > 0) {
+    const saleIds = sales.map((s) => s.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: plans } = await (sb as any)
+      .from("payment_plans")
+      .select("id, sale_id, total_amount_cents")
+      .in("sale_id", saleIds)
+    const planRows = (plans ?? []) as Array<{
+      id: string
+      sale_id: string
+      total_amount_cents: number
+    }>
+    const planToSale = new Map<string, string>(planRows.map((p) => [p.id, p.sale_id]))
+
+    if (planRows.length > 0) {
+      const planIds = planRows.map((p) => p.id)
+      const { data: abonos } = await sb
+        .from("abonos")
+        .select("plan_id, amount_cents, paid_at")
+        .in("plan_id", planIds)
+      const abonoRows = (abonos ?? []) as Array<{
+        plan_id: string
+        amount_cents: number
+        paid_at: string
+      }>
+      const rangeStartDate = range.start.slice(0, 10)
+      const rangeEndDate = range.end.slice(0, 10)
+      for (const a of abonoRows) {
+        const saleId = planToSale.get(a.plan_id)
+        if (!saleId) continue
+        let info = salePlanInfo.get(saleId)
+        if (!info) {
+          const sale = sales.find((s) => s.id === saleId)
+          info = {
+            paidInRange: 0,
+            paidAllTime: 0,
+            totalAmount: sale?.amount_cents ?? 0,
+          }
+          salePlanInfo.set(saleId, info)
+        }
+        info.paidAllTime += a.amount_cents
+        if (a.paid_at >= rangeStartDate && a.paid_at < rangeEndDate) {
+          info.paidInRange += a.amount_cents
+        }
+      }
+    }
+  }
+
   // Vista "Por paciente": agrupa ventas por lead.id y suma totales.
   type PatientGroup = {
     leadId: string
@@ -284,9 +343,24 @@ export default async function SalesPage({
       const id = s.lead.id
       const name = `${s.lead.first_name} ${s.lead.last_name ?? ""}`.trim()
       const dateIso = s.paid_at ?? s.created_at
-      const isPaid = s.payment_status === "paid"
-      const isPartial = s.payment_status === "partial"
-      const planMarker = (s.notes ?? "").toLowerCase().includes("payment plan")
+      const planInfo = salePlanInfo.get(s.id)
+      const hasPlan = planInfo != null
+
+      // Calcular collected en rango y outstanding REAL para esta sale.
+      // - Con plan: collected = abonos en rango. outstanding = total - todos los abonos.
+      // - Sin plan: collected = amount si paid. outstanding = amount si pending/partial.
+      let saleCollected: number
+      let saleOutstanding: number
+      if (hasPlan) {
+        saleCollected = planInfo!.paidInRange
+        saleOutstanding = Math.max(0, planInfo!.totalAmount - planInfo!.paidAllTime)
+      } else {
+        const isPaid = s.payment_status === "paid"
+        const isOpen = s.payment_status === "partial" || s.payment_status === "pending"
+        saleCollected = isPaid ? s.amount_cents : 0
+        saleOutstanding = isOpen ? s.amount_cents : 0
+      }
+
       const existing = map.get(id)
       if (!existing) {
         map.set(id, {
@@ -294,17 +368,17 @@ export default async function SalesPage({
           leadName: name,
           repName: s.rep?.name ?? null,
           salesCount: 1,
-          paidCents: isPaid ? s.amount_cents : 0,
-          pendingCents: isPartial || s.payment_status === "pending" ? s.amount_cents : 0,
+          paidCents: saleCollected,
+          pendingCents: saleOutstanding,
           lastDate: dateIso,
-          hasPlan: planMarker,
+          hasPlan,
         })
       } else {
         existing.salesCount += 1
-        if (isPaid) existing.paidCents += s.amount_cents
-        if (isPartial || s.payment_status === "pending") existing.pendingCents += s.amount_cents
+        existing.paidCents += saleCollected
+        existing.pendingCents += saleOutstanding
         if (dateIso > existing.lastDate) existing.lastDate = dateIso
-        if (planMarker) existing.hasPlan = true
+        if (hasPlan) existing.hasPlan = true
       }
     }
     return Array.from(map.values()).sort((a, b) => b.lastDate.localeCompare(a.lastDate))
