@@ -48,6 +48,9 @@ export default async function SalesPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
+  // alias narrow para que tsc no se queje en funciones anidadas (redirect()
+  // tiene return type `never` pero tsc no siempre lo propaga al closure scope)
+  const userId = user.id
 
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("sales")
@@ -103,36 +106,133 @@ export default async function SalesPage({
     if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
   }
 
-  let query = sb
-    .from("sales")
-    .select(
-      `id, amount_cents, payment_method, payment_status, paid_at, created_at, notes,
+  // Filtro: cuando statusFilter es null (All) o "paid", mostramos sales con
+  // MOVIMIENTO de dinero en rango (paid con paid_at en rango + partial/pending
+  // con abonos en rango). Cuando es "pending" o "failed", mostramos sales
+  // creadas en rango con ese status (backlog que necesita gestión).
+  //
+  // Antes filtrábamos toda la tabla por created_at, lo que mostraba leads
+  // con planes registrados en rango aunque NO hubieran pagado nada — confuso
+  // porque la suma de la tabla no cuadraba con el KPI Collected.
+
+  const selectFields = `id, amount_cents, payment_method, payment_status, paid_at, created_at, notes,
        lead:leads!sales_lead_id_fkey(id, first_name, last_name),
-       rep:users!sales_rep_id_fkey(id, name)`,
-      { count: "exact" }
+       rep:users!sales_rep_id_fkey(id, name)`
+
+  type SaleRow = {
+    id: string
+    amount_cents: number
+    payment_method: string
+    payment_status: Database["public"]["Enums"]["payment_status"]
+    paid_at: string | null
+    created_at: string
+    notes: string | null
+    lead: { id: string; first_name: string; last_name: string | null } | null
+    rep: { id: string; name: string } | null
+  }
+
+  async function fetchPaidInRange(): Promise<SaleRow[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = sb
+      .from("sales")
+      .select(selectFields)
+      .eq("payment_status", "paid")
+      .gte("paid_at", range.start)
+      .lt("paid_at", range.end)
+      .order("paid_at", { ascending: false })
+      .limit(100)
+    if (role === "rep") q = q.eq("rep_id", userId)
+    if (brandId) q = q.eq("brand_id", brandId)
+    if (leadIdsFilter) q = q.in("lead_id", leadIdsFilter)
+    const { data } = await q
+    return (data ?? []) as SaleRow[]
+  }
+
+  async function fetchOpenWithAbonoInRange(): Promise<SaleRow[]> {
+    // Pasos: abonos en rango → plan_ids → sale_ids → sales partial/pending
+    const { data: abonos } = await sb
+      .from("abonos")
+      .select("plan_id")
+      .gte("paid_at", range.start.slice(0, 10))
+      .lt("paid_at", range.end.slice(0, 10))
+    const planIds = Array.from(new Set((abonos ?? []).map((a) => a.plan_id)))
+    if (planIds.length === 0) return []
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: plans } = await (sb as any)
+      .from("payment_plans")
+      .select("sale_id")
+      .in("id", planIds)
+    const saleIds = Array.from(
+      new Set(
+        ((plans ?? []) as Array<{ sale_id: string | null }>)
+          .map((p) => p.sale_id)
+          .filter((x): x is string => !!x),
+      ),
     )
-    .gte("created_at", range.start)
-    .lt("created_at", range.end)
-    .order("created_at", { ascending: false })
-    .limit(100)
+    if (saleIds.length === 0) return []
 
-  if (role === "rep") {
-    query = query.eq("rep_id", user.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = sb
+      .from("sales")
+      .select(selectFields)
+      .in("id", saleIds)
+      .in("payment_status", ["partial", "pending"])
+      .order("created_at", { ascending: false })
+    if (role === "rep") q = q.eq("rep_id", userId)
+    if (brandId) q = q.eq("brand_id", brandId)
+    if (leadIdsFilter) q = q.in("lead_id", leadIdsFilter)
+    const { data } = await q
+    return (data ?? []) as SaleRow[]
   }
 
-  if (brandId) {
-    query = query.eq("brand_id", brandId)
+  async function fetchByCreatedInRange(
+    status: Database["public"]["Enums"]["payment_status"],
+  ): Promise<SaleRow[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = sb
+      .from("sales")
+      .select(selectFields)
+      .eq("payment_status", status)
+      .gte("created_at", range.start)
+      .lt("created_at", range.end)
+      .order("created_at", { ascending: false })
+      .limit(100)
+    if (role === "rep") q = q.eq("rep_id", userId)
+    if (brandId) q = q.eq("brand_id", brandId)
+    if (leadIdsFilter) q = q.in("lead_id", leadIdsFilter)
+    const { data } = await q
+    return (data ?? []) as SaleRow[]
   }
 
-  if (statusFilter) {
-    query = query.eq("payment_status", statusFilter as Database["public"]["Enums"]["payment_status"])
+  let salesRaw: SaleRow[] = []
+  if (statusFilter === "paid") {
+    salesRaw = await fetchPaidInRange()
+  } else if (statusFilter === "pending" || statusFilter === "failed") {
+    salesRaw = await fetchByCreatedInRange(
+      statusFilter as Database["public"]["Enums"]["payment_status"],
+    )
+  } else {
+    // All: merge paid en rango + partial/pending con abono en rango
+    const [paidR, openR] = await Promise.all([
+      fetchPaidInRange(),
+      fetchOpenWithAbonoInRange(),
+    ])
+    const seen = new Set<string>()
+    salesRaw = [...paidR, ...openR]
+      .filter((s) => {
+        if (seen.has(s.id)) return false
+        seen.add(s.id)
+        return true
+      })
+      .sort((a, b) => {
+        const da = a.paid_at ?? a.created_at
+        const db = b.paid_at ?? b.created_at
+        return db.localeCompare(da)
+      })
+      .slice(0, 100)
   }
-
-  if (leadIdsFilter) {
-    query = query.in("lead_id", leadIdsFilter)
-  }
-
-  const { data: salesRaw, count } = await query
+  const count = salesRaw.length
 
   // Reps disponibles para reasignar (admin/manager only)
   const canReassign = role === "admin" || role === "manager"
