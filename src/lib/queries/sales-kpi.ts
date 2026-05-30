@@ -5,9 +5,13 @@ type SB = SupabaseClient<Database>
 
 /**
  * KPI agregado de ventas para una marca / rep. Cuenta correctamente:
- * - Sales con status='paid' (cobradas completas)
- * - Sales con status='partial' (Payment Plans) y sus abonos parciales
- * - Sales con status='pending' (sin cobrar todavía)
+ * - Sales standalone con status='paid' (cobradas completas en un solo pago)
+ * - Sales que vienen de Payment Plans: se cuentan por SUS ABONOS individuales
+ *   (con su propia paid_at), NO por amount_cents de la sale. Esto previene
+ *   double-counting temporal cuando un plan multi-abono se completa:
+ *   antes del fix, el último abono "convertía" la sale a paid con
+ *   paid_at = último abono, y el KPI sumaba el monto FULL en esa semana
+ *   aunque los abonos previos ya habían sido contados en semanas anteriores.
  *
  * Tanto Dashboard como /sales (y futuras pantallas) deben usar este helper
  * para garantizar la misma definición de "Collected" y "Outstanding".
@@ -15,7 +19,7 @@ type SB = SupabaseClient<Database>
 export type SalesBreakdown = {
   /** sales con status='paid' contadas (en el rango si se pasó) */
   paidCount: number
-  /** dinero ya cobrado: paid+abonos. Si paidRange está presente, restringido al rango */
+  /** dinero ya cobrado: sales standalone paid + abonos de planes (todos), filtrado por rango si aplica */
   collectedCents: number
   /** sales con saldo abierto (pending + partial) — siempre actuales, sin rango */
   openCount: number
@@ -56,7 +60,6 @@ export async function getSalesBreakdown(
   }
   const { data: paidRows } = await paidQuery
   const paid = paidRows ?? []
-  const paidFromFullSalesCents = paid.reduce((s, r) => s + r.amount_cents, 0)
 
   // 2) Sales con saldo abierto (pending + partial) — sin filtro de rango
   let openQuery = sb
@@ -71,47 +74,64 @@ export async function getSalesBreakdown(
     .filter((r) => r.payment_status === "partial")
     .map((r) => r.id)
 
-  // 3) Abonos para sales partial. Construimos un map sale_id -> total abonos.
-  // También, si paidRange está presente, calculamos abonos en el rango como "cobrado".
+  // 3) Identificar cuáles sales paid tienen plan asociado (para excluir su
+  // amount_cents del collected y contar abonos en su lugar).
+  const paidSaleIds = paid.map((r) => r.id)
+  const planRelevantSaleIds = [...partialSaleIds, ...paidSaleIds]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: planRows } = planRelevantSaleIds.length > 0
+    ? await (sb as any)
+        .from("payment_plans")
+        .select("id, sale_id")
+        .in("sale_id", planRelevantSaleIds)
+    : { data: [] }
+  const planRowsTyped = (planRows ?? []) as Array<{ id: string; sale_id: string }>
+  const planToSale = new Map<string, string>(
+    planRowsTyped.map((p) => [p.id, p.sale_id]),
+  )
+  const saleIdsWithPlan = new Set<string>(planRowsTyped.map((p) => p.sale_id))
+
+  // 4) Sales paid SIN plan: cuentan por su amount_cents (caso normal).
+  // Sales paid CON plan: se EXCLUYEN — sus abonos se sumarán abajo igual
+  // que las partial.
+  const paidStandaloneCents = paid
+    .filter((r) => !saleIdsWithPlan.has(r.id))
+    .reduce((s, r) => s + r.amount_cents, 0)
+
+  // 5) Abonos de TODOS los planes relevantes (de sales partial Y paid-con-plan).
+  // Se filtran por paid_at del abono → cada abono cuenta en SU semana real,
+  // no en la semana en que el plan se completó.
   const collectedByPartialSaleAllTime = new Map<string, number>()
   let collectedFromAbonosInRangeCents = 0
 
-  if (partialSaleIds.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: planRows } = await (sb as any)
-      .from("payment_plans")
-      .select("id, sale_id")
-      .in("sale_id", partialSaleIds)
-    const planToSale = new Map<string, string>(
-      (planRows ?? []).map((p: { id: string; sale_id: string }) => [
-        p.id,
-        p.sale_id,
-      ]),
+  const planIds = Array.from(planToSale.keys())
+  if (planIds.length > 0) {
+    let abonosQuery = sb
+      .from("abonos")
+      .select("plan_id, amount_cents, paid_at")
+      .in("plan_id", planIds)
+    if (paidRange) {
+      abonosQuery = abonosQuery
+        .gte("paid_at", paidRange.startIso.slice(0, 10))
+        .lt("paid_at", paidRange.endIso.slice(0, 10))
+    }
+    const { data: abonoRowsInRange } = await abonosQuery
+    collectedFromAbonosInRangeCents = (abonoRowsInRange ?? []).reduce(
+      (s: number, a: { amount_cents: number }) => s + a.amount_cents,
+      0,
     )
-    const planIds = Array.from(planToSale.keys())
 
-    if (planIds.length > 0) {
-      let abonosQuery = sb
-        .from("abonos")
-        .select("plan_id, amount_cents, paid_at")
-        .in("plan_id", planIds)
-      if (paidRange) {
-        abonosQuery = abonosQuery
-          .gte("paid_at", paidRange.startIso.slice(0, 10))
-          .lt("paid_at", paidRange.endIso.slice(0, 10))
-      }
-      const { data: abonoRowsInRange } = await abonosQuery
-      collectedFromAbonosInRangeCents = (abonoRowsInRange ?? []).reduce(
-        (s: number, a: { amount_cents: number }) => s + a.amount_cents,
-        0,
-      )
-
-      // Para outstanding necesitamos abonos totales (sin filtro de rango)
+    // Para outstanding necesitamos abonos totales de planes PARTIAL solamente
+    // (los paid ya están saldados por definición y no tienen outstanding).
+    const partialPlanIds = planRowsTyped
+      .filter((p) => partialSaleIds.includes(p.sale_id))
+      .map((p) => p.id)
+    if (partialPlanIds.length > 0) {
       if (paidRange) {
         const { data: abonoRowsAll } = await sb
           .from("abonos")
           .select("plan_id, amount_cents")
-          .in("plan_id", planIds)
+          .in("plan_id", partialPlanIds)
         for (const a of (abonoRowsAll ?? []) as Array<{
           plan_id: string
           amount_cents: number
@@ -124,11 +144,12 @@ export async function getSalesBreakdown(
           )
         }
       } else {
-        // Sin rango: reusa los abonos ya traídos
+        // Sin rango: reusa los abonos ya traídos, pero solo los de partial plans
         for (const a of (abonoRowsInRange ?? []) as Array<{
           plan_id: string
           amount_cents: number
         }>) {
+          if (!partialPlanIds.includes(a.plan_id)) continue
           const saleId = planToSale.get(a.plan_id)
           if (!saleId) continue
           collectedByPartialSaleAllTime.set(
@@ -140,7 +161,7 @@ export async function getSalesBreakdown(
     }
   }
 
-  // 4) Outstanding = saldo abierto real (pending full + partial - cobrado)
+  // 6) Outstanding = saldo abierto real (pending full + partial - cobrado)
   const outstandingCents = open.reduce((sum, r) => {
     if (r.payment_status === "pending") return sum + r.amount_cents
     const collected = collectedByPartialSaleAllTime.get(r.id) ?? 0
@@ -149,7 +170,7 @@ export async function getSalesBreakdown(
 
   return {
     paidCount: paid.length,
-    collectedCents: paidFromFullSalesCents + collectedFromAbonosInRangeCents,
+    collectedCents: paidStandaloneCents + collectedFromAbonosInRangeCents,
     openCount: open.length,
     outstandingCents,
   }
