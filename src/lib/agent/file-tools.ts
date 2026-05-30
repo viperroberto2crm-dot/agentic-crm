@@ -17,6 +17,7 @@ import type { Database } from "@/types/database"
 import { buildReportData, type ReportFilters } from "@/lib/exports/report-data"
 import { buildReportWorkbook, buildReportFilename } from "@/lib/exports/xlsx-builder"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import type { ReportLang } from "@/lib/exports/translations"
 
 type DB = SupabaseClient<Database>
 
@@ -24,6 +25,8 @@ export type FileToolCtx = {
   userId: string
   role: "rep" | "manager" | "admin" | string
   brandId: string | null
+  /** Idioma del usuario para reportes generados (default 'es' si no se pasa) */
+  lang?: ReportLang
 }
 
 export type FileToolResult =
@@ -154,15 +157,17 @@ async function executeGenerateSalesReport(
       status: input.status ?? "all",
     }
 
-    // 1) Datos
-    const dataResult = await buildReportData(sb, ctx, filters)
+    const lang: ReportLang = ctx.lang ?? "es"
+
+    // 1) Datos (ctx ya incluye lang vía spread; buildReportData lo lee de ahí)
+    const dataResult = await buildReportData(sb, { ...ctx, lang }, filters)
     if (!dataResult.ok) {
       return { ok: false, error: dataResult.error }
     }
 
-    // 2) Workbook
-    const buffer = buildReportWorkbook(dataResult.data)
-    const filename = buildReportFilename(dataResult.data)
+    // 2) Workbook + filename en el mismo idioma
+    const buffer = buildReportWorkbook(dataResult.data, lang)
+    const filename = buildReportFilename(dataResult.data, lang)
 
     // 3) Upload a Storage
     const path = `${ctx.userId}/${Date.now()}_${filename}`

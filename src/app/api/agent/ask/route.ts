@@ -261,7 +261,7 @@ Ejemplo INCORRECTO (Spanglish): "Tienes 4 appointments hoy. La primera es a las 
           const fileRes = await executeFileTool(
             block.name,
             sb,
-            { userId: user.id, role: userRole, brandId },
+            { userId: user.id, role: userRole, brandId, lang: userLocale },
             input,
           )
           result = fileRes.ok
