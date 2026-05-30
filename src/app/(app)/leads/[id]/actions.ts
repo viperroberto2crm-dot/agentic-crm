@@ -116,6 +116,17 @@ export async function registerSale(raw: RegisterSaleInput) {
   const amount_cents = input.items.reduce((s, i) => s + i.line_total_cents, 0)
   const isPaid = input.payment_status === "paid"
 
+  // Asignar la sale al REP DEL LEAD, no al user que la registra (admin/manager
+  // suelen registrar ventas de leads que pertenecen a otros reps). Si el lead
+  // no tiene rep asignado, fallback al user actual. El admin puede reasignar
+  // después con el rep picker inline en /sales.
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("assigned_rep_id")
+    .eq("id", input.lead_id)
+    .maybeSingle()
+  const saleRepId = leadRow?.assigned_rep_id ?? user.id
+
   // Idempotencia: si existe una venta idéntica del mismo rep al mismo lead
   // por el mismo monto en los últimos 30s, devolver esa en lugar de crear duplicado.
   const thirtySecondsAgo = new Date(Date.now() - 30_000).toISOString()
@@ -123,7 +134,7 @@ export async function registerSale(raw: RegisterSaleInput) {
     .from("sales")
     .select("id")
     .eq("lead_id", input.lead_id)
-    .eq("rep_id", user.id)
+    .eq("rep_id", saleRepId)
     .eq("amount_cents", amount_cents)
     .gte("created_at", thirtySecondsAgo)
     .order("created_at", { ascending: false })
@@ -139,7 +150,7 @@ export async function registerSale(raw: RegisterSaleInput) {
     .insert({
       brand_id: input.brand_id,
       lead_id: input.lead_id,
-      rep_id: user.id,
+      rep_id: saleRepId,
       amount_cents,
       payment_method: input.payment_method,
       payment_status: input.payment_status,
@@ -256,13 +267,22 @@ export async function createPaymentPlan(raw: CreatePlanInput) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
+  // Asignar la sale al REP DEL LEAD (igual que registerSale). Admin/manager
+  // que crea un plan para lead ajeno NO debe quedarse con la sale.
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("assigned_rep_id")
+    .eq("id", input.lead_id)
+    .maybeSingle()
+  const saleRepId = leadRow?.assigned_rep_id ?? user.id
+
   // 1) Crear la sale "partial" para que aparezca en /sales y KPIs
   const { data: saleRow, error: saleErr } = await supabase
     .from("sales")
     .insert({
       brand_id: input.brand_id,
       lead_id: input.lead_id,
-      rep_id: user.id,
+      rep_id: saleRepId,
       amount_cents: input.total_amount_cents,
       payment_method: "cash",
       payment_status: "partial",
