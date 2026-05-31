@@ -22,16 +22,22 @@ export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
   try {
-    // Auth: Bearer CRON_SECRET (mismo patrón que poll-800com)
-    const expected = process.env.CRON_SECRET
-    if (!expected) {
+    // Auth: acepta HERMES_SECRET (preferido) o CRON_SECRET (fallback compatible
+    // con otros crons del CRM). Así no rompemos los crons existentes si
+    // regeneramos CRON_SECRET, y el usuario puede tener un secret dedicado
+    // a Hermes que conoce sin tener que revelar el CRON_SECRET de Vercel.
+    const hermesSecret = process.env.HERMES_SECRET
+    const cronSecret = process.env.CRON_SECRET
+    if (!hermesSecret && !cronSecret) {
       return NextResponse.json(
-        { error: "CRON_SECRET not configured" },
+        { error: "HERMES_SECRET o CRON_SECRET not configured" },
         { status: 500 },
       )
     }
     const auth = req.headers.get("authorization") ?? ""
-    if (auth !== `Bearer ${expected}`) {
+    const validHermes = hermesSecret && auth === `Bearer ${hermesSecret}`
+    const validCron = cronSecret && auth === `Bearer ${cronSecret}`
+    if (!validHermes && !validCron) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
