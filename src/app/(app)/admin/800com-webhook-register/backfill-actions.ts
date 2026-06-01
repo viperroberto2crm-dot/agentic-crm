@@ -20,6 +20,8 @@ import type { Database } from "@/types/database"
 import {
   importCallsFromEightHundred,
   listCallsPage,
+  extractCallerName,
+  type EightHundredCallV2,
 } from "@/lib/integrations/800com"
 import { revalidatePath } from "next/cache"
 
@@ -267,6 +269,243 @@ export async function syncTrackingNumbersFromEightHundred(input: {
       already_in_db: alreadyInDb,
       added,
       errors,
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// BACKFILL LEADS PARA CALLS SIN NOMBRE (lead_id IS NULL)
+// Para cada call sin lead, busca info del caller en 800.com API,
+// crea lead si tiene nombre, y linkea con la call.
+// Safe: solo INSERT leads nuevos y UPDATE de calls que estaban NULL.
+// ─────────────────────────────────────────────────────────────────────
+
+export type BackfillLeadsResult =
+  | {
+      ok: true
+      total_orphans: number
+      leads_created: number
+      leads_matched_existing: number
+      calls_updated: number
+      skipped_no_info: number
+      dry_run: boolean
+      sample_created: Array<{ name: string; phone: string }>
+    }
+  | { ok: false; error: string }
+
+export async function backfillLeadsForOrphanCalls(input: {
+  /** YYYY-MM-DD. Si no se pasa, default 30 días atrás. */
+  fromDate?: string | null
+  /** Si true, solo simula sin escribir nada. Default true (safety). */
+  dryRun?: boolean
+}): Promise<BackfillLeadsResult> {
+  try {
+    await assertAdmin()
+    getEnv()
+    const companyIdNum = parseInt(process.env.EIGHTHUNDRED_COMPANY_ID!, 10)
+    const dryRun = input.dryRun ?? true
+
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
+      return { ok: false, error: "Supabase service env vars missing" }
+    }
+
+    const since = input.fromDate
+      ? new Date(input.fromDate + "T00:00:00Z").toISOString()
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const endDate = new Date().toISOString()
+
+    const sb = createServiceClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    )
+
+    // 1) Listar calls del CRM con lead_id NULL y external_id no null (del rango)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: orphanRows } = await (sb as any)
+      .from("calls")
+      .select("id, external_id, brand_id, rep_id, called_at")
+      .is("lead_id", null)
+      .eq("source", "800com")
+      .not("external_id", "is", null)
+      .gte("called_at", since)
+      .limit(500)
+    const orphans = (orphanRows ?? []) as Array<{
+      id: string
+      external_id: string
+      brand_id: string
+      rep_id: string | null
+      called_at: string
+    }>
+
+    if (orphans.length === 0) {
+      return {
+        ok: true,
+        total_orphans: 0,
+        leads_created: 0,
+        leads_matched_existing: 0,
+        calls_updated: 0,
+        skipped_no_info: 0,
+        dry_run: dryRun,
+        sample_created: [],
+      }
+    }
+
+    // 2) Traer todas las calls de 800.com en el rango, indexar por external_id
+    const callsFromAPI = new Map<string, EightHundredCallV2>()
+    let cursor: string | null | undefined = undefined
+    let pages = 0
+    const MAX_PAGES = 100
+    while (pages < MAX_PAGES) {
+      const page = await listCallsPage({
+        companyId: companyIdNum,
+        startDate: since,
+        endDate,
+        perPage: 100,
+        cursor: cursor ?? undefined,
+      })
+      pages++
+      for (const c of page.data) {
+        callsFromAPI.set(String(c.id), c)
+      }
+      if (!page.meta.nextCursor) break
+      cursor = page.meta.nextCursor
+    }
+
+    // 3) Para cada orphan call, buscar info, crear lead si hay nombre, update call
+    let leadsCreated = 0
+    let leadsMatchedExisting = 0
+    let callsUpdated = 0
+    let skippedNoInfo = 0
+    const sampleCreated: Array<{ name: string; phone: string }> = []
+
+    for (const orphan of orphans) {
+      const apiCall = callsFromAPI.get(orphan.external_id)
+      if (!apiCall) {
+        skippedNoInfo++
+        continue
+      }
+
+      const { firstName, lastName } = extractCallerName(apiCall)
+      const phone = apiCall.caller
+
+      // Necesitamos al menos phone para crear/matchear lead
+      if (!phone) {
+        skippedNoInfo++
+        continue
+      }
+
+      // 3a) Intentar matchear lead existente por phone (puede haberse creado entre medio)
+      let leadId: string | null = null
+      const { data: existingLead } = await sb
+        .from("leads")
+        .select("id")
+        .eq("brand_id", orphan.brand_id)
+        .eq("phone", phone)
+        .limit(1)
+        .maybeSingle()
+      if (existingLead?.id) {
+        leadId = existingLead.id
+        leadsMatchedExisting++
+      }
+
+      // 3b) Si no existe y tenemos nombre, crear
+      if (!leadId) {
+        if (!firstName) {
+          // Sin info útil, dejar como está
+          skippedNoInfo++
+          continue
+        }
+        if (!dryRun) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: newLead, error: leadErr } = await (sb as any)
+            .from("leads")
+            .insert({
+              brand_id: orphan.brand_id,
+              first_name: firstName,
+              last_name: lastName || null,
+              phone,
+              status: "new",
+              source: "inbound_call",
+              assigned_rep_id: orphan.rep_id,
+              notes: "Auto-creado desde llamada entrante (800.com backfill)",
+            })
+            .select("id")
+            .single()
+          if (leadErr) {
+            // Race condition: si falló por unique phone, buscar el lead que ganó la carrera
+            if (leadErr.message?.includes("duplicate") || leadErr.code === "23505") {
+              const { data: raceWinner } = await sb
+                .from("leads")
+                .select("id")
+                .eq("brand_id", orphan.brand_id)
+                .eq("phone", phone)
+                .limit(1)
+                .maybeSingle()
+              leadId = raceWinner?.id ?? null
+              if (leadId) leadsMatchedExisting++
+            } else {
+              skippedNoInfo++
+              continue
+            }
+          } else {
+            leadId = newLead?.id ?? null
+            if (leadId) {
+              leadsCreated++
+              if (sampleCreated.length < 10) {
+                sampleCreated.push({
+                  name: `${firstName} ${lastName ?? ""}`.trim(),
+                  phone,
+                })
+              }
+            }
+          }
+        } else {
+          // dry run: simular creación
+          leadsCreated++
+          if (sampleCreated.length < 10) {
+            sampleCreated.push({
+              name: `${firstName} ${lastName ?? ""}`.trim(),
+              phone,
+            })
+          }
+        }
+      }
+
+      // 3c) Actualizar la call con lead_id (solo si no es dry run)
+      if (leadId && !dryRun) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: updErr } = await (sb as any)
+          .from("calls")
+          .update({ lead_id: leadId })
+          .eq("id", orphan.id)
+        if (!updErr) callsUpdated++
+      } else if (leadId && dryRun) {
+        callsUpdated++ // simular
+      }
+    }
+
+    if (!dryRun) {
+      revalidatePath("/calls")
+      revalidatePath("/leads")
+    }
+
+    return {
+      ok: true,
+      total_orphans: orphans.length,
+      leads_created: leadsCreated,
+      leads_matched_existing: leadsMatchedExisting,
+      calls_updated: callsUpdated,
+      skipped_no_info: skippedNoInfo,
+      dry_run: dryRun,
+      sample_created: sampleCreated,
     }
   } catch (err) {
     return {
