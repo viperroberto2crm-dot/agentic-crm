@@ -6,6 +6,7 @@ import { listWebhooks, registerWebhook, deleteWebhook } from "./actions"
 import { fetchWebhookHistory, fetchWebhookHistoryDetail } from "./webhook-history"
 import { RegisterWebhookClient } from "./_components/register-webhook-client"
 import { WebhookHistoryViewer } from "./_components/webhook-history-viewer"
+import { BackfillCallsClient } from "./_components/backfill-calls-client"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -76,6 +77,8 @@ export default async function EightHundredWebhookRegisterPage() {
         registerAction={registerWebhook}
         deleteAction={deleteWebhook}
       />
+
+      <BackfillCallsClient />
 
       <div className="space-y-2 pt-4 border-t border-gray-200">
         <div>
