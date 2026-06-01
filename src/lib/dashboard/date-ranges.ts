@@ -15,6 +15,10 @@
 
 export type DateRangePreset =
   | "today"
+  | "next7"
+  | "next30"
+  | "last7"
+  | "last30"
   | "thisWeek"
   | "thisMonth"
   | "lastMonth"
@@ -235,6 +239,58 @@ export function getPresetRange(
     case "today":
       return { from: formatYmd(year, month, day), to: formatYmd(year, month, day) }
 
+    case "next7": {
+      // Hoy hasta hoy + 6 (7 días en total, inclusive)
+      const endProbe = new Date(Date.UTC(year, month - 1, day + 6))
+      return {
+        from: formatYmd(year, month, day),
+        to: formatYmd(
+          endProbe.getUTCFullYear(),
+          endProbe.getUTCMonth() + 1,
+          endProbe.getUTCDate()
+        ),
+      }
+    }
+
+    case "next30": {
+      // Hoy hasta hoy + 29 (30 días en total)
+      const endProbe = new Date(Date.UTC(year, month - 1, day + 29))
+      return {
+        from: formatYmd(year, month, day),
+        to: formatYmd(
+          endProbe.getUTCFullYear(),
+          endProbe.getUTCMonth() + 1,
+          endProbe.getUTCDate()
+        ),
+      }
+    }
+
+    case "last7": {
+      // Hoy - 6 hasta hoy (7 días en total)
+      const startProbe = new Date(Date.UTC(year, month - 1, day - 6))
+      return {
+        from: formatYmd(
+          startProbe.getUTCFullYear(),
+          startProbe.getUTCMonth() + 1,
+          startProbe.getUTCDate()
+        ),
+        to: formatYmd(year, month, day),
+      }
+    }
+
+    case "last30": {
+      // Hoy - 29 hasta hoy (30 días en total)
+      const startProbe = new Date(Date.UTC(year, month - 1, day - 29))
+      return {
+        from: formatYmd(
+          startProbe.getUTCFullYear(),
+          startProbe.getUTCMonth() + 1,
+          startProbe.getUTCDate()
+        ),
+        to: formatYmd(year, month, day),
+      }
+    }
+
     case "thisWeek": {
       const start = startOfWeekMonday(year, month, day)
       // End of week = start + 6 days
@@ -298,6 +354,10 @@ export type DashboardSearchParams = {
 
 const PRESETS = new Set<DateRangePreset>([
   "today",
+  "next7",
+  "next30",
+  "last7",
+  "last30",
   "thisWeek",
   "thisMonth",
   "lastMonth",

@@ -537,6 +537,10 @@
     "logCall": "Log a call",
     "filters": {
       "today": "Today",
+      "next7": "Next 7 days",
+      "next30": "Next 30 days",
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
       "thisWeek": "This week",
       "thisMonth": "This month",
       "lastMonth": "Last month",
@@ -929,6 +933,10 @@
       "rangeSummary": "{from} → {to}",
       "presets": {
         "today": "Today",
+        "next7": "Next 7 days",
+        "next30": "Next 30 days",
+        "last7": "Last 7 days",
+        "last30": "Last 30 days",
         "thisWeek": "This week",
         "thisMonth": "This month",
         "lastMonth": "Last month",

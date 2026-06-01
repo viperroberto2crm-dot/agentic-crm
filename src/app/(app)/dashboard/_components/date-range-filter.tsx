@@ -26,8 +26,13 @@ type Props = {
   timezone: string
 }
 
+// Orden: días primero (granularidad fina), luego semanas, luego meses/trimestres/año.
 const NON_CUSTOM_PRESETS: ReadonlyArray<Exclude<DateRangePreset, "custom">> = [
   "today",
+  "next7",
+  "next30",
+  "last7",
+  "last30",
   "thisWeek",
   "thisMonth",
   "lastMonth",

@@ -537,6 +537,10 @@
     "logCall": "Registrar llamada",
     "filters": {
       "today": "Hoy",
+      "next7": "Próximos 7 días",
+      "next30": "Próximos 30 días",
+      "last7": "Últimos 7 días",
+      "last30": "Últimos 30 días",
       "thisWeek": "Esta semana",
       "thisMonth": "Este mes",
       "lastMonth": "Mes pasado",
@@ -929,6 +933,10 @@
       "rangeSummary": "{from} → {to}",
       "presets": {
         "today": "Hoy",
+        "next7": "Próximos 7 días",
+        "next30": "Próximos 30 días",
+        "last7": "Últimos 7 días",
+        "last30": "Últimos 30 días",
         "thisWeek": "Esta semana",
         "thisMonth": "Este mes",
         "lastMonth": "Mes pasado",
