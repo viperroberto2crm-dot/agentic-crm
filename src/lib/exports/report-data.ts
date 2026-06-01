@@ -529,13 +529,23 @@ export async function buildReportData(
       : undefined,
   })
 
-  // KPIs por marca
+  // KPIs por marca.
+  // - `cobrado`: SOLO los movimientos del rango (igual que el KPI principal
+  //   `total_cobrado_cents`). Antes sumaba `r.total_cobrado_cents` del resumen
+  //   que es ALL-TIME, inflando vs los KPIs principales (caso reportado:
+  //   KPI dice \$135, BY BRAND decía \$3,570).
+  // - `pendiente`: outstanding all-time (igual que el KPI `total_por_cobrar`,
+  //   que también es all-time, no filtrado por rango).
   const porMarcaMap = new Map<string, { cobrado: number; pendiente: number }>()
+  // 1) Cobrado: agrupar transacciones (ya filtradas por rango) por brand
+  for (const t of transacciones) {
+    if (!porMarcaMap.has(t.brand_name)) porMarcaMap.set(t.brand_name, { cobrado: 0, pendiente: 0 })
+    porMarcaMap.get(t.brand_name)!.cobrado += t.monto_cents
+  }
+  // 2) Pendiente: del resumen (saldo all-time)
   for (const r of resumen) {
     if (!porMarcaMap.has(r.brand_name)) porMarcaMap.set(r.brand_name, { cobrado: 0, pendiente: 0 })
-    const m = porMarcaMap.get(r.brand_name)!
-    m.cobrado += r.total_cobrado_cents
-    m.pendiente += r.saldo_pendiente_cents
+    porMarcaMap.get(r.brand_name)!.pendiente += r.saldo_pendiente_cents
   }
 
   // KPIs por rep (top 10 por monto cobrado en periodo)
