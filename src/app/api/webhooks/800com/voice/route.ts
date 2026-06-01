@@ -55,6 +55,25 @@ export const dynamic = "force-dynamic"
  */
 type WebhookFeature = "call_started" | "call_completed" | "call_decorated" | "call_updated" | "sms_received"
 
+type EnhancedCallerId = {
+  name?: string | null
+  firstName?: string | null
+  middleName?: string | null
+  lastName?: string | null
+  city?: string | null
+  region?: string | null
+  postalCode?: string | null
+  zip4?: string | null
+  streetLine1?: string | null
+  streetLine2?: string | null
+  country?: string | null
+  emails?: string[] | null
+  gender?: string | null
+  ageRange?: string | null
+  carrier?: string | null
+  type?: string | null
+}
+
 type CallObject = {
   id: number | string
   caller?: string
@@ -77,6 +96,10 @@ type CallObject = {
   // Number tracking id: 800.com manda numberId flat
   numberId?: number
   number?: { id?: string | number; number?: string; label?: string | null } | null
+  // 800.com hace lookup automático del caller después de la call (en call_decorated)
+  // y agrega esto: nombre, dirección, edad, género, etc. Lo usamos para
+  // auto-crear el lead cuando no existe en la DB todavía.
+  enhancedCallerId?: EnhancedCallerId | null
 }
 
 type WebhookBody = {
@@ -104,6 +127,99 @@ function mapResultToOutcome(
 
 function recordingUrlOf(call: CallObject): string | null {
   return call.recordingUrl ?? call.recording ?? null
+}
+
+/**
+ * Crear lead nuevo desde enhancedCallerId que 800.com envía en call_decorated.
+ * Solo lo usamos cuando el caller no matchea ningún lead existente.
+ * Mantiene los datos opcionales (puede faltar firstName/lastName → fallback).
+ *
+ * Retorna lead_id del lead creado, o null si no pudo (ej. sin phone).
+ */
+async function createLeadFromCallerInfo(
+  sb: DB,
+  brandId: string,
+  callerE164: string,
+  assignedRepId: string,
+  enhanced: EnhancedCallerId | null | undefined,
+): Promise<string | null> {
+  if (!callerE164) return null
+
+  // Nombre: preferir firstName, fallback a name parsing, fallback a "Llamada entrante"
+  let firstName = (enhanced?.firstName ?? "").trim()
+  let lastName = (enhanced?.lastName ?? "").trim()
+  if (!firstName && enhanced?.name) {
+    const parts = enhanced.name.trim().split(/\s+/)
+    firstName = parts[0] ?? ""
+    lastName = parts.slice(1).join(" ")
+  }
+  if (!firstName) {
+    // Fallback: nombre genérico con últimos 4 del phone para diferenciar
+    firstName = `Llamada ${callerE164.slice(-4)}`
+    lastName = ""
+  }
+
+  // Email opcional (si 800.com lo trae)
+  const email = enhanced?.emails && enhanced.emails.length > 0 ? enhanced.emails[0] : null
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertPayload: any = {
+    brand_id: brandId,
+    first_name: firstName,
+    last_name: lastName || null,
+    phone: callerE164,
+    email,
+    status: "new",
+    source: "inbound_call",
+    assigned_rep_id: assignedRepId,
+    // Notas con la metadata de 800.com (útil para que el rep sepa qué se sabe del caller)
+    notes: enhanced
+      ? [
+          enhanced.city || enhanced.region
+            ? `Ubicación: ${[enhanced.city, enhanced.region, enhanced.postalCode].filter(Boolean).join(", ")}`
+            : null,
+          enhanced.streetLine1 ? `Dirección: ${enhanced.streetLine1}` : null,
+          enhanced.carrier ? `Carrier: ${enhanced.carrier}` : null,
+          enhanced.ageRange ? `Edad aprox: ${enhanced.ageRange}` : null,
+          enhanced.gender ? `Género: ${enhanced.gender}` : null,
+          "Auto-creado desde llamada entrante (800.com)",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "Auto-creado desde llamada entrante (800.com)",
+    // Address fields si vienen
+    address_line1: enhanced?.streetLine1 ?? null,
+    address_line2: enhanced?.streetLine2 ?? null,
+    city: enhanced?.city ?? null,
+    state: enhanced?.region ?? null,
+    zip: enhanced?.postalCode ?? null,
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (sb as any)
+    .from("leads")
+    .insert(insertPayload)
+    .select("id")
+    .single()
+
+  if (error) {
+    // Si falla por unique violation en phone, otra request ganó la carrera —
+    // buscar el lead existente y retornarlo.
+    if (error.message?.includes("duplicate") || error.code === "23505") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existing } = await (sb as any)
+        .from("leads")
+        .select("id")
+        .eq("brand_id", brandId)
+        .eq("phone", callerE164)
+        .limit(1)
+        .maybeSingle()
+      return existing?.id ?? null
+    }
+    console.error("[800com webhook] createLeadFromCallerInfo error:", error.message)
+    return null
+  }
+  return data?.id ?? null
 }
 
 /**
@@ -231,6 +347,30 @@ async function handleCallEvent(
         ;(updates as any).transcription = call.transcription
       }
     }
+
+    // Si la call existente NO tiene lead_id (call_started entró antes que
+    // 800.com hiciera lookup), y ahora llega call_decorated con enhancedCallerId,
+    // auto-crear lead + linkear. Esto resuelve los "—" en /calls retroactivamente.
+    if (!existing.lead_id && call.enhancedCallerId && existing.brand_id) {
+      const callerE164 = call.caller ?? ""
+      if (callerE164) {
+        // Primero intentar matchear por phone (puede haber sido creado entre
+        // call_started y call_decorated por otra vía).
+        let leadId = await findLeadByPhone(sb, existing.brand_id, callerE164)
+        if (!leadId && existing.rep_id) {
+          // No existe — crear desde enhancedCallerId
+          leadId = await createLeadFromCallerInfo(
+            sb,
+            existing.brand_id,
+            callerE164,
+            existing.rep_id,
+            call.enhancedCallerId,
+          )
+        }
+        if (leadId) updates.lead_id = leadId
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       return { ok: true, action: "skipped", reason: "no fields to update" }
     }
@@ -257,7 +397,20 @@ async function handleCallEvent(
   }
 
   const callerE164 = call.caller ?? ""
-  const leadId = callerE164 ? await findLeadByPhone(sb, tracking.brand_id, callerE164) : null
+  let leadId = callerE164 ? await findLeadByPhone(sb, tracking.brand_id, callerE164) : null
+
+  // Si no matcheó lead existente Y 800.com nos da info del caller (enhancedCallerId),
+  // crear lead nuevo automáticamente. Esto evita que las calls aparezcan con
+  // LEAD = "—" en /calls cuando es un caller nuevo.
+  if (!leadId && callerE164 && call.enhancedCallerId) {
+    leadId = await createLeadFromCallerInfo(
+      sb,
+      tracking.brand_id,
+      callerE164,
+      tracking.rep_id,
+      call.enhancedCallerId,
+    )
+  }
 
   // Dirección: 800.com manda isInbound boolean
   const isInbound = call.isInbound === true || call.direction === "inbound" || call.direction === undefined
