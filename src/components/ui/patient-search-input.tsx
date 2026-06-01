@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { Search, X } from "lucide-react"
@@ -9,6 +9,12 @@ import { Search, X } from "lucide-react"
  * Input de búsqueda por nombre/teléfono de paciente. Actualiza el query
  * param `?search=X` con debounce de 400ms. El page server lee ese param
  * y filtra las queries por leads.id IN (matching leads).
+ *
+ * Fix race condition: usamos `lastSetByUs` ref para distinguir cambios de
+ * URL causados por nuestro router.replace (skip sync) vs cambios externos
+ * (back/forward del browser → aplicar sync). Sin esto, el sync useEffect
+ * pisaba lo que el usuario estaba escribiendo cuando llegaba el efecto del
+ * router.replace anterior — el usuario tenía que escribir varias veces.
  */
 export function PatientSearchInput({
   placeholder,
@@ -22,17 +28,22 @@ export function PatientSearchInput({
   const searchParams = useSearchParams()
   const initial = searchParams.get("search") ?? ""
   const [value, setValue] = useState(initial)
+  const lastSetByUs = useRef(initial)
 
-  // Sync con URL si cambia desde fuera
+  // Sync con URL si cambia desde fuera (back/forward del browser).
+  // Si fuimos NOSOTROS (router.replace después de debounce), skip.
   useEffect(() => {
-    setValue(searchParams.get("search") ?? "")
+    const urlValue = searchParams.get("search") ?? ""
+    if (urlValue === lastSetByUs.current) return
+    setValue(urlValue)
   }, [searchParams])
 
-  // Debounce
+  // Debounce: 400ms después del último keystroke, sincroniza al URL.
   useEffect(() => {
     const handler = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString())
       const trimmed = value.trim()
+      lastSetByUs.current = trimmed
       if (trimmed) {
         params.set("search", trimmed)
       } else {

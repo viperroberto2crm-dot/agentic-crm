@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { useCallback, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useTranslations } from "next-intl"
 import { Input } from "@/components/ui/input"
 import {
@@ -76,6 +76,28 @@ export function LeadFilterBar({
   const source = params.get("source") ?? "all"
   const hasFilters = search || status !== "all" || source !== "all"
 
+  // Input controlado con debounce 400ms + ref para evitar race con sync de URL.
+  // Sin esto, cada keystroke triggea router.replace inmediato (sin debounce) y
+  // el input no controlado pierde teclas cuando el usuario escribe rápido.
+  const [searchInput, setSearchInput] = useState(search)
+  const lastSetByUs = useRef(search)
+
+  useEffect(() => {
+    if (search === lastSetByUs.current) return
+    setSearchInput(search)
+  }, [search])
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const trimmed = searchInput.trim()
+      if (trimmed === lastSetByUs.current) return
+      lastSetByUs.current = trimmed
+      update("search", trimmed || null)
+    }, 400)
+    return () => clearTimeout(handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
+
   return (
     <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
       <div className="relative flex-1 min-w-0">
@@ -83,12 +105,9 @@ export function LeadFilterBar({
         <Input
           type="text"
           placeholder={t("searchPlaceholder")}
-          defaultValue={search}
+          value={searchInput}
           className="pl-8 h-9 bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 text-sm focus-visible:ring-zinc-700"
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            const v = e.target.value
-            if (v.length === 0 || v.length >= 2) update("search", v || null)
-          }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
         />
       </div>
 
