@@ -289,6 +289,32 @@ export async function deleteAppointment(
   const { error } = role === "rep" ? await base.eq("rep_id", user.id) : await base
   if (error) return { ok: false, error: error.message }
 
+  // Si el lead tenía status='appointment_set' Y ahora no le quedan citas
+  // activas, revertir status a 'contacted' (el lead sigue siendo un lead
+  // contactado pero ya no tiene cita programada). Sin esto, el lead se queda
+  // con badge "Appointment set" para siempre, lo que confunde al rep.
+  // No-op silencioso si falla — el delete principal ya pasó.
+  if (appt?.lead_id) {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("status")
+      .eq("id", appt.lead_id)
+      .maybeSingle()
+    if (lead?.status === "appointment_set") {
+      const { count } = await supabase
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("lead_id", appt.lead_id)
+        .neq("status", "cancelled")
+      if (((count as number | null) ?? 0) === 0) {
+        await supabase
+          .from("leads")
+          .update({ status: "contacted" })
+          .eq("id", appt.lead_id)
+      }
+    }
+  }
+
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
   if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
