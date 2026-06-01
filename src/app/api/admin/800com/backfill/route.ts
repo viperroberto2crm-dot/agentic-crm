@@ -21,12 +21,19 @@ export const maxDuration = 300 // 5 min — backfill can take a while
 
 export async function POST(req: NextRequest) {
   try {
-    const expected = process.env.CRON_SECRET
-    if (!expected) {
-      return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 })
+    // Acepta HERMES_SECRET o CRON_SECRET (mismo patrón que /api/hermes/tick).
+    const hermesSecret = process.env.HERMES_SECRET
+    const cronSecret = process.env.CRON_SECRET
+    if (!hermesSecret && !cronSecret) {
+      return NextResponse.json(
+        { error: "HERMES_SECRET o CRON_SECRET not configured" },
+        { status: 500 },
+      )
     }
     const auth = req.headers.get("authorization") ?? ""
-    if (auth !== `Bearer ${expected}`) {
+    const validHermes = hermesSecret && auth === `Bearer ${hermesSecret}`
+    const validCron = cronSecret && auth === `Bearer ${cronSecret}`
+    if (!validHermes && !validCron) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
