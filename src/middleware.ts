@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/api/agent/poll-meta-leads",
   "/api/agent/transcribe-calls",
   "/api/admin/800com/",
+  "/api/hermes/",  // Hermes bot: tick + futuros endpoints. Usa HERMES_SECRET/CRON_SECRET en lugar de session.
   "/api/webhooks/",  // todos los webhooks (800com, twilio futuro, etc.)
 ]
 
