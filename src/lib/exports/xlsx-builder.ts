@@ -150,6 +150,21 @@ function buildKpisSheet(kpis: Kpis, d: ReportDict): XLSX.WorkSheet {
     rows.push([d.kpisSinReps, "", ""])
   }
 
+  // POR MÉTODO DE PAGO (cash, card, stripe, etc.)
+  rows.push([])
+  rows.push([d.kpisPorMetodoPago, null])
+  rows.push([d.kpisColMetodo, d.kpisColCobrado, d.kpisColCount])
+
+  for (const m of kpis.por_metodo_pago) {
+    // Capitalizar método (cash -> Cash, card -> Card, etc.)
+    const label = m.metodo.charAt(0).toUpperCase() + m.metodo.slice(1)
+    rows.push([label, fmtUsd(m.cobrado_cents), m.count])
+  }
+
+  if (kpis.por_metodo_pago.length === 0) {
+    rows.push([d.kpisSinMetodos, "", ""])
+  }
+
   const ws = XLSX.utils.aoa_to_sheet(rows)
   applyColumnWidths(ws, [32, 18, 14])
   return ws

@@ -68,6 +68,10 @@ export type ReportDict = {
   kpisColRep: string
   kpisColVentas: string
   kpisSinReps: string
+  kpisPorMetodoPago: string
+  kpisColMetodo: string
+  kpisColCount: string
+  kpisSinMetodos: string
 
   // Status texts en Resumen
   statusSinPlan: string
@@ -133,6 +137,10 @@ const ES: ReportDict = {
   kpisColRep: "Rep",
   kpisColVentas: "# Ventas",
   kpisSinReps: "Sin reps con ventas en el periodo",
+  kpisPorMetodoPago: "POR MÉTODO DE PAGO",
+  kpisColMetodo: "Método",
+  kpisColCount: "# Cobros",
+  kpisSinMetodos: "Sin cobros en el periodo",
 
   statusSinPlan: "Sin plan",
   statusAlDia: "Al día",
@@ -194,6 +202,10 @@ const EN: ReportDict = {
   kpisColRep: "Rep",
   kpisColVentas: "# Sales",
   kpisSinReps: "No reps with sales in the period",
+  kpisPorMetodoPago: "BY PAYMENT METHOD",
+  kpisColMetodo: "Method",
+  kpisColCount: "# Payments",
+  kpisSinMetodos: "No payments in the period",
 
   statusSinPlan: "No plan",
   statusAlDia: "On track",

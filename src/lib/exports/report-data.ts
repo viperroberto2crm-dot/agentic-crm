@@ -85,6 +85,8 @@ export type Kpis = {
   promedio_ticket_cents: number
   por_marca: Array<{ brand_name: string; cobrado_cents: number; pendiente_cents: number }>
   por_rep: Array<{ rep_name: string; cobrado_cents: number; ventas_count: number }>
+  /** Desglose por método de pago (cash, card, stripe, transfer, check, other). */
+  por_metodo_pago: Array<{ metodo: string; cobrado_cents: number; count: number }>
 }
 
 export type ReportData = {
@@ -550,6 +552,20 @@ export async function buildReportData(
     .sort((a, b) => b.cobrado_cents - a.cobrado_cents)
     .slice(0, 10)
 
+  // KPIs por método de pago (cash, card, stripe, transfer, check, other).
+  // Agrupa todos los movimientos (sales paid standalone + abonos de planes).
+  const porMetodoPagoMap = new Map<string, { cobrado: number; count: number }>()
+  for (const t of transacciones) {
+    const metodo = (t.metodo_pago ?? "other").toLowerCase()
+    if (!porMetodoPagoMap.has(metodo)) porMetodoPagoMap.set(metodo, { cobrado: 0, count: 0 })
+    const m = porMetodoPagoMap.get(metodo)!
+    m.cobrado += t.monto_cents
+    m.count += 1
+  }
+  const porMetodoPago = Array.from(porMetodoPagoMap.entries())
+    .map(([metodo, v]) => ({ metodo, cobrado_cents: v.cobrado, count: v.count }))
+    .sort((a, b) => b.cobrado_cents - a.cobrado_cents)
+
   const ventasNuevasCount = useRange
     ? allSales.filter((s) => !planSaleIds.has(s.id) && s.created_at >= filters.from! && s.created_at < filters.to!).length
     : allSales.filter((s) => !planSaleIds.has(s.id)).length
@@ -570,6 +586,7 @@ export async function buildReportData(
       pendiente_cents: v.pendiente,
     })).sort((a, b) => b.cobrado_cents - a.cobrado_cents),
     por_rep: porRep,
+    por_metodo_pago: porMetodoPago,
   }
 
   return {
