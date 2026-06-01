@@ -391,3 +391,145 @@ export async function fetchLeadsForAppt(brandId: string) {
   const { data } = await query
   return (data ?? []) as { id: string; first_name: string; last_name: string | null; phone: string }[]
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// READY TO SHIP — flujo provider → shipping admin
+// Provider aprueba (con notas) → admin ve en /shipping → marca shipped.
+// ─────────────────────────────────────────────────────────────────────
+
+const ApproveForShippingSchema = z.object({
+  appointment_id: z.string().uuid(),
+  provider_notes: z.string().min(1).max(2000),
+})
+
+export async function approveForShipping(raw: z.infer<typeof ApproveForShippingSchema>) {
+  const input = ApproveForShippingSchema.parse(raw)
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  // Solo provider, admin o manager pueden aprobar.
+  if (role !== "provider" && role !== "admin" && role !== "manager") {
+    throw new Error("Solo provider/admin pueden aprobar para envío")
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // Si es provider, validar que la cita le pertenece (provider_id = user.id)
+  if (role === "provider") {
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select("provider_id")
+      .eq("id", input.appointment_id)
+      .single()
+    if (!appt || appt.provider_id !== user.id) {
+      throw new Error("Solo el provider asignado puede aprobar esta cita")
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("appointments")
+    .update({
+      provider_approved: true,
+      provider_approved_at: new Date().toISOString(),
+      provider_approved_by: user.id,
+      provider_notes: input.provider_notes,
+    })
+    .eq("id", input.appointment_id)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/shipping")
+  revalidatePath("/appointments")
+}
+
+export async function unapproveForShipping(appointmentId: string) {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "provider" && role !== "admin" && role !== "manager") {
+    throw new Error("Solo provider/admin pueden des-aprobar")
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // Si ya fue shipped, no permitir des-aprobar
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: appt } = await (supabase as any)
+    .from("appointments")
+    .select("shipped_at, provider_id")
+    .eq("id", appointmentId)
+    .single()
+  if (appt?.shipped_at) {
+    throw new Error("La cita ya fue marcada como enviada; no se puede des-aprobar")
+  }
+  if (role === "provider" && appt?.provider_id !== user.id) {
+    throw new Error("Solo el provider asignado puede des-aprobar")
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("appointments")
+    .update({
+      provider_approved: false,
+      provider_approved_at: null,
+      provider_approved_by: null,
+    })
+    .eq("id", appointmentId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/shipping")
+  revalidatePath("/appointments")
+}
+
+export async function markAsShipped(appointmentId: string) {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "admin" && role !== "manager") {
+    throw new Error("Solo admin/manager pueden marcar como enviado")
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  // Validar que esté aprobada antes de marcar shipped
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: appt } = await (supabase as any)
+    .from("appointments")
+    .select("provider_approved, shipped_at")
+    .eq("id", appointmentId)
+    .single()
+  if (!appt?.provider_approved) {
+    throw new Error("La cita no está aprobada por el provider")
+  }
+  if (appt.shipped_at) {
+    throw new Error("La cita ya fue marcada como enviada")
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("appointments")
+    .update({
+      shipped_at: new Date().toISOString(),
+      shipped_by: user.id,
+    })
+    .eq("id", appointmentId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/shipping")
+  revalidatePath("/appointments")
+}
+
+/** Cuenta pendientes de envío para el badge del sidebar (admin/manager only) */
+export async function getShippingPendingCount(): Promise<number> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "admin" && role !== "manager") return 0
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("provider_approved", true)
+    .is("shipped_at", null)
+  return (count as number | null) ?? 0
+}

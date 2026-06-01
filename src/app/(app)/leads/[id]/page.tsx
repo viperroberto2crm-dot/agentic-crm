@@ -66,6 +66,16 @@ export default async function LeadDetailPage({
 
   const paymentPlans = await fetchPaymentPlans(id).catch(() => [])
 
+  // Detectar si hay cita aprobada por provider pero no shippeada (badge "Ready to Ship")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count: readyToShipCount } = await (sb as any)
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("lead_id", id)
+    .eq("provider_approved", true)
+    .is("shipped_at", null)
+  const readyToShip = ((readyToShipCount as number | null) ?? 0) > 0
+
   if (!lead) notFound()
 
   const role = (profileRes.data?.role ?? "rep") as string
@@ -148,7 +158,7 @@ export default async function LeadDetailPage({
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
 
-      <LeadHeader lead={lead} />
+      <LeadHeader lead={lead} readyToShip={readyToShip} />
 
       {justCreated && <JustCreatedBanner />}
 

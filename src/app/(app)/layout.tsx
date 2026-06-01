@@ -88,6 +88,18 @@ export default async function AppLayout({
     (t) => t.priority === "urgent" || t.priority === "high"
   )
 
+  // Shipping pending count (citas aprobadas sin shippear). Solo admin/manager.
+  let shippingPendingCount = 0
+  if (profile.role === "admin" || profile.role === "manager") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count } = await (supabase as any)
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("provider_approved", true)
+      .is("shipped_at", null)
+    shippingPendingCount = (count as number | null) ?? 0
+  }
+
   // Pending agent-actions count (solo admin/manager ven la bandeja)
   let pendingCount = 0
   if (profile.role === "admin" || profile.role === "manager") {
@@ -119,6 +131,7 @@ export default async function AppLayout({
       }}
       leadCount={leadCount ?? 0}
       taskCount={taskCount}
+      shippingPendingCount={shippingPendingCount}
       urgentTasks={urgentTasks}
       unreadCount={unreadCount ?? 0}
       pendingCount={pendingCount}

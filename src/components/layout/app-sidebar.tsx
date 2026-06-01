@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Package,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -44,6 +45,7 @@ export type AppSidebarProps = {
   onMobileClose: () => void
   leadCount: number
   taskCount: number
+  shippingPendingCount: number
   urgentTasks: boolean
   userRole: UserRole
   onOpenCommand: () => void
@@ -52,11 +54,15 @@ export type AppSidebarProps = {
 // Providers tienen una vista restringida: solo Appointments y Leads.
 const PROVIDER_ALLOWED_HREFS = new Set<string>(["/appointments", "/leads"])
 
+// Shipping solo lo ven admin y manager (no rep, no provider).
+const ADMIN_MANAGER_ONLY_HREFS = new Set<string>(["/shipping"])
+
 const NAV_HREFS = [
   { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
   { key: "leads", href: "/leads", icon: Users, hasBadge: true },
   { key: "calls", href: "/calls", icon: Phone },
   { key: "appointments", href: "/appointments", icon: CalendarDays },
+  { key: "shipping", href: "/shipping", icon: Package, hasBadge: true },
   { key: "sales", href: "/sales", icon: DollarSign },
   { key: "paymentsDue", href: "/payments-due", icon: CalendarClock },
   { key: "tasks", href: "/tasks", icon: CheckSquare, hasBadge: true },
@@ -159,6 +165,7 @@ function SidebarContent({
   collapsed,
   leadCount,
   taskCount,
+  shippingPendingCount,
   urgentTasks,
   userRole,
   onOpenCommand,
@@ -167,6 +174,7 @@ function SidebarContent({
   const t = useTranslations("nav")
 
   const isProvider = userRole === "provider"
+  const isAdminOrManager = userRole === "admin" || userRole === "manager"
 
   const navWithCounts: NavItem[] = NAV_HREFS.map((item) => ({
     label: t(item.key as Parameters<typeof t>[0]),
@@ -177,12 +185,22 @@ function SidebarContent({
         ? leadCount
         : item.href === "/tasks" && taskCount > 0
         ? taskCount
+        : item.href === "/shipping" && shippingPendingCount > 0
+        ? shippingPendingCount
         : undefined,
-    urgent: item.href === "/tasks" ? urgentTasks : undefined,
+    urgent:
+      item.href === "/tasks"
+        ? urgentTasks
+        : item.href === "/shipping"
+        ? shippingPendingCount > 0
+        : undefined,
     badgeTooltip: undefined,
-  })).filter((item) =>
-    isProvider ? PROVIDER_ALLOWED_HREFS.has(item.href) : true
-  )
+  })).filter((item) => {
+    if (isProvider) return PROVIDER_ALLOWED_HREFS.has(item.href)
+    // Shipping solo para admin/manager
+    if (ADMIN_MANAGER_ONLY_HREFS.has(item.href) && !isAdminOrManager) return false
+    return true
+  })
 
   const visibleBottom: NavItem[] = BOTTOM_HREFS.map((item) => ({
     label: t(item.key as Parameters<typeof t>[0]),

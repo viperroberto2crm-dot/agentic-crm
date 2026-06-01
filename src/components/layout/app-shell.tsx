@@ -18,6 +18,7 @@ type AppShellProps = {
   }
   leadCount: number
   taskCount: number
+  shippingPendingCount: number
   urgentTasks: boolean
   unreadCount: number
   pendingCount: number
@@ -29,6 +30,7 @@ export function AppShell({
   user,
   leadCount,
   taskCount,
+  shippingPendingCount,
   urgentTasks,
   unreadCount,
   pendingCount,
@@ -45,6 +47,7 @@ export function AppShell({
           onMobileClose={() => setMobileOpen(false)}
           leadCount={leadCount}
           taskCount={taskCount}
+          shippingPendingCount={shippingPendingCount}
           urgentTasks={urgentTasks}
           userRole={role}
           onOpenCommand={() => setCommandOpen(true)}

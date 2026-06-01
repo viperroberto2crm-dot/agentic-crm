@@ -95,11 +95,13 @@ export default async function AppointmentsPage({
     if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
   }
 
-  let query = sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = (sb as any)
     .from("appointments")
     .select(
       `id, scheduled_at, type, status, service, duration_minutes, notes,
        clinic_id, telehealth_link, lead_id, provider_id,
+       provider_approved, provider_approved_at, provider_notes, shipped_at,
        lead:leads!appointments_lead_id_fkey(id, first_name, last_name),
        rep:users!appointments_rep_id_fkey(id, name),
        provider:users!appointments_provider_id_fkey(id, name)`,
@@ -122,6 +124,10 @@ export default async function AppointmentsPage({
     service: string | null; duration_minutes: number; notes: string | null
     clinic_id: string | null; telehealth_link: string | null; lead_id: string | null
     provider_id: string | null
+    provider_approved: boolean | null
+    provider_approved_at: string | null
+    provider_notes: string | null
+    shipped_at: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
     provider: { id: string; name: string } | null
@@ -373,6 +379,10 @@ export default async function AppointmentsPage({
                             clinic_id: a.clinic_id,
                             telehealth_link: a.telehealth_link,
                             provider_id: a.provider?.id ?? null,
+                            provider_approved: a.provider_approved,
+                            provider_approved_at: a.provider_approved_at,
+                            provider_notes: a.provider_notes,
+                            shipped_at: a.shipped_at,
                           }}
                           leads={leadsForModal}
                           clinics={clinicsForModal}

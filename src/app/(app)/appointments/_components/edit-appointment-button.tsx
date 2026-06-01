@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateTimeAmPm } from "@/components/ui/datetime-ampm"
 import { updateAppointment } from "../actions"
 import { isoToBrandLocal, brandLocalToIso } from "@/lib/appointment-tz"
+import { ApproveForShippingSection } from "./approve-for-shipping-section"
 
 type Lead = {
   id: string
@@ -47,6 +48,11 @@ export type EditableAppointment = {
   clinic_id: string | null
   telehealth_link: string | null
   provider_id: string | null
+  /** Estado de Ready to Ship */
+  provider_approved?: boolean | null
+  provider_approved_at?: string | null
+  provider_notes?: string | null
+  shipped_at?: string | null
 }
 
 export type ProviderOption = { id: string; name: string }
@@ -395,6 +401,19 @@ export function EditAppointmentButton({
                 </p>
               )}
             </Field>
+
+            {/* Ready to Ship: solo si status=completed y user es provider asignado o admin/manager */}
+            <ApproveForShippingSection
+              appointmentId={appointment.id}
+              status={form.status}
+              userRole={userRole}
+              isAssignedProvider={isProvider}
+              initialApproved={appointment.provider_approved ?? false}
+              initialApprovedAt={appointment.provider_approved_at ?? null}
+              initialProviderNotes={appointment.provider_notes ?? null}
+              shippedAt={appointment.shipped_at ?? null}
+              onAfterApprove={() => setOpen(false)}
+            />
 
             {error && (
               <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded px-3 py-2">{error}</p>

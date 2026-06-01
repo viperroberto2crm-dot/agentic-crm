@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowLeft, Phone, Mail, MapPin, Calendar } from "lucide-react"
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Package } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { Database } from "@/types/database"
 import { getTranslations, getLocale } from "next-intl/server"
@@ -33,11 +33,14 @@ type Props = {
     brand: { name: string; brand_color: string | null } | null
     rep: { name: string } | null
   }
+  /** Si el lead tiene al menos una cita aprobada pero no shippeada todavía */
+  readyToShip?: boolean
 }
 
-export async function LeadHeader({ lead }: Props) {
+export async function LeadHeader({ lead, readyToShip = false }: Props) {
   const ts = await getTranslations("status")
   const tl = await getTranslations("leads")
+  const tShip = await getTranslations("shipping")
   const locale = await getLocale()
   const label = ts(lead.status)
   const className = STATUS_CLASS[lead.status] ?? "border-zinc-700 text-zinc-400"
@@ -64,6 +67,15 @@ export async function LeadHeader({ lead }: Props) {
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${className}`}>
               {label}
             </Badge>
+            {readyToShip && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 font-semibold border-amber-500/60 text-amber-600 bg-amber-50 inline-flex items-center gap-0.5"
+              >
+                <Package className="w-2.5 h-2.5" />
+                {tShip("readyToShipBadge")}
+              </Badge>
+            )}
             {lead.brand && (
               <span className="flex items-center gap-1 text-[10px] text-zinc-600">
                 <span
