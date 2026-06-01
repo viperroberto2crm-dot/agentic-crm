@@ -85,10 +85,36 @@ export async function fetchLeads(
   }
 
   if (filters.search) {
-    // Postgres ILIKE on concatenated name or exact phone
-    query = query.or(
-      `first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%`
-    )
+    // Search más flexible: tokenizar por espacios (matchea "Maria Lopez"
+    // con first_name=Maria y last_name=Lopez en campos separados), normalizar
+    // phone (sin guiones/paréntesis matchea phone E.164), incluir email y
+    // phone_alt. Mismo patrón que /sales y /appointments.
+    const raw = filters.search.trim()
+    if (raw.length > 0) {
+      const digits = raw.replace(/\D/g, "")
+      const looksLikePhone = digits.length >= 5
+      const tokens = raw
+        .replace(/[(),]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((t) => t.replace(/%/g, ""))
+
+      const orParts: string[] = []
+      if (looksLikePhone) {
+        orParts.push(`phone.ilike.%${digits}%`)
+        orParts.push(`phone_alt.ilike.%${digits}%`)
+      }
+      for (const tok of tokens) {
+        if (tok.length === 0) continue
+        orParts.push(`first_name.ilike.%${tok}%`)
+        orParts.push(`last_name.ilike.%${tok}%`)
+        orParts.push(`email.ilike.%${tok}%`)
+      }
+
+      if (orParts.length > 0) {
+        query = query.or(orParts.join(","))
+      }
+    }
   }
 
   const { data, count, error } = await query
