@@ -17,7 +17,10 @@ import { createClient } from "@/lib/supabase/server"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { importCallsFromEightHundred } from "@/lib/integrations/800com"
+import {
+  importCallsFromEightHundred,
+  listCallsPage,
+} from "@/lib/integrations/800com"
 import { revalidatePath } from "next/cache"
 
 type DB = SupabaseClient<Database>
@@ -137,7 +140,8 @@ export async function syncTrackingNumbersFromEightHundred(input: {
 }): Promise<SyncTrackingResult> {
   try {
     await assertAdmin()
-    const { apiKey, companyId } = getEnv()
+    getEnv() // valida que existan EIGHTHUNDRED_API_KEY + COMPANY_ID
+    const companyIdNum = parseInt(process.env.EIGHTHUNDRED_COMPANY_ID!, 10)
     const brandSlug = input.brandSlug ?? "si-se-pierde"
     const dryRun = input.dryRun ?? false
 
@@ -148,23 +152,41 @@ export async function syncTrackingNumbersFromEightHundred(input: {
       return { ok: false, error: "Supabase service env vars missing" }
     }
 
-    // 1) Fetch all numbers de la company desde 800.com API
-    const res = await fetch(
-      `${API_BASE}/v2/companies/${companyId}/numbers?perPage=200`,
-      {
-        headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
-        cache: "no-store",
-      },
-    )
-    if (!res.ok) {
-      const text = await res.text().catch(() => "")
-      return {
-        ok: false,
-        error: `800.com API error ${res.status}: ${text.slice(0, 300)}`,
+    // 1) Listar TODAS las calls de los últimos 30 días con paginación,
+    // extraer numberIds únicos (call.number.id, call.number.number, call.number.label).
+    // Aprovechamos que listCallsPage YA funciona (es el endpoint que usa el cron).
+    // Sin esto teníamos que adivinar el endpoint /numbers (404 not found).
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const endDate = new Date().toISOString()
+    const numbersMap = new Map<number, TrackingNumberFromAPI>()
+    let cursor: string | null | undefined = undefined
+    let pages = 0
+    const MAX_PAGES = 100 // safety cap
+
+    while (pages < MAX_PAGES) {
+      const page = await listCallsPage({
+        companyId: companyIdNum,
+        startDate,
+        endDate,
+        perPage: 100,
+        cursor: cursor ?? undefined,
+      })
+      pages++
+      for (const call of page.data) {
+        const id = call.number?.id
+        if (typeof id !== "number") continue
+        if (!numbersMap.has(id)) {
+          numbersMap.set(id, {
+            id,
+            number: call.number.number,
+            label: call.number.label,
+          })
+        }
       }
+      if (!page.meta.nextCursor) break
+      cursor = page.meta.nextCursor
     }
-    const json = (await res.json()) as { data?: TrackingNumberFromAPI[] }
-    const numbersFromAPI = json.data ?? []
+    const numbersFromAPI = Array.from(numbersMap.values())
 
     // 2) Resolver brand_id por slug
     const sb = createServiceClient<Database>(
