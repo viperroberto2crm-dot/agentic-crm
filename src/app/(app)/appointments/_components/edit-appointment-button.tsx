@@ -412,6 +412,7 @@ export function EditAppointmentButton({
               initialApprovedAt={appointment.provider_approved_at ?? null}
               initialProviderNotes={appointment.provider_notes ?? null}
               shippedAt={appointment.shipped_at ?? null}
+              currentFormNotes={form.notes}
               onAfterApprove={() => setOpen(false)}
             />
 

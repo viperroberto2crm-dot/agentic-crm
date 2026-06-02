@@ -426,6 +426,8 @@ export async function fetchLeadsForAppt(brandId: string) {
 const ApproveForShippingSchema = z.object({
   appointment_id: z.string().uuid(),
   provider_notes: z.string().min(1).max(2000),
+  /** Notas generales de la cita (form.notes), opcional. Se persisten junto al approve. */
+  appointment_notes: z.string().max(5000).nullable().optional(),
 })
 
 export async function approveForShipping(raw: z.infer<typeof ApproveForShippingSchema>) {
@@ -451,15 +453,25 @@ export async function approveForShipping(raw: z.infer<typeof ApproveForShippingS
     }
   }
 
+  // Atómico: status='completed' + notes generales + approve. Antes el provider
+  // tenía que apretar Save y luego Approve en pasos separados; ahora un único
+  // click guarda todo.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const update: Record<string, any> = {
+    status: "completed",
+    provider_approved: true,
+    provider_approved_at: new Date().toISOString(),
+    provider_approved_by: user.id,
+    provider_notes: input.provider_notes,
+  }
+  if (input.appointment_notes !== undefined) {
+    update.notes = input.appointment_notes
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("appointments")
-    .update({
-      provider_approved: true,
-      provider_approved_at: new Date().toISOString(),
-      provider_approved_by: user.id,
-      provider_notes: input.provider_notes,
-    })
+    .update(update)
     .eq("id", input.appointment_id)
 
   if (error) throw new Error(error.message)
