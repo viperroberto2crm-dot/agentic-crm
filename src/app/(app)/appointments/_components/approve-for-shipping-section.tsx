@@ -21,9 +21,6 @@ type Props = {
   initialProviderNotes: string | null
   /** Si ya fue marcada como shipped (no se puede des-aprobar) */
   shippedAt: string | null
-  /** Notas generales del form (form.notes) — se persisten junto al approve para
-   *  no perder lo que el provider escribió en "Notas de la consulta". */
-  currentFormNotes?: string
   /** Callback opcional para cerrar el modal después de aprobar */
   onAfterApprove?: () => void
 }
@@ -46,7 +43,6 @@ export function ApproveForShippingSection({
   initialApprovedAt,
   initialProviderNotes,
   shippedAt,
-  currentFormNotes,
   onAfterApprove,
 }: Props) {
   const t = useTranslations("appointments")
@@ -60,12 +56,9 @@ export function ApproveForShippingSection({
     userRole === "manager" ||
     (userRole === "provider" && isAssignedProvider)
 
-  // No mostrar la sección si no aplica.
-  // Antes requería status==='completed'; ahora también aparece en scheduled/confirmed
-  // porque approveForShipping ya marca completed atómicamente — el provider no necesita
-  // cambiar el dropdown manualmente. Ocultamos solo en estados terminales no-completados.
+  // No mostrar la sección si no aplica
   if (!canApprove) return null
-  if (status === "cancelled" || status === "no_show" || status === "rescheduled") return null
+  if (status !== "completed") return null
 
   // CASO 1: ya shipped → mostrar info read-only
   if (shippedAt) {
@@ -141,11 +134,6 @@ export function ApproveForShippingSection({
         await approveForShipping({
           appointment_id: appointmentId,
           provider_notes: notes.trim(),
-          // Persiste las notas generales del form si el caller las pasó (evita
-          // perder lo que el provider escribió arriba en "Notas de la consulta").
-          ...(currentFormNotes !== undefined
-            ? { appointment_notes: currentFormNotes.trim() || null }
-            : {}),
         })
         router.refresh()
         if (onAfterApprove) onAfterApprove()
