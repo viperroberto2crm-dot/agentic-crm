@@ -58,11 +58,58 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Probar endpoint detail por ID. /v2/calls puede no incluir caller name,
+    // pero /v2/calls/{id} suele traer CNAM/contact info en muchas APIs.
+    const apiKey = process.env.EIGHTHUNDRED_API_KEY!
+    const firstCall = page.data[0]
+    let detailJson: unknown = null
+    let detailStatus: number | null = null
+    let detailUrl: string | null = null
+    if (firstCall) {
+      detailUrl = `https://api.800.com/v2/calls/${firstCall.id}`
+      try {
+        const detailRes = await fetch(detailUrl, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        })
+        detailStatus = detailRes.status
+        detailJson = await detailRes.json().catch(() => ({ parse_error: true }))
+      } catch (e) {
+        detailJson = { fetch_error: e instanceof Error ? e.message : String(e) }
+      }
+    }
+
+    // Probar también /v2/contacts?phone= con el caller del primer call
+    let contactsJson: unknown = null
+    let contactsStatus: number | null = null
+    let contactsUrl: string | null = null
+    if (firstCall?.caller) {
+      contactsUrl = `https://api.800.com/v2/contacts?phone=${encodeURIComponent(firstCall.caller)}`
+      try {
+        const contactsRes = await fetch(contactsUrl, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        })
+        contactsStatus = contactsRes.status
+        contactsJson = await contactsRes.json().catch(() => ({ parse_error: true }))
+      } catch (e) {
+        contactsJson = { fetch_error: e instanceof Error ? e.message : String(e) }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       total_in_page: page.data.length,
-      all_keys_seen: Array.from(allKeys).sort(),
-      sample_calls: page.data.slice(0, 3),
+      all_keys_seen_in_list: Array.from(allKeys).sort(),
+      sample_calls_from_list: page.data.slice(0, 3),
+      probe_detail: {
+        url: detailUrl,
+        status: detailStatus,
+        body: detailJson,
+      },
+      probe_contacts: {
+        url: contactsUrl,
+        status: contactsStatus,
+        body: contactsJson,
+      },
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
