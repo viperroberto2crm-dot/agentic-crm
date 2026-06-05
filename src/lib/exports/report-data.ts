@@ -258,7 +258,17 @@ export async function buildReportData(
   if (filters.brandId) salesQ = salesQ.eq("brand_id", filters.brandId)
   if (repId) salesQ = salesQ.eq("rep_id", repId)
   if (useRange) {
-    salesQ = salesQ.gte("created_at", filters.from!).lt("created_at", filters.to!)
+    // Traer sales cuyo PAGO O CREACIÓN cayó en el rango. Antes el filtro era
+    // solo created_at → reportes mensuales perdían cobros de sales viejas
+    // pagadas dentro del rango (ej: sale firmada en marzo, pagada en mayo
+    // no aparecía en el Excel de mayo). El filtro post-query (línea ~476)
+    // depura por la fecha real (paid_at ?? created_at) — esta query solo
+    // amplía el set para no perder esos casos.
+    const from = filters.from!
+    const to = filters.to!
+    salesQ = salesQ.or(
+      `and(paid_at.gte.${from},paid_at.lt.${to}),and(created_at.gte.${from},created_at.lt.${to})`
+    )
   }
 
   const { data: salesData, error: salesErr } = await salesQ

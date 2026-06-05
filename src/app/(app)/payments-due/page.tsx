@@ -165,13 +165,27 @@ export default async function PaymentsDuePage({
     // tracking de citas/sesiones.
     const paidCents = plan.abonos.reduce((s, a) => s + a.amount_cents, 0)
     if (plan.total_amount_cents > 0 && paidCents >= plan.total_amount_cents) continue
-    const paidCount = plan.abonos.length
     const totalCount = visible.length
-    if (paidCount >= totalCount) continue // fully paid → not pending
 
-    // Los abonos se asignan en orden a las cuotas visibles; la siguiente
-    // pendiente es la posición paidCount (0-based).
-    const next = visible[paidCount]
+    // FIFO real: aplicar paidCents en orden a las cuotas y encontrar la
+    // primera no cubierta. Antes usaba `plan.abonos.length` como índice, lo
+    // que rompía si un solo abono cubría múltiples cuotas (ej: 1 abono de
+    // $500 cubre 2 cuotas de $250 → el siguiente debido es la cuota 3, no
+    // la 2). Ahora replica la lógica de `computeNextInstallment` del Excel.
+    let remainingPaid = paidCents
+    let coveredCount = 0
+    let next: { seq: number; dueDate: string; amountCents: number } | null = null
+    for (const cu of visible) {
+      if (remainingPaid >= cu.amountCents) {
+        remainingPaid -= cu.amountCents
+        coveredCount++
+        continue
+      }
+      next = cu
+      break
+    }
+    if (!next) continue // todas las cuotas cubiertas
+    const paidCount = coveredCount
     const daysRemaining = daysBetween(today, next.dueDate)
 
     rows.push({

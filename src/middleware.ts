@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/api/admin/800com/",
   "/api/hermes/",  // Hermes bot: tick + futuros endpoints. Usa HERMES_SECRET/CRON_SECRET en lugar de session.
   "/api/webhooks/",  // todos los webhooks (800com, twilio futuro, etc.)
+  "/api/cron/",  // crons internos (auto-link-calls, etc.). Auth via CRON_SECRET/HERMES_SECRET.
 ]
 
 export async function middleware(request: NextRequest) {

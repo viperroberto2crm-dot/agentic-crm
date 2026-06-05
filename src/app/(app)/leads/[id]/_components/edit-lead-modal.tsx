@@ -108,6 +108,17 @@ export function EditLeadModal({
   }
 
   function handleSave() {
+    // Protección contra pérdida de notas: si el lead TENÍA notas y el form las
+    // dejó vacías, pedir confirmación. Evita el caso "rep abre modal, borra sin
+    // querer el textarea, guarda, notas perdidas".
+    const hadNotes = (lead.notes ?? "").trim().length > 0
+    const willClearNotes = !((form.notes ?? "").trim().length > 0)
+    if (hadNotes && willClearNotes) {
+      const ok = typeof window !== "undefined"
+        ? window.confirm("Vas a borrar las notas de este lead. ¿Continuar?")
+        : true
+      if (!ok) return
+    }
     setError(null)
     startTransition(async () => {
       try {

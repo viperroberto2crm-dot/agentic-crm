@@ -165,6 +165,17 @@ export function EditAppointmentButton({
       setError(hasClinics ? t("selectClinic") : t("noClinicsAvailable"))
       return
     }
+    // Protección contra pérdida de notas: si la cita TENÍA notas y el form
+    // las dejó vacías, pedir confirmación. Provider/rep pueden borrar
+    // accidentalmente el textarea y perder lo que se había anotado.
+    const hadNotes = (appointment.notes ?? "").trim().length > 0
+    const willClearNotes = form.notes.trim().length === 0
+    if (hadNotes && willClearNotes) {
+      const ok = typeof window !== "undefined"
+        ? window.confirm("Vas a borrar las notas de esta cita. ¿Continuar?")
+        : true
+      if (!ok) return
+    }
     setError(null)
     startTransition(async () => {
       try {

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { createAppointment } from "@/app/(app)/appointments/actions"
 import { brandLocalToIso } from "@/lib/appointment-tz"
+import { DateTimeAmPm } from "@/components/ui/datetime-ampm"
 
 type AppointmentType = "clinic" | "home" | "telehealth"
 
@@ -313,13 +314,12 @@ export function ScheduleAppointmentButton({
             )}
 
             <Field label={t("dateTime")} required>
-              <Input
-                type="datetime-local"
-                className={inputCls}
+              <DateTimeAmPm
                 value={form.scheduled_at}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, scheduled_at: e.target.value }))
+                onChange={(v) =>
+                  setForm((p) => ({ ...p, scheduled_at: v }))
                 }
+                required
               />
             </Field>
 

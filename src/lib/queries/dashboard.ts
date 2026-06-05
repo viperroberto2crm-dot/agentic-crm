@@ -505,13 +505,6 @@ export async function fetchPivotStats(
   if (repFilter) apptsQ = apptsQ.eq("rep_id", repFilter)
   if (brandId) apptsQ = apptsQ.eq("brand_id", brandId)
 
-  let pendingQ = supabase
-    .from("sales")
-    .select("amount_cents")
-    .eq("payment_status", "pending")
-  if (repFilter) pendingQ = pendingQ.eq("rep_id", repFilter)
-  if (brandId) pendingQ = pendingQ.eq("brand_id", brandId)
-
   let staleQ = supabase
     .from("leads")
     .select("id", { count: "exact", head: true })
@@ -520,20 +513,20 @@ export async function fetchPivotStats(
   if (repFilter) staleQ = staleQ.eq("assigned_rep_id", repFilter)
   if (brandId) staleQ = staleQ.eq("brand_id", brandId)
 
-  const [apptsRes, pendingRes, staleRes] = await Promise.all([
+  // pending_cents debe coincidir con el KPI Pending del dashboard. Antes esta
+  // query sumaba amount_cents de sales pending SIN descontar abonos parciales
+  // y omitía las 'partial' → inflaba el número del greeting respecto al KPI
+  // (que usa getSalesBreakdown con la lógica correcta). Ahora usamos el mismo
+  // helper para consistencia entre el greeting y la KPI card.
+  const [apptsRes, breakdown, staleRes] = await Promise.all([
     apptsQ,
-    pendingQ,
+    getSalesBreakdown(supabase, { brandId, repId: repFilter }),
     staleQ,
   ])
 
-  const pendingCents = (pendingRes.data ?? []).reduce(
-    (sum, r) => sum + r.amount_cents,
-    0
-  )
-
   return {
     appts_today: apptsRes.count ?? 0,
-    pending_cents: pendingCents,
+    pending_cents: breakdown.outstandingCents,
     stale_count: staleRes.count ?? 0,
   }
 }
