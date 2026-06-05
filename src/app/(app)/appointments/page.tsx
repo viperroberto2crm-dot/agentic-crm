@@ -22,7 +22,6 @@ import {
   type DashboardSearchParams,
 } from "@/lib/dashboard/date-ranges"
 import { DateRangeFilter } from "../dashboard/_components/date-range-filter"
-import { getUpcomingInstallments, type UpcomingInstallment } from "@/lib/queries/installments"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
@@ -119,18 +118,6 @@ export default async function AppointmentsPage({
   query = query.gte("scheduled_at", range.start).lt("scheduled_at", range.end)
 
   const { data: raw, count } = await query
-
-  // Cuotas próximas/vencidas dentro del rango — se mergean como filas virtuales.
-  // El rango lo derivamos del active.from/to (YYYY-MM-DD, TZ-naive) porque las
-  // due_date de cuotas son date-only sin TZ.
-  const installmentsInRange = await getUpcomingInstallments({
-    sb,
-    userId: user.id,
-    role,
-    brandId,
-    fromIso: active.from,
-    toIso: active.to,
-  })
 
   type ApptItem = {
     id: string; scheduled_at: string; type: ApptType; status: ApptStatus
@@ -244,40 +231,6 @@ export default async function AppointmentsPage({
     { value: "no_show",     label: t("noShowTab") },
   ] as const
 
-  // Fila unificada: cita real o cuota virtual. Mergeadas y sorteadas por fecha desc.
-  // Cuotas solo aparecen cuando no hay filtro de status activo (las cuotas no tienen
-  // status de appointment — confundirían las tabs scheduled/completed/etc).
-  type Row =
-    | { kind: "appt"; sortKey: string; appt: ApptItem }
-    | { kind: "installment"; sortKey: string; inst: UpcomingInstallment }
-
-  const rows: Row[] = []
-  for (const a of appts) {
-    rows.push({ kind: "appt", sortKey: a.scheduled_at, appt: a })
-  }
-  if (!statusFilter) {
-    for (const inst of installmentsInRange) {
-      // Filtrar por searchTerm si hay (matchear contra el nombre del lead)
-      if (leadIdsFilter && !leadIdsFilter.includes(inst.leadId)) continue
-      // sortKey usa el dueDate como timestamp del mediodía local (consistente con appts)
-      rows.push({ kind: "installment", sortKey: `${inst.dueDate}T12:00:00`, inst })
-    }
-  }
-  rows.sort((a, b) => b.sortKey.localeCompare(a.sortKey))
-
-  function fmtUsd(cents: number): string {
-    return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  }
-
-  function fmtInstallmentDate(dueDateIso: string): string {
-    const d = new Date(dueDateIso + "T12:00:00")
-    return d.toLocaleDateString(locale === "es" ? "es-MX" : "en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   const fromLabel = formatYmdForDisplay(active.from, locale)
   const toLabel = formatYmdForDisplay(active.to, locale)
 
@@ -292,7 +245,7 @@ export default async function AppointmentsPage({
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-gray-400">{rows.length} total</span>
+          <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
           <DateRangeFilter
             preset={active.preset}
             from={active.from}
@@ -340,7 +293,7 @@ export default async function AppointmentsPage({
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
-        {rows.length === 0 ? (
+        {appts.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">{t("noApptsFilter")}</p>
         ) : (
           <table className="w-full text-sm">
@@ -361,66 +314,7 @@ export default async function AppointmentsPage({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                if (row.kind === "installment") {
-                  const inst = row.inst
-                  const today = new Date().toISOString().slice(0, 10)
-                  const isOverdue = inst.dueDate < today
-                  const leadName = `${inst.leadFirstName} ${inst.leadLastName ?? ""}`.trim()
-                  return (
-                    <tr key={`inst-${inst.key}`} className="border-b border-gray-100 hover:bg-orange-50/40 transition-colors bg-orange-50/20">
-                      <td className="py-3 pr-4">
-                        <span className={`text-xs tabular-nums ${isOverdue ? "text-red-600 font-medium" : "text-gray-700"}`}>
-                          {fmtInstallmentDate(inst.dueDate)}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Link href={`/leads/${inst.leadId}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">
-                          {leadName}
-                        </Link>
-                      </td>
-                      <td className="py-3 pr-4 hidden md:table-cell">
-                        <span className="text-xs text-gray-400">—</span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] px-1.5 py-0 font-normal ${
-                            isOverdue
-                              ? "border-red-500/40 text-red-600"
-                              : "border-orange-500/40 text-orange-600"
-                          }`}
-                        >
-                          {isOverdue ? t("installmentBadgeOverdue", { amount: fmtUsd(inst.amountCents) }) : t("installmentBadgeDue", { amount: fmtUsd(inst.amountCents) })}
-                        </Badge>
-                      </td>
-                      <td className="py-3 pr-4 hidden sm:table-cell">
-                        <span className="text-xs text-gray-500">
-                          {inst.productName} · {t("installmentSeq", { seq: inst.seq })}
-                        </span>
-                      </td>
-                      {role !== "rep" && (
-                        <td className="py-3 pr-4 hidden lg:table-cell">
-                          <span className="text-xs text-gray-500">{inst.repName ?? "—"}</span>
-                        </td>
-                      )}
-                      {role !== "rep" && (
-                        <td className="py-3 pr-4 hidden lg:table-cell">
-                          <span className="text-xs text-gray-400">—</span>
-                        </td>
-                      )}
-                      <td className="py-3 text-right">
-                        <Link
-                          href={`/leads/${inst.leadId}`}
-                          className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
-                        >
-                          {t("openLead")}
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                }
-                const a = row.appt
+              {appts.map((a) => {
                 const cfg = STATUS_CONFIG[a.status]
                 return (
                   <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">

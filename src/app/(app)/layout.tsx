@@ -8,7 +8,6 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { countPendingActions } from "@/lib/agent/pending-actions"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getUnreadCount } from "./_actions/notifications"
 
 type UserProfile = Pick<
   Tables<"users">,
@@ -68,8 +67,7 @@ export default async function AppLayout({
       : baseLeadQuery
 
   // Tasks + notifications in parallel
-  // unreadCount incluye notifs reales sin read_at + virtuales (cuotas próximas/vencidas)
-  const [{ count: leadCount }, taskResult, unreadCount] =
+  const [{ count: leadCount }, taskResult, { count: unreadCount }] =
     await Promise.all([
       leadQuery,
       supabase
@@ -77,7 +75,11 @@ export default async function AppLayout({
         .select("priority")
         .eq("assigned_to", user.id)
         .eq("status", "open"),
-      getUnreadCount(),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null),
     ])
 
   const tasks = (taskResult.data ?? []) as Array<{ priority: string }>
@@ -131,7 +133,7 @@ export default async function AppLayout({
       taskCount={taskCount}
       shippingPendingCount={shippingPendingCount}
       urgentTasks={urgentTasks}
-      unreadCount={unreadCount}
+      unreadCount={unreadCount ?? 0}
       pendingCount={pendingCount}
     >
       {children}
