@@ -55,16 +55,22 @@ export function SyncTrackingClient() {
             className="w-3.5 h-3.5"
           />
           <span className="text-xs text-gray-700">
-            Dry run (solo listar, no insertar todavía)
+            Modo prueba (solo mostrar, NO registrar todavía)
           </span>
         </label>
         <button
           type="button"
           onClick={handleRun}
           disabled={isPending}
-          className="h-9 px-4 rounded-md bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`h-9 px-4 rounded-md text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+            dryRun ? "bg-zinc-900 hover:bg-zinc-800" : "bg-emerald-600 hover:bg-emerald-700"
+          }`}
         >
-          {isPending ? "Sincronizando…" : dryRun ? "Ver qué faltaría" : "Sincronizar ahora"}
+          {isPending
+            ? "Procesando…"
+            : dryRun
+              ? "👀 PASO 1A: Previsualizar numbers faltantes"
+              : "✅ PASO 1B: REGISTRAR numbers ahora (definitivo)"}
         </button>
       </div>
 

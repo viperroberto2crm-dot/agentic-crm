@@ -70,16 +70,22 @@ export function BackfillLeadsClient() {
             className="w-3.5 h-3.5"
           />
           <span className="text-xs text-gray-700">
-            Dry run (solo simular)
+            Modo prueba (solo mostrar, NO crear todavía)
           </span>
         </label>
         <button
           type="button"
           onClick={handleRun}
           disabled={isPending}
-          className="h-9 px-4 rounded-md bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`h-9 px-4 rounded-md text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+            dryRun ? "bg-zinc-900 hover:bg-zinc-800" : "bg-emerald-600 hover:bg-emerald-700"
+          }`}
         >
-          {isPending ? "Procesando…" : dryRun ? "Ver qué crearía" : "Crear leads y linkear"}
+          {isPending
+            ? "Procesando…"
+            : dryRun
+              ? "👀 PASO 3A: Previsualizar leads a crear"
+              : "✅ PASO 3B: CREAR leads y linkear ahora (definitivo)"}
         </button>
       </div>
 
