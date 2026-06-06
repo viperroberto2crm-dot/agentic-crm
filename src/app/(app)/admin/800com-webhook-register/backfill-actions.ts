@@ -22,6 +22,7 @@ import {
   listCallsPage,
   listConversationsPage,
   extractEnhancedCallerInfo,
+  type EightHundredCallV2,
   type EightHundredConversation,
 } from "@/lib/integrations/800com"
 
@@ -367,13 +368,33 @@ export async function backfillLeadsForOrphanCalls(input: {
       }
     }
 
-    // 2) Traer conversations de 800.com (no /v2/calls — ese NO trae caller name).
-    // /companies/{id}/conversations agrupa por phone y trae enhancedCallerId
-    // con firstName/lastName/middleName/city/state/etc. Indexamos por phone.
+    // 2a) Traer calls de /v2/calls indexadas por external_id. Las orphan calls
+    // en BD tienen caller_e164 NULL (el webhook receiver no lo guarda) → este
+    // lookup nos da el phone real para luego matchear contra conversations.
+    const callsFromAPI = new Map<string, EightHundredCallV2>()
+    let callCursor: string | null | undefined = undefined
+    let callPages = 0
+    const MAX_PAGES = 100
+    while (callPages < MAX_PAGES) {
+      const page = await listCallsPage({
+        companyId: companyIdNum,
+        startDate: since,
+        endDate,
+        perPage: 100,
+        cursor: callCursor ?? undefined,
+      })
+      callPages++
+      for (const c of page.data) callsFromAPI.set(String(c.id), c)
+      if (!page.meta?.nextCursor) break
+      callCursor = page.meta.nextCursor
+      await new Promise((r) => setTimeout(r, 1100))
+    }
+
+    // 2b) Traer conversations de /companies/{id}/conversations indexadas por
+    // recipient (phone E.164 normalizado). enhancedCallerId trae el nombre.
     const conversationsByPhone = new Map<string, EightHundredConversation>()
     let cursor: string | null | undefined = undefined
     let pages = 0
-    const MAX_PAGES = 100
     while (pages < MAX_PAGES) {
       const page = await listConversationsPage({
         companyId: companyIdNum,
@@ -387,7 +408,6 @@ export async function backfillLeadsForOrphanCalls(input: {
       }
       if (!page.meta?.nextCursor) break
       cursor = page.meta.nextCursor
-      // Throttle para no chocar el rate limit de 60/min
       await new Promise((r) => setTimeout(r, 1100))
     }
 
@@ -399,8 +419,12 @@ export async function backfillLeadsForOrphanCalls(input: {
     const sampleCreated: Array<{ name: string; phone: string }> = []
 
     for (const orphan of orphans) {
-      const phone = normalizePhone(orphan.caller_e164)
-      // Necesitamos al menos phone para crear/matchear lead
+      // Phone: primero intentar caller_e164 de BD, sino lookup via /v2/calls
+      let phone = normalizePhone(orphan.caller_e164)
+      if (!phone) {
+        const apiCall = callsFromAPI.get(orphan.external_id)
+        phone = normalizePhone(apiCall?.caller)
+      }
       if (!phone) {
         skippedNoInfo++
         continue

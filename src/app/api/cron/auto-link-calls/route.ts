@@ -19,8 +19,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import {
+  listCallsPage,
   listConversationsPage,
   extractEnhancedCallerInfo,
+  type EightHundredCallV2,
   type EightHundredConversation,
 } from "@/lib/integrations/800com"
 
@@ -140,35 +142,61 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // 6) Traer conversations de 800.com (no /v2/calls — ese NO trae caller name).
-    // /companies/{id}/conversations agrupa por phone y trae enhancedCallerId.
-    // Indexamos por recipient (E.164 normalizado).
-    // Si falla la paginación, log + continuar con lo que tengamos (return parcial).
-    const conversationsByPhone = new Map<string, EightHundredConversation>()
+    // 6a) Traer calls de /v2/calls para obtener el `caller` (phone E.164) por
+    // external_id. Las orphan calls en BD tienen caller_e164 NULL porque el
+    // webhook receiver no lo guarda → doble lookup necesario.
+    const callsFromAPI = new Map<string, EightHundredCallV2>()
     let cursor: string | null | undefined = undefined
     let pages = 0
     let paginationError: string | null = null
     while (pages < MAX_PAGES) {
+      try {
+        const page = await listCallsPage({
+          companyId: companyIdNum,
+          startDate: since,
+          endDate,
+          perPage: 100,
+          cursor: cursor ?? undefined,
+        })
+        pages++
+        for (const c of page.data) callsFromAPI.set(String(c.id), c)
+        if (!page.meta?.nextCursor) break
+        cursor = page.meta.nextCursor
+        await new Promise((r) => setTimeout(r, 1100))
+      } catch (e) {
+        paginationError = e instanceof Error ? e.message : String(e)
+        console.error(
+          `[auto-link-calls] /v2/calls pagination failed page=${pages}: ${paginationError}`,
+        )
+        break
+      }
+    }
+
+    // 6b) Traer conversations de /companies/{id}/conversations para obtener el
+    // nombre del caller por phone (enhancedCallerId). Index por recipient
+    // (phone E.164 normalizado).
+    const conversationsByPhone = new Map<string, EightHundredConversation>()
+    cursor = undefined
+    let convPages = 0
+    while (convPages < MAX_PAGES) {
       try {
         const page = await listConversationsPage({
           companyId: companyIdNum,
           perPage: 100,
           cursor: cursor ?? undefined,
         })
-        pages++
+        convPages++
         for (const conv of page.data) {
           const key = normalizePhone(conv.recipient)
           if (key) conversationsByPhone.set(key, conv)
         }
         if (!page.meta?.nextCursor) break
         cursor = page.meta.nextCursor
-        // Throttle 1100ms entre páginas para no chocar el rate limit de 60 req/min
-        // de 800.com. Sin esto, días de volumen alto podrían tirar 429s.
         await new Promise((r) => setTimeout(r, 1100))
       } catch (e) {
         paginationError = e instanceof Error ? e.message : String(e)
         console.error(
-          `[auto-link-calls] pagination failed page=${pages} cursor=${cursor}: ${paginationError}`,
+          `[auto-link-calls] conversations pagination failed page=${convPages}: ${paginationError}`,
         )
         break
       }
@@ -181,7 +209,12 @@ export async function GET(req: NextRequest) {
     let skippedNoInfo = 0
 
     for (const orphan of orphans) {
-      const phone = normalizePhone(orphan.caller_e164)
+      // Phone: primero intentar caller_e164 directo, sino lookup via /v2/calls
+      let phone = normalizePhone(orphan.caller_e164)
+      if (!phone) {
+        const apiCall = callsFromAPI.get(orphan.external_id)
+        phone = normalizePhone(apiCall?.caller)
+      }
       if (!phone) {
         skippedNoInfo++
         continue
