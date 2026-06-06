@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Phone, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { Database } from "@/types/database"
+import { identifyCaller } from "@/app/(app)/calls/actions"
 
 type CallRow = Database["public"]["Tables"]["calls"]["Row"]
 
@@ -21,6 +22,11 @@ type IncomingCall = {
   hasActivePlan: boolean
   planBalance: number | null
   lastApptDate: string | null
+  // Info del caller resuelta en vivo via ECID (cuando no hay lead todavía)
+  callerCity: string | null
+  callerState: string | null
+  callerCarrier: string | null
+  identifying: boolean
 }
 
 const AUTO_DISMISS_MS = 60_000 // 60s
@@ -130,7 +136,8 @@ async function enrichCall(call: CallRow): Promise<IncomingCall> {
 
   return {
     callId: call.id,
-    callerPhone: "",
+    // caller_e164 existe en la BD pero no en los tipos generados todavía
+    callerPhone: (call as CallRow & { caller_e164: string | null }).caller_e164 ?? "",
     brandSlug,
     brandName,
     leadId,
@@ -139,6 +146,10 @@ async function enrichCall(call: CallRow): Promise<IncomingCall> {
     hasActivePlan,
     planBalance,
     lastApptDate,
+    callerCity: null,
+    callerState: null,
+    callerCarrier: null,
+    identifying: false,
   }
 }
 
@@ -193,12 +204,44 @@ export function IncomingCallToast() {
             if (row.outcome != null) return
 
             const enriched = await enrichCall(row)
+            // Si no matcheó lead, marcar que estamos identificando en vivo
+            if (!enriched.leadId) enriched.identifying = true
             setCalls((prev) => {
               if (prev.some((c) => c.callId === enriched.callId)) return prev
               return [enriched, ...prev]
             })
 
             if (audioPrimedRef.current) playBell()
+
+            // Identificación en vivo via ECID (solo si no hay lead ya linkeado).
+            // El receiver no se toca: todo el enriquecimiento vive en este action.
+            if (!enriched.leadId) {
+              identifyCaller(enriched.callId)
+                .then((res) => {
+                  setCalls((prev) =>
+                    prev.map((c) =>
+                      c.callId === enriched.callId
+                        ? {
+                            ...c,
+                            identifying: false,
+                            leadId: res.ok ? res.leadId ?? c.leadId : c.leadId,
+                            leadName: res.ok ? res.name ?? c.leadName : c.leadName,
+                            callerCity: res.ok ? res.city : c.callerCity,
+                            callerState: res.ok ? res.state : c.callerState,
+                            callerCarrier: res.ok ? res.carrier : c.callerCarrier,
+                          }
+                        : c,
+                    ),
+                  )
+                })
+                .catch(() => {
+                  setCalls((prev) =>
+                    prev.map((c) =>
+                      c.callId === enriched.callId ? { ...c, identifying: false } : c,
+                    ),
+                  )
+                })
+            }
 
             setTimeout(() => {
               setCalls((prev) => prev.filter((c) => c.callId !== enriched.callId))
@@ -242,9 +285,25 @@ export function IncomingCallToast() {
                 <p className="text-base font-semibold text-gray-900 truncate">
                   {call.leadName}
                 </p>
+              ) : call.identifying ? (
+                <p className="text-base font-semibold text-gray-900 truncate">
+                  {call.callerPhone ? formatPhone(call.callerPhone) : "Número nuevo"}
+                  <span className="ml-2 text-xs font-normal text-gray-400 animate-pulse">identificando…</span>
+                </p>
               ) : (
                 <p className="text-base font-semibold text-gray-900 truncate">
                   {call.callerPhone ? formatPhone(call.callerPhone) : "Número nuevo"}
+                </p>
+              )}
+              {/* Teléfono debajo del nombre cuando ya tenemos nombre */}
+              {call.leadName && call.callerPhone && (
+                <p className="text-xs text-gray-500 tabular-nums">{formatPhone(call.callerPhone)}</p>
+              )}
+              {/* Ubicación / carrier resueltos via ECID (caller sin lead previo) */}
+              {(call.callerCity || call.callerState || call.callerCarrier) && (
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {[call.callerCity, call.callerState].filter(Boolean).join(", ")}
+                  {call.callerCarrier ? ` · ${call.callerCarrier}` : ""}
                 </p>
               )}
               {call.brandName && (
