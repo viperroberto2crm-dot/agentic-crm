@@ -90,7 +90,7 @@ export default async function CallsPage({
   let query = sb
     .from("calls")
     .select(
-      `id, direction, outcome, duration_seconds, called_at, notes,
+      `id, direction, outcome, duration_seconds, called_at, notes, caller_e164,
        lead:leads!calls_lead_id_fkey(id, first_name, last_name),
        rep:users!calls_rep_id_fkey(id, name)`,
       { count: "exact" }
@@ -109,6 +109,7 @@ export default async function CallsPage({
   type CallItem = {
     id: string; direction: CallDirection; outcome: CallOutcome | null
     duration_seconds: number | null; called_at: string; notes: string | null
+    caller_e164: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
   }
@@ -224,6 +225,8 @@ export default async function CallsPage({
                         <Link href={`/leads/${c.lead.id}`} className="relative z-10 text-gray-800 hover:text-gray-900 font-medium transition-colors">
                           {c.lead.first_name} {c.lead.last_name ?? ""}
                         </Link>
+                      ) : c.caller_e164 ? (
+                        <span className="relative z-10 text-gray-600 tabular-nums">{c.caller_e164}</span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}

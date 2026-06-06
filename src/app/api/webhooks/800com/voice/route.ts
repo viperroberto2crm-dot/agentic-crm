@@ -278,6 +278,7 @@ async function handleCallEvent(
     direction,
     outcome,
     duration_seconds: typeof call.duration === "number" ? call.duration : null,
+    caller_e164: callerE164 || null,
     notes: null,
     source: "800com",
     external_id: externalId,
