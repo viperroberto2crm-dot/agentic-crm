@@ -18,13 +18,14 @@ import {
  */
 export function SyncContactsClient() {
   const [dryRun, setDryRun] = useState(true)
+  const [useEcid, setUseEcid] = useState(true)
   const [isPending, startTransition] = useTransition()
   const [result, setResult] = useState<SyncContactsResult | null>(null)
 
   function handleRun() {
     setResult(null)
     startTransition(async () => {
-      const res = await syncContactsFromConversations({ dryRun })
+      const res = await syncContactsFromConversations({ dryRun, useEcid })
       setResult(res)
     })
   }
@@ -57,6 +58,18 @@ export function SyncContactsClient() {
             Modo prueba (solo contar, NO escribir todavía)
           </span>
         </label>
+        <label className="flex items-center gap-1.5 cursor-pointer h-9">
+          <input
+            type="checkbox"
+            checked={useEcid}
+            onChange={(e) => setUseEcid(e.target.checked)}
+            disabled={isPending}
+            className="w-3.5 h-3.5"
+          />
+          <span className="text-xs text-gray-700">
+            Completar dirección/email con ECID (cacheado = gratis)
+          </span>
+        </label>
         <button
           type="button"
           onClick={handleRun}
@@ -84,6 +97,13 @@ export function SyncContactsClient() {
             <li><strong>{result.leads_updated}</strong> leads existentes {result.dry_run ? "se rellenarían" : "rellenados"}</li>
             <li><strong>{result.with_address}</strong> contactos con dirección disponible</li>
             <li><strong>{result.with_email}</strong> contactos con email disponible</li>
+            <li>
+              <strong>{result.ecid_lookups}</strong> lookups ECID ·{" "}
+              <span className={result.ecid_charged > 0 ? "text-amber-700 font-medium" : "text-emerald-700"}>
+                {result.ecid_charged} cobrados
+              </span>{" "}
+              ({result.ecid_lookups - result.ecid_charged} cacheados/gratis)
+            </li>
             <li className="text-amber-700"><strong>{result.skipped_no_brand}</strong> sin brand (número no registrado) · <strong>{result.skipped_no_phone}</strong> sin teléfono</li>
           </ul>
 
@@ -106,11 +126,11 @@ export function SyncContactsClient() {
             </p>
           )}
 
-          {result.with_address === 0 && result.conversations_seen > 0 && (
+          {result.ecid_charged > 0 && (
             <p className="text-amber-700 font-medium text-xs pt-1">
-              ⚠️ 800.com no devolvió direcciones en las conversations. La
-              dirección completa vendría del lookup ECID (con costo por número) —
-              avisame si querés que lo agregue.
+              ⚠️ {result.ecid_charged} lookups ECID NO estaban cacheados y se
+              cobraron. El resto fue gratis. Si querés cero costo, destildá
+              &quot;Completar con ECID&quot; (traés solo lo que viene en conversations).
             </p>
           )}
         </div>

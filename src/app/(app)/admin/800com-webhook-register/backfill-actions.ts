@@ -22,6 +22,7 @@ import {
   listCallsPage,
   listConversationsPage,
   extractEnhancedCallerInfo,
+  lookupEnhancedCallerId,
   type EightHundredCallV2,
   type EightHundredConversation,
 } from "@/lib/integrations/800com"
@@ -574,6 +575,8 @@ export type SyncContactsResult =
       leads_updated: number
       with_address: number
       with_email: number
+      ecid_lookups: number
+      ecid_charged: number
       skipped_no_brand: number
       skipped_no_phone: number
       dry_run: boolean
@@ -584,12 +587,19 @@ export type SyncContactsResult =
 export async function syncContactsFromConversations(input: {
   /** Si true (default), solo simula y reporta cuánto traería. */
   dryRun?: boolean
+  /** Si true (default), completa dirección/email faltantes via lookup ECID
+   *  (cacheado = gratis; live = cobrado). */
+  useEcid?: boolean
+  /** Tope de lookups ECID por corrida (protección de costo). Default 2000. */
+  maxEcid?: number
 }): Promise<SyncContactsResult> {
   try {
     await assertAdmin()
     getEnv()
     const companyIdNum = parseInt(process.env.EIGHTHUNDRED_COMPANY_ID!, 10)
     const dryRun = input.dryRun ?? true
+    const useEcid = input.useEcid ?? true
+    const maxEcid = input.maxEcid ?? 2000
 
     if (
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -642,6 +652,8 @@ export async function syncContactsFromConversations(input: {
     let leadsUpdated = 0
     let withAddress = 0
     let withEmail = 0
+    let ecidLookups = 0
+    let ecidCharged = 0
     let skippedNoBrand = 0
     let skippedNoPhone = 0
     const sample: Array<{ name: string; phone: string; address: string | null; email: string | null }> = []
@@ -665,8 +677,56 @@ export async function syncContactsFromConversations(input: {
         if (!brandId) { skippedNoBrand++; continue }
 
         const info = extractEnhancedCallerInfo(conv)
-        if (info.addressLine1) withAddress++
-        if (info.email) withEmail++
+
+        // Campos finales: arrancan de la conversation (gratis) y se completan
+        // con ECID si falta dirección o email.
+        let firstName = info.firstName
+        let lastName = info.lastName
+        let addressLine1 = info.addressLine1
+        let addressLine2 = info.addressLine2
+        let city = info.city
+        let state = info.state
+        let zipCode = info.zipCode
+        let email = info.email
+        let carrier = info.carrier
+        let extraEmails: string[] = []
+
+        if (useEcid && (!addressLine1 || !email) && ecidLookups < maxEcid) {
+          try {
+            const ecid = await lookupEnhancedCallerId(phone)
+            ecidLookups++
+            if (!ecid.cacheHit) ecidCharged++
+            const d = ecid.data
+            if (d) {
+              if (!firstName) {
+                firstName = d.firstName ?? null
+                if (!firstName && d.name) {
+                  const parts = d.name.trim().split(/\s+/).filter(Boolean)
+                  firstName = parts[0] ?? null
+                  if (!lastName) lastName = parts.slice(1).join(" ") || null
+                }
+              }
+              if (!lastName) lastName = d.lastName ?? null
+              addressLine1 = addressLine1 || d.streetLine_1 || null
+              addressLine2 = addressLine2 || d.streetLine_2 || null
+              city = city || d.city || null
+              state = state || d.region || null
+              zipCode = zipCode || d.postalCode || null
+              carrier = carrier || d.carrier || null
+              if (Array.isArray(d.emails) && d.emails.length > 0) {
+                email = email || d.emails[0]
+                extraEmails = d.emails
+              }
+            }
+            // Pace ECID (limite 60/min)
+            await new Promise((r) => setTimeout(r, 250))
+          } catch {
+            // Si ECID falla, seguimos con lo que dio la conversation
+          }
+        }
+
+        if (addressLine1) withAddress++
+        if (email) withEmail++
 
         // ¿Existe lead por (brand, phone)?
         const { data: existing } = await sb
@@ -677,20 +737,23 @@ export async function syncContactsFromConversations(input: {
           .limit(1)
           .maybeSingle()
 
-        const carrierNote = info.carrier ? `Carrier: ${info.carrier}` : null
+        const noteExtra = [
+          carrier ? `Carrier: ${carrier}` : null,
+          extraEmails.length > 1 ? `Emails: ${extraEmails.join(", ")}` : null,
+        ].filter(Boolean)
 
         if (existing?.id) {
           // UPDATE: solo llenar campos vacíos (no pisar data buena)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const patch: any = {}
-          if (info.firstName && looksLikePhone(existing.first_name)) patch.first_name = info.firstName
-          if (info.lastName && !existing.last_name) patch.last_name = info.lastName
-          if (info.addressLine1 && !existing.address_line1) patch.address_line1 = info.addressLine1
-          if (info.addressLine2 && !existing.address_line2) patch.address_line2 = info.addressLine2
-          if (info.city && !existing.city) patch.city = info.city
-          if (info.state && !existing.state) patch.state = info.state
-          if (info.zipCode && !existing.zip) patch.zip = info.zipCode
-          if (info.email && !existing.email) patch.email = info.email
+          if (firstName && looksLikePhone(existing.first_name)) patch.first_name = firstName
+          if (lastName && !existing.last_name) patch.last_name = lastName
+          if (addressLine1 && !existing.address_line1) patch.address_line1 = addressLine1
+          if (addressLine2 && !existing.address_line2) patch.address_line2 = addressLine2
+          if (city && !existing.city) patch.city = city
+          if (state && !existing.state) patch.state = state
+          if (zipCode && !existing.zip) patch.zip = zipCode
+          if (email && !existing.email) patch.email = email
           if (Object.keys(patch).length > 0) {
             if (!dryRun) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -701,8 +764,8 @@ export async function syncContactsFromConversations(input: {
               sample.push({
                 name: `${patch.first_name ?? existing.first_name ?? ""} ${patch.last_name ?? existing.last_name ?? ""}`.trim(),
                 phone,
-                address: info.addressLine1 ?? existing.address_line1 ?? null,
-                email: info.email ?? existing.email ?? null,
+                address: addressLine1 ?? existing.address_line1 ?? null,
+                email: email ?? existing.email ?? null,
               })
             }
           }
@@ -710,25 +773,25 @@ export async function syncContactsFromConversations(input: {
         }
 
         // CREATE: nombre real si hay, sino fallback al teléfono (no perder al cliente)
-        const firstName = info.firstName || phone
+        const createFirstName = firstName || phone
         const repId = await repFor(brandId)
-        const noteParts = [carrierNote, "Importado de 800.com (contactos / enhancedCallerId)"].filter(Boolean)
+        const noteParts = [...noteExtra, "Importado de 800.com (contactos / ECID)"]
         if (!dryRun) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error } = await (sb as any).from("leads").insert({
             brand_id: brandId,
-            first_name: firstName,
-            last_name: info.lastName || null,
+            first_name: createFirstName,
+            last_name: lastName || null,
             phone,
-            email: info.email || null,
+            email: email || null,
             status: "new",
             source: "inbound_call",
             assigned_rep_id: repId,
-            address_line1: info.addressLine1 || null,
-            address_line2: info.addressLine2 || null,
-            city: info.city || null,
-            state: info.state || null,
-            zip: info.zipCode || null,
+            address_line1: addressLine1 || null,
+            address_line2: addressLine2 || null,
+            city: city || null,
+            state: state || null,
+            zip: zipCode || null,
             notes: noteParts.join("\n"),
           })
           if (error && !(error.code === "23505" || error.message?.includes("duplicate"))) {
@@ -739,10 +802,10 @@ export async function syncContactsFromConversations(input: {
         leadsCreated++
         if (sample.length < 15) {
           sample.push({
-            name: `${firstName} ${info.lastName ?? ""}`.trim(),
+            name: `${createFirstName} ${lastName ?? ""}`.trim(),
             phone,
-            address: info.addressLine1 ?? null,
-            email: info.email ?? null,
+            address: addressLine1 ?? null,
+            email: email ?? null,
           })
         }
       }
@@ -763,6 +826,8 @@ export async function syncContactsFromConversations(input: {
       leads_updated: leadsUpdated,
       with_address: withAddress,
       with_email: withEmail,
+      ecid_lookups: ecidLookups,
+      ecid_charged: ecidCharged,
       skipped_no_brand: skippedNoBrand,
       skipped_no_phone: skippedNoPhone,
       dry_run: dryRun,
