@@ -86,8 +86,12 @@ export async function GET(req: NextRequest) {
     // 3) Service client (bypass RLS — igual que el server action admin)
     const sb = createServiceClient<Database>(supabaseUrl!, serviceRoleKey!)
 
-    // 4) Ventana de 24h hacia atrás (corre cada 10min → 24h es buffer amplio)
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // 4) Ventana hacia atrás. Default 24h (suficiente para cron cada 10min).
+    // Override via ?days=30 para backfills manuales mayores.
+    const url = new URL(req.url)
+    const daysParam = url.searchParams.get("days")
+    const days = daysParam ? Math.min(Math.max(parseInt(daysParam, 10) || 1, 1), 60) : 1
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
     const endDate = new Date().toISOString()
 
     console.log(
