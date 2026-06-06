@@ -165,13 +165,18 @@ export function extractEnhancedCallerInfo(conv: EightHundredConversation): {
   city: string | null
   state: string | null
   addressLine1: string | null
+  addressLine2: string | null
   zipCode: string | null
+  country: string | null
+  carrier: string | null
+  email: string | null
 } {
   const e = conv.enhancedCallerId
   if (!e) {
     return {
       firstName: null, lastName: null, middleName: null,
-      city: null, state: null, addressLine1: null, zipCode: null,
+      city: null, state: null, addressLine1: null, addressLine2: null,
+      zipCode: null, country: null, carrier: null, email: null,
     }
   }
   let firstName = e.firstName ?? null
@@ -184,6 +189,7 @@ export function extractEnhancedCallerInfo(conv: EightHundredConversation): {
       lastName = parts.slice(1).join(" ")
     }
   }
+  const email = Array.isArray(e.emails) && e.emails.length > 0 ? e.emails[0] : null
   return {
     firstName,
     lastName,
@@ -191,7 +197,11 @@ export function extractEnhancedCallerInfo(conv: EightHundredConversation): {
     city: e.city ?? null,
     state: e.state ?? null,
     addressLine1: e.addressLine1 ?? null,
+    addressLine2: e.addressLine2 ?? null,
     zipCode: e.zipCode ?? null,
+    country: e.country ?? null,
+    carrier: e.carrier ?? null,
+    email,
   }
 }
 

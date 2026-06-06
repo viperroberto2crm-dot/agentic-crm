@@ -548,3 +548,230 @@ export async function backfillLeadsForOrphanCalls(input: {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// SYNC CONTACTS FROM CONVERSATIONS
+// Recorre TODAS las conversations de 800.com y crea/rellena leads con la
+// info COMPLETA del enhancedCallerId: nombre, teléfono, dirección, email,
+// carrier. A diferencia de backfillLeadsForOrphanCalls (que solo toca calls
+// huérfanas), este recorre contactos → también rellena leads viejos que ya
+// tenían nombre pero les faltaba dirección/email.
+//
+// Safe: en leads existentes SOLO llena campos vacíos (no pisa data buena).
+// Resuelve el brand por conversation.number.id → tracking_numbers.
+// ─────────────────────────────────────────────────────────────────────
+
+function looksLikePhone(s: string | null | undefined): boolean {
+  if (!s) return true
+  return /^\+?\d[\d\s().-]*$/.test(s.trim())
+}
+
+export type SyncContactsResult =
+  | {
+      ok: true
+      conversations_seen: number
+      leads_created: number
+      leads_updated: number
+      with_address: number
+      with_email: number
+      skipped_no_brand: number
+      skipped_no_phone: number
+      dry_run: boolean
+      sample: Array<{ name: string; phone: string; address: string | null; email: string | null }>
+    }
+  | { ok: false; error: string }
+
+export async function syncContactsFromConversations(input: {
+  /** Si true (default), solo simula y reporta cuánto traería. */
+  dryRun?: boolean
+}): Promise<SyncContactsResult> {
+  try {
+    await assertAdmin()
+    getEnv()
+    const companyIdNum = parseInt(process.env.EIGHTHUNDRED_COMPANY_ID!, 10)
+    const dryRun = input.dryRun ?? true
+
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
+      return { ok: false, error: "Supabase service env vars missing" }
+    }
+
+    const sb = createServiceClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    )
+
+    // 1) Map number_id → brand_id (resolver brand de cada conversation)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tnRows } = await (sb as any)
+      .from("tracking_numbers")
+      .select("brand_id, provider_metadata")
+      .eq("provider", "800com")
+      .eq("active", true)
+    const brandByNumberId = new Map<number, string>()
+    for (const r of ((tnRows ?? []) as Array<{ brand_id: string; provider_metadata: { number_id?: number } | null }>)) {
+      const nid = r.provider_metadata?.number_id
+      if (typeof nid === "number") brandByNumberId.set(nid, r.brand_id)
+    }
+    if (brandByNumberId.size === 0) {
+      return { ok: false, error: "No hay tracking_numbers 800com activos para resolver brand" }
+    }
+
+    // 2) Rep fallback por brand (primer admin/manager activo) — cache
+    const repByBrand = new Map<string, string | null>()
+    async function repFor(brandId: string): Promise<string | null> {
+      if (repByBrand.has(brandId)) return repByBrand.get(brandId)!
+      const { data: u } = await sb
+        .from("users")
+        .select("id")
+        .eq("active", true)
+        .in("role", ["admin", "manager", "rep"])
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      const id = u?.id ?? null
+      repByBrand.set(brandId, id)
+      return id
+    }
+
+    // 3) Paginar TODAS las conversations
+    let conversationsSeen = 0
+    let leadsCreated = 0
+    let leadsUpdated = 0
+    let withAddress = 0
+    let withEmail = 0
+    let skippedNoBrand = 0
+    let skippedNoPhone = 0
+    const sample: Array<{ name: string; phone: string; address: string | null; email: string | null }> = []
+
+    let cursor: string | null | undefined = undefined
+    let pages = 0
+    const MAX_PAGES = 200
+    while (pages < MAX_PAGES) {
+      const page = await listConversationsPage({
+        companyId: companyIdNum,
+        perPage: 100,
+        cursor: cursor ?? undefined,
+      })
+      pages++
+      for (const conv of page.data) {
+        conversationsSeen++
+        const phone = normalizePhone(conv.recipient)
+        if (!phone) { skippedNoPhone++; continue }
+        const numberId = conv.number?.id
+        const brandId = typeof numberId === "number" ? brandByNumberId.get(numberId) : undefined
+        if (!brandId) { skippedNoBrand++; continue }
+
+        const info = extractEnhancedCallerInfo(conv)
+        if (info.addressLine1) withAddress++
+        if (info.email) withEmail++
+
+        // ¿Existe lead por (brand, phone)?
+        const { data: existing } = await sb
+          .from("leads")
+          .select("id, first_name, last_name, address_line1, address_line2, city, state, zip, email")
+          .eq("brand_id", brandId)
+          .eq("phone", phone)
+          .limit(1)
+          .maybeSingle()
+
+        const carrierNote = info.carrier ? `Carrier: ${info.carrier}` : null
+
+        if (existing?.id) {
+          // UPDATE: solo llenar campos vacíos (no pisar data buena)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const patch: any = {}
+          if (info.firstName && looksLikePhone(existing.first_name)) patch.first_name = info.firstName
+          if (info.lastName && !existing.last_name) patch.last_name = info.lastName
+          if (info.addressLine1 && !existing.address_line1) patch.address_line1 = info.addressLine1
+          if (info.addressLine2 && !existing.address_line2) patch.address_line2 = info.addressLine2
+          if (info.city && !existing.city) patch.city = info.city
+          if (info.state && !existing.state) patch.state = info.state
+          if (info.zipCode && !existing.zip) patch.zip = info.zipCode
+          if (info.email && !existing.email) patch.email = info.email
+          if (Object.keys(patch).length > 0) {
+            if (!dryRun) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb as any).from("leads").update(patch).eq("id", existing.id)
+            }
+            leadsUpdated++
+            if (sample.length < 15) {
+              sample.push({
+                name: `${patch.first_name ?? existing.first_name ?? ""} ${patch.last_name ?? existing.last_name ?? ""}`.trim(),
+                phone,
+                address: info.addressLine1 ?? existing.address_line1 ?? null,
+                email: info.email ?? existing.email ?? null,
+              })
+            }
+          }
+          continue
+        }
+
+        // CREATE: nombre real si hay, sino fallback al teléfono (no perder al cliente)
+        const firstName = info.firstName || phone
+        const repId = await repFor(brandId)
+        const noteParts = [carrierNote, "Importado de 800.com (contactos / enhancedCallerId)"].filter(Boolean)
+        if (!dryRun) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (sb as any).from("leads").insert({
+            brand_id: brandId,
+            first_name: firstName,
+            last_name: info.lastName || null,
+            phone,
+            email: info.email || null,
+            status: "new",
+            source: "inbound_call",
+            assigned_rep_id: repId,
+            address_line1: info.addressLine1 || null,
+            address_line2: info.addressLine2 || null,
+            city: info.city || null,
+            state: info.state || null,
+            zip: info.zipCode || null,
+            notes: noteParts.join("\n"),
+          })
+          if (error && !(error.code === "23505" || error.message?.includes("duplicate"))) {
+            // no abortar todo el sync por un lead — seguir
+            continue
+          }
+        }
+        leadsCreated++
+        if (sample.length < 15) {
+          sample.push({
+            name: `${firstName} ${info.lastName ?? ""}`.trim(),
+            phone,
+            address: info.addressLine1 ?? null,
+            email: info.email ?? null,
+          })
+        }
+      }
+      if (!page.meta?.nextCursor) break
+      cursor = page.meta.nextCursor
+      await new Promise((r) => setTimeout(r, 1100))
+    }
+
+    if (!dryRun) {
+      revalidatePath("/leads")
+      revalidatePath("/calls")
+    }
+
+    return {
+      ok: true,
+      conversations_seen: conversationsSeen,
+      leads_created: leadsCreated,
+      leads_updated: leadsUpdated,
+      with_address: withAddress,
+      with_email: withEmail,
+      skipped_no_brand: skippedNoBrand,
+      skipped_no_phone: skippedNoPhone,
+      dry_run: dryRun,
+      sample,
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    }
+  }
+}

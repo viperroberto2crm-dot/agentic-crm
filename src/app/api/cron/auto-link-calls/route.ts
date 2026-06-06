@@ -228,7 +228,7 @@ export async function GET(req: NextRequest) {
         skippedNoInfo++
         continue
       }
-      const { firstName, lastName } = extractEnhancedCallerInfo(conv)
+      const { firstName, lastName, addressLine1, addressLine2, city, state, zipCode, email, carrier } = extractEnhancedCallerInfo(conv)
 
       // 7a) Match lead existente por phone (idempotencia: si corrió antes ya está)
       let leadId: string | null = null
@@ -258,10 +258,16 @@ export async function GET(req: NextRequest) {
             first_name: firstName,
             last_name: lastName || null,
             phone,
+            email: email || null,
             status: "new",
             source: "inbound_call",
             assigned_rep_id: orphan.rep_id,
-            notes: "Auto-creado por cron auto-link-calls (800.com)",
+            address_line1: addressLine1 || null,
+            address_line2: addressLine2 || null,
+            city: city || null,
+            state: state || null,
+            zip: zipCode || null,
+            notes: [carrier ? `Carrier: ${carrier}` : null, "Auto-creado por cron auto-link-calls (800.com)"].filter(Boolean).join("\n"),
           })
           .select("id")
           .single()

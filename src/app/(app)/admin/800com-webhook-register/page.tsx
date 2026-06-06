@@ -9,6 +9,7 @@ import { WebhookHistoryViewer } from "./_components/webhook-history-viewer"
 import { BackfillCallsClient } from "./_components/backfill-calls-client"
 import { SyncTrackingClient } from "./_components/sync-tracking-client"
 import { BackfillLeadsClient } from "./_components/backfill-leads-client"
+import { SyncContactsClient } from "./_components/sync-contacts-client"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -85,6 +86,8 @@ export default async function EightHundredWebhookRegisterPage() {
       <BackfillCallsClient />
 
       <BackfillLeadsClient />
+
+      <SyncContactsClient />
 
       <div className="space-y-2 pt-4 border-t border-gray-200">
         <div>
