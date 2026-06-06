@@ -78,21 +78,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Probar también /v2/contacts?phone= con el caller del primer call
-    let contactsJson: unknown = null
-    let contactsStatus: number | null = null
-    let contactsUrl: string | null = null
-    if (firstCall?.caller) {
-      contactsUrl = `https://api.800.com/v2/contacts?phone=${encodeURIComponent(firstCall.caller)}`
-      try {
-        const contactsRes = await fetch(contactsUrl, {
-          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
-        })
-        contactsStatus = contactsRes.status
-        contactsJson = await contactsRes.json().catch(() => ({ parse_error: true }))
-      } catch (e) {
-        contactsJson = { fetch_error: e instanceof Error ? e.message : String(e) }
-      }
+    // Probar /companies/{companyId}/conversations — endpoint que usa el inbox
+    // web (descubierto via Network tab). Ahí está el caller name.
+    const convUrl = `https://api.800.com/companies/${companyIdNum}/conversations?search_metadata_only=1&is_archived=0`
+    let convJson: unknown = null
+    let convStatus: number | null = null
+    try {
+      const convRes = await fetch(convUrl, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+      })
+      convStatus = convRes.status
+      convJson = await convRes.json().catch(() => ({ parse_error: true }))
+    } catch (e) {
+      convJson = { fetch_error: e instanceof Error ? e.message : String(e) }
     }
 
     return NextResponse.json({
@@ -105,10 +103,10 @@ export async function GET(req: NextRequest) {
         status: detailStatus,
         body: detailJson,
       },
-      probe_contacts: {
-        url: contactsUrl,
-        status: contactsStatus,
-        body: contactsJson,
+      probe_conversations: {
+        url: convUrl,
+        status: convStatus,
+        body: convJson,
       },
     })
   } catch (err) {
