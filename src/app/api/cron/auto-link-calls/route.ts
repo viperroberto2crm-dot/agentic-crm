@@ -19,10 +19,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import {
-  listCallsPage,
-  extractCallerName,
-  type EightHundredCallV2,
+  listConversationsPage,
+  extractEnhancedCallerInfo,
+  type EightHundredConversation,
 } from "@/lib/integrations/800com"
+
+/**
+ * E.164 normalization para matchear phones entre orphan calls (BD) y
+ * conversations (API). Quitamos espacios y caracteres no numéricos excepto +.
+ */
+function normalizePhone(s: string | null | undefined): string | null {
+  if (!s) return null
+  const cleaned = s.replace(/[^\d+]/g, "")
+  return cleaned || null
+}
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -85,10 +95,11 @@ export async function GET(req: NextRequest) {
     // 5) Listar orphan calls del CRM (lead_id NULL, source 800com, en rango).
     // Order by called_at ASC para que si hay >ORPHANS_LIMIT, siempre procesemos
     // las más antiguas primero (sino algunas quedarían sin linkear para siempre).
+    // Incluimos caller_e164 para poder matchear contra conversations.recipient.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orphanRows, error: orphanErr } = await (sb as any)
       .from("calls")
-      .select("id, external_id, brand_id, rep_id, called_at")
+      .select("id, external_id, brand_id, rep_id, called_at, caller_e164")
       .is("lead_id", null)
       .eq("source", "800com")
       .not("external_id", "is", null)
@@ -110,6 +121,7 @@ export async function GET(req: NextRequest) {
       brand_id: string
       rep_id: string | null
       called_at: string
+      caller_e164: string | null
     }>
 
     if (orphans.length === 0) {
@@ -128,30 +140,30 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // 6) Traer calls de 800.com en el rango, indexar por external_id.
+    // 6) Traer conversations de 800.com (no /v2/calls — ese NO trae caller name).
+    // /companies/{id}/conversations agrupa por phone y trae enhancedCallerId.
+    // Indexamos por recipient (E.164 normalizado).
     // Si falla la paginación, log + continuar con lo que tengamos (return parcial).
-    const callsFromAPI = new Map<string, EightHundredCallV2>()
+    const conversationsByPhone = new Map<string, EightHundredConversation>()
     let cursor: string | null | undefined = undefined
     let pages = 0
     let paginationError: string | null = null
     while (pages < MAX_PAGES) {
       try {
-        const page = await listCallsPage({
+        const page = await listConversationsPage({
           companyId: companyIdNum,
-          startDate: since,
-          endDate,
           perPage: 100,
           cursor: cursor ?? undefined,
         })
         pages++
-        for (const c of page.data) {
-          callsFromAPI.set(String(c.id), c)
+        for (const conv of page.data) {
+          const key = normalizePhone(conv.recipient)
+          if (key) conversationsByPhone.set(key, conv)
         }
-        if (!page.meta.nextCursor) break
+        if (!page.meta?.nextCursor) break
         cursor = page.meta.nextCursor
         // Throttle 1100ms entre páginas para no chocar el rate limit de 60 req/min
-        // de 800.com (mismo patrón que iterAllCalls). Sin esto, días de volumen
-        // alto podrían tirar 429s.
+        // de 800.com. Sin esto, días de volumen alto podrían tirar 429s.
         await new Promise((r) => setTimeout(r, 1100))
       } catch (e) {
         paginationError = e instanceof Error ? e.message : String(e)
@@ -169,19 +181,17 @@ export async function GET(req: NextRequest) {
     let skippedNoInfo = 0
 
     for (const orphan of orphans) {
-      const apiCall = callsFromAPI.get(orphan.external_id)
-      if (!apiCall) {
-        skippedNoInfo++
-        continue
-      }
-
-      const { firstName, lastName } = extractCallerName(apiCall)
-      const phone = apiCall.caller
-
+      const phone = normalizePhone(orphan.caller_e164)
       if (!phone) {
         skippedNoInfo++
         continue
       }
+      const conv = conversationsByPhone.get(phone)
+      if (!conv) {
+        skippedNoInfo++
+        continue
+      }
+      const { firstName, lastName } = extractEnhancedCallerInfo(conv)
 
       // 7a) Match lead existente por phone (idempotencia: si corrió antes ya está)
       let leadId: string | null = null

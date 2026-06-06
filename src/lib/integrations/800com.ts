@@ -106,6 +106,95 @@ export type EightHundredListResponse = {
   }
 }
 
+/**
+ * Shape de /companies/{id}/conversations (descubierto via Network tab del inbox 800.com).
+ * Este endpoint SÍ trae enhancedCallerId con nombre/dirección/carrier — la API
+ * pública /v2/calls solo trae el número sin nombre.
+ */
+export type EightHundredEnhancedCallerId = {
+  firstName?: string | null
+  lastName?: string | null
+  middleName?: string | null
+  name?: string | null
+  city?: string | null
+  state?: string | null
+  country?: string | null
+  carrier?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  zipCode?: string | null
+  emails?: Array<string> | null
+} | null
+
+export type EightHundredConversation = {
+  id: number
+  recipient: string  // phone E.164 del caller
+  number: { id: number; number: string; label: string | null }
+  enhancedCallerId: EightHundredEnhancedCallerId
+  lastActivityAt: string
+  isArchived: boolean
+  numUnreadItems?: number
+  latestItem?: {
+    id: number
+    type: string
+    details?: {
+      id: number
+      type: string
+      startedAt?: string
+      endedAt?: string
+      durationInSeconds?: number
+      recordingUrl?: string | null
+    }
+  }
+}
+
+export type EightHundredConversationsResponse = {
+  data: EightHundredConversation[]
+  meta?: { nextCursor?: string | null; per_page?: number; path?: string }
+  links?: { first?: string | null; last?: string | null }
+}
+
+/**
+ * Extrae nombre y dirección del enhancedCallerId de una conversation.
+ * Preferencia: firstName/lastName explícitos → si solo hay `name` lo splittea.
+ */
+export function extractEnhancedCallerInfo(conv: EightHundredConversation): {
+  firstName: string | null
+  lastName: string | null
+  middleName: string | null
+  city: string | null
+  state: string | null
+  addressLine1: string | null
+  zipCode: string | null
+} {
+  const e = conv.enhancedCallerId
+  if (!e) {
+    return {
+      firstName: null, lastName: null, middleName: null,
+      city: null, state: null, addressLine1: null, zipCode: null,
+    }
+  }
+  let firstName = e.firstName ?? null
+  let lastName = e.lastName ?? null
+  if (!firstName && !lastName && e.name) {
+    const parts = e.name.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 1) firstName = parts[0]
+    else if (parts.length >= 2) {
+      firstName = parts[0]
+      lastName = parts.slice(1).join(" ")
+    }
+  }
+  return {
+    firstName,
+    lastName,
+    middleName: e.middleName ?? null,
+    city: e.city ?? null,
+    state: e.state ?? null,
+    addressLine1: e.addressLine1 ?? null,
+    zipCode: e.zipCode ?? null,
+  }
+}
+
 export type ListCallsOptions = {
   companyId: number
   startDate?: string  // ISO; default = 30 days ago
@@ -171,6 +260,40 @@ export async function listCallsPage(
  * well under the 60/min limit since we pace at 10/sec we'd hit limit. Actually
  * /min is per minute → 100ms = 600/min so we sleep 1100ms = ~54/min safe.
  */
+/**
+ * Fetch one page de /companies/{id}/conversations. Mismo auth (Bearer API key).
+ * Cada conversation agrupa todos los items (calls/SMS) de un mismo phone.
+ * enhancedCallerId trae nombre/dirección/carrier (NO viene en /v2/calls).
+ */
+export async function listConversationsPage(opts: {
+  companyId: number
+  cursor?: string
+  perPage?: number
+  isArchived?: boolean
+}): Promise<EightHundredConversationsResponse> {
+  const params = new URLSearchParams()
+  params.set("search_metadata_only", "1")
+  params.set("is_archived", opts.isArchived === true ? "1" : "0")
+  if (opts.cursor) params.set("cursor", opts.cursor)
+  if (opts.perPage) params.set("per_page", String(opts.perPage))
+
+  const url = `${API_BASE}/companies/${opts.companyId}/conversations?${params.toString()}`
+  const res = await fetch(url, {
+    headers: {
+      authorization: getAuthHeader(),
+      accept: "application/json",
+    },
+    cache: "no-store",
+  })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new Error(`800.com conversations ${res.status}: ${body.slice(0, 300)}`)
+  }
+
+  return (await res.json()) as EightHundredConversationsResponse
+}
+
 export async function* iterAllCalls(
   opts: Omit<ListCallsOptions, "cursor">,
 ): AsyncIterableIterator<EightHundredCallV2> {

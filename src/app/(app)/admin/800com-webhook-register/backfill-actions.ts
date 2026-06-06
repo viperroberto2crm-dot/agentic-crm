@@ -20,9 +20,16 @@ import type { Database } from "@/types/database"
 import {
   importCallsFromEightHundred,
   listCallsPage,
-  extractCallerName,
-  type EightHundredCallV2,
+  listConversationsPage,
+  extractEnhancedCallerInfo,
+  type EightHundredConversation,
 } from "@/lib/integrations/800com"
+
+function normalizePhone(s: string | null | undefined): string | null {
+  if (!s) return null
+  const cleaned = s.replace(/[^\d+]/g, "")
+  return cleaned || null
+}
 import { revalidatePath } from "next/cache"
 
 type DB = SupabaseClient<Database>
@@ -327,11 +334,12 @@ export async function backfillLeadsForOrphanCalls(input: {
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    // 1) Listar calls del CRM con lead_id NULL y external_id no null (del rango)
+    // 1) Listar calls del CRM con lead_id NULL y external_id no null (del rango).
+    // Incluimos caller_e164 — necesario para matchear contra conversations.recipient.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orphanRows } = await (sb as any)
       .from("calls")
-      .select("id, external_id, brand_id, rep_id, called_at")
+      .select("id, external_id, brand_id, rep_id, called_at, caller_e164")
       .is("lead_id", null)
       .eq("source", "800com")
       .not("external_id", "is", null)
@@ -343,6 +351,7 @@ export async function backfillLeadsForOrphanCalls(input: {
       brand_id: string
       rep_id: string | null
       called_at: string
+      caller_e164: string | null
     }>
 
     if (orphans.length === 0) {
@@ -358,25 +367,28 @@ export async function backfillLeadsForOrphanCalls(input: {
       }
     }
 
-    // 2) Traer todas las calls de 800.com en el rango, indexar por external_id
-    const callsFromAPI = new Map<string, EightHundredCallV2>()
+    // 2) Traer conversations de 800.com (no /v2/calls — ese NO trae caller name).
+    // /companies/{id}/conversations agrupa por phone y trae enhancedCallerId
+    // con firstName/lastName/middleName/city/state/etc. Indexamos por phone.
+    const conversationsByPhone = new Map<string, EightHundredConversation>()
     let cursor: string | null | undefined = undefined
     let pages = 0
     const MAX_PAGES = 100
     while (pages < MAX_PAGES) {
-      const page = await listCallsPage({
+      const page = await listConversationsPage({
         companyId: companyIdNum,
-        startDate: since,
-        endDate,
         perPage: 100,
         cursor: cursor ?? undefined,
       })
       pages++
-      for (const c of page.data) {
-        callsFromAPI.set(String(c.id), c)
+      for (const conv of page.data) {
+        const key = normalizePhone(conv.recipient)
+        if (key) conversationsByPhone.set(key, conv)
       }
-      if (!page.meta.nextCursor) break
+      if (!page.meta?.nextCursor) break
       cursor = page.meta.nextCursor
+      // Throttle para no chocar el rate limit de 60/min
+      await new Promise((r) => setTimeout(r, 1100))
     }
 
     // 3) Para cada orphan call, buscar info, crear lead si hay nombre, update call
@@ -387,20 +399,18 @@ export async function backfillLeadsForOrphanCalls(input: {
     const sampleCreated: Array<{ name: string; phone: string }> = []
 
     for (const orphan of orphans) {
-      const apiCall = callsFromAPI.get(orphan.external_id)
-      if (!apiCall) {
-        skippedNoInfo++
-        continue
-      }
-
-      const { firstName, lastName } = extractCallerName(apiCall)
-      const phone = apiCall.caller
-
+      const phone = normalizePhone(orphan.caller_e164)
       // Necesitamos al menos phone para crear/matchear lead
       if (!phone) {
         skippedNoInfo++
         continue
       }
+      const conv = conversationsByPhone.get(phone)
+      if (!conv) {
+        skippedNoInfo++
+        continue
+      }
+      const { firstName, lastName } = extractEnhancedCallerInfo(conv)
 
       // 3a) Intentar matchear lead existente por phone (puede haberse creado entre medio)
       let leadId: string | null = null
