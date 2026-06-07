@@ -25,6 +25,7 @@ import {
   type EightHundredCallV2,
   type EightHundredConversation,
 } from "@/lib/integrations/800com"
+import { maybeEnrichLead } from "@/lib/integrations/ecid-enrich"
 
 /**
  * E.164 normalization para matchear phones entre orphan calls (BD) y
@@ -211,6 +212,11 @@ export async function GET(req: NextRequest) {
     let leadsMatchedExisting = 0
     let callsUpdated = 0
     let skippedNoInfo = 0
+    // ECID enrichment (dirección/email completos) — tope por corrida para
+    // acotar tiempo (maxDuration=60) y costo. maybeEnrichLead salta el API si
+    // el lead ya tiene dirección, así que matcheados completos no gastan.
+    let enrichedCount = 0
+    const MAX_ENRICH = 50
 
     for (const orphan of orphans) {
       // Phone: primero intentar caller_e164 directo, sino lookup via /v2/calls
@@ -296,6 +302,13 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // 7b-bis) Enriquecer con ECID (dirección/email/calle completos), igual
+      // que el path de import. Cubre creados Y matcheados sin dirección.
+      if (leadId && enrichedCount < MAX_ENRICH) {
+        await maybeEnrichLead(sb, leadId)
+        enrichedCount++
+      }
+
       // 7c) Actualizar la call con lead_id
       if (leadId) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -328,6 +341,7 @@ export async function GET(req: NextRequest) {
       leads_created: leadsCreated,
       leads_matched_existing: leadsMatchedExisting,
       calls_updated: callsUpdated,
+      enriched_ecid: enrichedCount,
       skipped_no_info: skippedNoInfo,
       duration_ms: duration,
       ...(paginationError ? { pagination_error: paginationError } : {}),
