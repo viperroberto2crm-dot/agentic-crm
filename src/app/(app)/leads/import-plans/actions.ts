@@ -295,6 +295,7 @@ export async function importPaymentPlans(
       // d) Crear abonos
       const myAbonos = abonosByRef.get(plan.ref_id) ?? []
       let paidTotalCents = 0
+      let lastAbonoDate: string | null = null
       for (const ab of myAbonos) {
         const abDate = parseDate(ab.date)
         if (!abDate) {
@@ -325,6 +326,7 @@ export async function importPaymentPlans(
         } else {
           result.abonos_imported++
           paidTotalCents += cents
+          if (!lastAbonoDate || abDate > lastAbonoDate) lastAbonoDate = abDate
         }
       }
 
@@ -332,7 +334,11 @@ export async function importPaymentPlans(
       let saleStatus: "pending" | "partial" | "paid" = "partial"
       if (paidTotalCents <= 0) saleStatus = "pending"
       else if (paidTotalCents >= totalCents) saleStatus = "paid"
-      await sb.from("sales").update({ payment_status: saleStatus }).eq("id", saleRow.id)
+      // Si quedó pagado, setear paid_at a la fecha del último abono (igual que
+      // refreshPlanSaleStatus) — sino la sale queda paid con paid_at NULL.
+      const saleUpdate: { payment_status: typeof saleStatus; paid_at?: string } = { payment_status: saleStatus }
+      if (saleStatus === "paid" && lastAbonoDate) saleUpdate.paid_at = lastAbonoDate
+      await sb.from("sales").update(saleUpdate).eq("id", saleRow.id)
     } catch (e) {
       result.errors.push({
         sheet: "Plans",

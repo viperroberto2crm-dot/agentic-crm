@@ -592,6 +592,8 @@ export async function syncContactsFromConversations(input: {
   useEcid?: boolean
   /** Tope de lookups ECID por corrida (protección de costo). Default 2000. */
   maxEcid?: number
+  /** Si true (default), recorre también las conversaciones archivadas. */
+  includeArchived?: boolean
 }): Promise<SyncContactsResult> {
   try {
     await assertAdmin()
@@ -600,6 +602,7 @@ export async function syncContactsFromConversations(input: {
     const dryRun = input.dryRun ?? true
     const useEcid = input.useEcid ?? true
     const maxEcid = input.maxEcid ?? 2000
+    const includeArchived = input.includeArchived ?? true
 
     if (
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -658,14 +661,17 @@ export async function syncContactsFromConversations(input: {
     let skippedNoPhone = 0
     const sample: Array<{ name: string; phone: string; address: string | null; email: string | null }> = []
 
+    const MAX_PAGES = 200
+    const archivedStates = includeArchived ? [false, true] : [false]
+    for (const archived of archivedStates) {
     let cursor: string | null | undefined = undefined
     let pages = 0
-    const MAX_PAGES = 200
     while (pages < MAX_PAGES) {
       const page = await listConversationsPage({
         companyId: companyIdNum,
         perPage: 100,
         cursor: cursor ?? undefined,
+        isArchived: archived,
       })
       pages++
       for (const conv of page.data) {
@@ -812,6 +818,7 @@ export async function syncContactsFromConversations(input: {
       if (!page.meta?.nextCursor) break
       cursor = page.meta.nextCursor
       await new Promise((r) => setTimeout(r, 1100))
+    }
     }
 
     if (!dryRun) {

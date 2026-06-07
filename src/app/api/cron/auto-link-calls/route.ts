@@ -183,7 +183,11 @@ export async function GET(req: NextRequest) {
     const conversationsByPhone = new Map<string, EightHundredConversation>()
     cursor = undefined
     let convPages = 0
-    while (convPages < MAX_PAGES) {
+    // Cap bajo a propósito: el cron solo necesita las conversations MÁS
+    // RECIENTES para matchear orphans de las últimas 24h. Con el cursor ahora
+    // funcionando, sin este cap paginaría todo y pasaría el maxDuration=60s.
+    const CONV_MAX_PAGES = 5
+    while (convPages < CONV_MAX_PAGES) {
       try {
         const page = await listConversationsPage({
           companyId: companyIdNum,

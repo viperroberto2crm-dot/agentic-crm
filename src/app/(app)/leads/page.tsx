@@ -52,7 +52,7 @@ export default async function LeadsPage({
     const { data: leadIdsRows } = await sb
       .from("appointments")
       .select("lead_id")
-      .eq("rep_id", user.id)
+      .eq("provider_id", user.id)
       .not("lead_id", "is", null)
     providerLeadIds = Array.from(
       new Set(

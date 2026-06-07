@@ -64,6 +64,33 @@ export async function GET(req: NextRequest) {
       maxLeadsPerForm: 1000,
     })
 
+    // Detección de TOKEN EXPIRADO: el Page Access Token / "Data Access" de Meta
+    // muere cada ~75-90d. Cuando pasa, Graph devuelve OAuthException/code 190 y
+    // los leads de FB dejan de entrar EN SILENCIO. Forzamos HTTP 500 para que
+    // cron-job.org marque el run como fallido y dispare su alerta de email.
+    const tokenExpired = result.errors.some((e) =>
+      /OAuthException|code.?190|access token|data access|expired|session has been invalidated/i.test(
+        e.error,
+      ),
+    )
+    if (tokenExpired) {
+      console.error(
+        "[poll-meta-leads] TOKEN META EXPIRADO/INVÁLIDO — regenerar Page Access Token. Errores:",
+        JSON.stringify(result.errors).slice(0, 600),
+      )
+      return NextResponse.json(
+        {
+          ok: false,
+          alert: "META_TOKEN_EXPIRED",
+          message:
+            "Token de Meta expirado o inválido — regenerar Page Access Token (Graph API Explorer). Los leads de Facebook NO están entrando.",
+          lookbackDays,
+          ...result,
+        },
+        { status: 500 },
+      )
+    }
+
     return NextResponse.json({
       ok: result.errors.length === 0,
       lookbackDays,

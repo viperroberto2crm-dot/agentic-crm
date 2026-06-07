@@ -565,7 +565,9 @@ export async function buildReportData(
     if (!porRepMap.has(rep)) porRepMap.set(rep, { cobrado: 0, ventas: 0 })
     const r = porRepMap.get(rep)!
     r.cobrado += t.monto_cents
-    if (t.tipo === "Venta") r.ventas += 1
+    // t.tipo viene de d.tipoVenta (localizado): comparar contra la misma
+    // traducción, no contra el literal "Venta" (en inglés es "Sale" → daba 0).
+    if (t.tipo === d.tipoVenta) r.ventas += 1
   }
   const porRep = Array.from(porRepMap.entries())
     .map(([rep_name, v]) => ({ rep_name, cobrado_cents: v.cobrado, ventas_count: v.ventas }))

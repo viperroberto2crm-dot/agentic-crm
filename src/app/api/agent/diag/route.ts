@@ -15,9 +15,7 @@ export async function GET() {
     cron_secret: !!process.env.INTERNAL_CRON_SECRET,
     supabase_url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabase_service: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    // Solo el prefijo de las keys (para detectar si copiaste mal)
-    openai_prefix: process.env.OPENAI_API_KEY?.slice(0, 7) ?? null,
-    anthropic_prefix: process.env.ANTHROPIC_API_KEY?.slice(0, 11) ?? null,
+    // NO exponer prefijos de keys: este endpoint es público (PUBLIC_PATHS).
     deployed_at: new Date().toISOString(),
   })
 }

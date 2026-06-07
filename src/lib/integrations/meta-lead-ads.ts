@@ -25,6 +25,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { normalizeToE164 } from "./800com"
 
 type DB = SupabaseClient<Database>
 
@@ -320,7 +321,9 @@ export function decodeFieldData(
     } else if (key === "EMAIL") {
       r.email = value.trim().toLowerCase() || null
     } else if (key === "PHONE" || key === "PHONE_NUMBER") {
-      r.phone = value.trim() || null
+      // Normalizar a E.164 (mismo formato que 800.com) para que el dedup y el
+      // match contra llamadas funcione. Antes se guardaba crudo → duplicados.
+      r.phone = normalizeToE164(value.trim()) || null
     } else {
       const mapping = questionMap.get(fd.name)
       const crmKey = mapping?.crm_field ?? `custom_${fd.name}`
@@ -366,11 +369,12 @@ async function findLeadByPhone(
   brandId: string,
   phone: string,
 ): Promise<string | null> {
+  const norm = normalizeToE164(phone) || phone
   const { data: byPhone } = await sb
     .from("leads")
     .select("id")
     .eq("brand_id", brandId)
-    .eq("phone", phone)
+    .eq("phone", norm)
     .limit(1)
     .maybeSingle()
   if (byPhone?.id) return byPhone.id
@@ -379,7 +383,7 @@ async function findLeadByPhone(
     .from("leads")
     .select("id")
     .eq("brand_id", brandId)
-    .eq("phone_alt", phone)
+    .eq("phone_alt", norm)
     .limit(1)
     .maybeSingle()
   return byAlt?.id ?? null

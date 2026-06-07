@@ -76,6 +76,10 @@ export type GetScheduleInput = {
 export type GetSalesKpiInput = {
   period?: "today" | "week" | "month"
   scope?: Scope
+  /** Filtra cobros (sales paid + abonos) por método de pago. */
+  payment_method?: "cash" | "card" | "stripe"
+  /** Si "payment_method", devuelve breakdown agrupado por método. */
+  breakdown_by?: "payment_method"
 }
 
 export type GetCallsInput = {
@@ -120,7 +124,7 @@ export const AGENT_TOOLS = [
         },
         status: {
           type: "string",
-          enum: ["new", "contacted", "qualified", "proposal", "negotiation", "sold", "lost"],
+          enum: ["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold", "not_interested"],
           description: "Filter by lead status",
         },
         days_without_contact: {
@@ -154,7 +158,7 @@ export const AGENT_TOOLS = [
   {
     name: "get_sales_kpi",
     description:
-      "Get sales KPIs (revenue, pending, count, avg ticket). When scope='all', also returns a per-brand breakdown so you can compare brands.",
+      "Get sales KPIs (revenue, pending, count, avg ticket). When scope='all', also returns a per-brand breakdown so you can compare brands. Use payment_method='cash'|'card'|'stripe' to filter collected amount by method (e.g. '¿cuánto cash hoy?'). Use breakdown_by='payment_method' to get a per-method breakdown (cash vs card vs stripe). Always derived from real sales+abonos rows — never invent breakdowns.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -167,6 +171,16 @@ export const AGENT_TOOLS = [
           type: "string",
           enum: ["current", "all"],
           description: SCOPE_DESC,
+        },
+        payment_method: {
+          type: "string",
+          enum: ["cash", "card", "stripe"],
+          description: "Filter collected amount (sales paid + abonos) by payment method. Use only when user explicitly asks about one method.",
+        },
+        breakdown_by: {
+          type: "string",
+          enum: ["payment_method"],
+          description: "If 'payment_method', returns by_payment_method array with real totals per method.",
         },
       },
     },
@@ -343,6 +357,128 @@ export async function executeGetSalesKpi(
     return count > 0 ? (collected / count / 100).toFixed(2) : "0.00"
   }
 
+  // ── Filtro/breakdown por payment_method ──
+  // Antes el bot inventaba breakdown "cash" porque no tenía data real. Ahora
+  // si user pide cash/card/stripe O pide desglose, vamos directo a sales+abonos
+  // agrupando por método. paidStandaloneCents y abonos siguen las mismas reglas
+  // de exclusión que getSalesBreakdown (no doble-conteo de sales con plan).
+  if (input.payment_method || input.breakdown_by === "payment_method") {
+    const scopeRepId = scopeRep(userId, role)
+    const effectiveBrandId = input.scope === "all" ? null : brandId
+
+    // Sales standalone PAID en el rango (excluir las que tienen plan → abonos las cubren)
+    let salesQ = sb
+      .from("sales")
+      .select("id, amount_cents, payment_method, paid_at, brand_id")
+      .eq("payment_status", "paid")
+      .gte("paid_at", paidRange.startIso)
+      .lt("paid_at", paidRange.endIso)
+    if (effectiveBrandId) salesQ = salesQ.eq("brand_id", effectiveBrandId)
+    if (scopeRepId) salesQ = salesQ.eq("rep_id", scopeRepId)
+    if (input.payment_method) salesQ = salesQ.eq("payment_method", input.payment_method)
+    const { data: salesData } = await salesQ
+    const allSales = (salesData ?? []) as Array<{
+      id: string; amount_cents: number; payment_method: string; paid_at: string; brand_id: string
+    }>
+
+    // Excluir sales con plan (los abonos cubren ese cobro)
+    const saleIds = allSales.map((s) => s.id)
+    let saleIdsWithPlan = new Set<string>()
+    if (saleIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: plansData } = await (sb as any)
+        .from("payment_plans")
+        .select("sale_id")
+        .in("sale_id", saleIds)
+      saleIdsWithPlan = new Set(
+        ((plansData ?? []) as Array<{ sale_id: string | null }>)
+          .map((p) => p.sale_id)
+          .filter((x): x is string => !!x),
+      )
+    }
+    const standaloneSales = allSales.filter((s) => !saleIdsWithPlan.has(s.id))
+
+    // Abonos en el rango (paid_at es date-only por convención del schema).
+    // CRÍTICO: abonos NO tiene rep_id. Si es un rep, hay que restringir a los
+    // planes de SUS sales (vía payment_plans.sale_id → sales.rep_id), sino el
+    // rep vería los cobros de TODOS los reps. (admin/manager: scopeRepId null → sin filtro.)
+    let repPlanIds: string[] | null = null
+    if (scopeRepId) {
+      let repSalesQ = sb.from("sales").select("id").eq("rep_id", scopeRepId)
+      if (effectiveBrandId) repSalesQ = repSalesQ.eq("brand_id", effectiveBrandId)
+      const { data: repSalesData } = await repSalesQ
+      const repSaleIds = ((repSalesData ?? []) as Array<{ id: string }>).map((s) => s.id)
+      if (repSaleIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: repPlans } = await (sb as any)
+          .from("payment_plans")
+          .select("id")
+          .in("sale_id", repSaleIds)
+        repPlanIds = ((repPlans ?? []) as Array<{ id: string }>).map((p) => p.id)
+      } else {
+        repPlanIds = []
+      }
+    }
+
+    let allAbonos: Array<{
+      amount_cents: number; payment_method: string; paid_at: string; brand_id: string
+    }> = []
+    // Si el rep no tiene planes, no hay abonos suyos → saltar la query.
+    if (!scopeRepId || (repPlanIds && repPlanIds.length > 0)) {
+      let abonosQ = sb
+        .from("abonos")
+        .select("amount_cents, payment_method, paid_at, brand_id, plan_id")
+        .gte("paid_at", paidRange.startIso.slice(0, 10))
+        .lt("paid_at", paidRange.endIso.slice(0, 10))
+      if (effectiveBrandId) abonosQ = abonosQ.eq("brand_id", effectiveBrandId)
+      if (input.payment_method) abonosQ = abonosQ.eq("payment_method", input.payment_method)
+      if (repPlanIds) abonosQ = abonosQ.in("plan_id", repPlanIds)
+      const { data: abonosData } = await abonosQ
+      allAbonos = (abonosData ?? []) as Array<{
+        amount_cents: number; payment_method: string; paid_at: string; brand_id: string
+      }>
+    }
+
+    // Agrupar por método
+    const byMethod = new Map<string, { count: number; collected_cents: number }>()
+    for (const s of standaloneSales) {
+      const m = s.payment_method ?? "unknown"
+      const cur = byMethod.get(m) ?? { count: 0, collected_cents: 0 }
+      cur.count++
+      cur.collected_cents += s.amount_cents
+      byMethod.set(m, cur)
+    }
+    for (const a of allAbonos) {
+      const m = a.payment_method ?? "unknown"
+      const cur = byMethod.get(m) ?? { count: 0, collected_cents: 0 }
+      cur.count++
+      cur.collected_cents += a.amount_cents
+      byMethod.set(m, cur)
+    }
+
+    const totalCollected = Array.from(byMethod.values()).reduce(
+      (s, v) => s + v.collected_cents, 0,
+    )
+    const totalCount = Array.from(byMethod.values()).reduce(
+      (s, v) => s + v.count, 0,
+    )
+
+    return {
+      period: input.period ?? "month",
+      scope: input.scope ?? "current",
+      payment_method_filter: input.payment_method ?? null,
+      total_collected_usd: toUsd(totalCollected),
+      total_count: totalCount,
+      by_payment_method: Array.from(byMethod.entries())
+        .map(([method, v]) => ({
+          method,
+          count: v.count,
+          total_collected_usd: toUsd(v.collected_cents),
+        }))
+        .sort((a, b) => parseFloat(b.total_collected_usd) - parseFloat(a.total_collected_usd)),
+    }
+  }
+
   if (input.scope === "all") {
     const { data: brandsData } = await sb
       .from("brands")
@@ -471,7 +607,10 @@ export async function executeGetCallsSummary(
     duration_seconds: number | null
     tracking_number_id: string | null
   }>
-  const connected = rows.filter((r) => r.outcome === "connected").length
+  // "Conectada" = hubo conversación humana. No solo "connected": appointment_set,
+  // callback_requested y not_interested también implican que atendieron.
+  const CONNECTED_OUTCOMES = new Set(["connected", "appointment_set", "callback_requested", "not_interested"])
+  const connected = rows.filter((r) => r.outcome != null && CONNECTED_OUTCOMES.has(r.outcome)).length
   const totalDuration = rows.reduce((s, r) => s + (r.duration_seconds ?? 0), 0)
 
   const base = {

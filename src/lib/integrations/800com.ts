@@ -150,8 +150,8 @@ export type EightHundredConversation = {
 
 export type EightHundredConversationsResponse = {
   data: EightHundredConversation[]
-  meta?: { nextCursor?: string | null; per_page?: number; path?: string }
-  links?: { first?: string | null; last?: string | null }
+  meta?: { nextCursor?: string | null; next_cursor?: string | null; per_page?: number; path?: string }
+  links?: { first?: string | null; last?: string | null; next?: string | null; prev?: string | null }
 }
 
 /**
@@ -301,7 +301,23 @@ export async function listConversationsPage(opts: {
     throw new Error(`800.com conversations ${res.status}: ${body.slice(0, 300)}`)
   }
 
-  return (await res.json()) as EightHundredConversationsResponse
+  const json = (await res.json()) as EightHundredConversationsResponse
+  // Normalizar cursor: 800.com lo manda como meta.nextCursor, meta.next_cursor
+  // o dentro de links.next (?cursor=...). Unificamos en meta.nextCursor para
+  // que los callers paginen igual. (Antes solo leíamos nextCursor camelCase →
+  // se cortaba en la 1a página.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const m: any = json.meta ?? {}
+  let next: string | null = m.nextCursor ?? m.next_cursor ?? null
+  if (!next && json.links?.next) {
+    try {
+      next = new URL(json.links.next).searchParams.get("cursor")
+    } catch {
+      next = null
+    }
+  }
+  json.meta = { ...m, nextCursor: next }
+  return json
 }
 
 export async function* iterAllCalls(
