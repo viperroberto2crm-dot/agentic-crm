@@ -149,7 +149,7 @@ async function resolveTracking(
   sb: DB,
   trackingNumberId: string | number | null,
   dialedE164: string | null,
-): Promise<{ brand_id: string; rep_id: string } | null> {
+): Promise<{ brand_id: string; rep_id: string; tracking_number_id: string } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = (sb as any)
     .from("tracking_numbers")
@@ -182,19 +182,34 @@ async function resolveTracking(
   }
   if (!matched) return null
 
-  // Rep fallback: primer admin/manager/rep activo
-  const { data: anyUser } = await sb
-    .from("users")
-    .select("id")
-    .eq("active", true)
-    .in("role", ["admin", "manager", "rep"])
-    .order("created_at", { ascending: true })
+  // Rep de la llamada: un usuario DEL BRAND correcto (no el admin global más
+  // viejo). Los leads van al pool, pero la call necesita un rep_id; admin/manager
+  // igual ven todas las calls por RLS, así que el toast les llega.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: brandUser } = await (sb as any)
+    .from("user_brands")
+    .select("user_id, users!inner(id, role, active)")
+    .eq("brand_id", matched.brand_id)
+    .eq("users.active", true)
+    .in("users.role", ["rep", "manager", "admin"])
     .limit(1)
     .maybeSingle()
-  const repId = anyUser?.id ?? null
+  let repId: string | null = brandUser?.user_id ?? null
+  if (!repId) {
+    // Fallback: cualquier admin activo, para NO descartar la llamada.
+    const { data: anyAdmin } = await sb
+      .from("users")
+      .select("id")
+      .eq("active", true)
+      .eq("role", "admin")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    repId = anyAdmin?.id ?? null
+  }
   if (!repId) return null
 
-  return { brand_id: matched.brand_id, rep_id: repId }
+  return { brand_id: matched.brand_id, rep_id: repId, tracking_number_id: matched.id }
 }
 
 async function handleCallEvent(
@@ -259,8 +274,13 @@ async function handleCallEvent(
   const callerE164 = call.caller ?? ""
   const leadId = callerE164 ? await findLeadByPhone(sb, tracking.brand_id, callerE164) : null
 
-  // Dirección: 800.com manda isInbound boolean
-  const isInbound = call.isInbound === true || call.direction === "inbound" || call.direction === undefined
+  // Dirección: 800.com manda isInbound boolean. Default a inbound SOLO si no
+  // viene ninguna señal; si isInbound===false es saliente (antes se marcaba
+  // inbound por error → toast fantasma + ECID gastado).
+  const isInbound =
+    call.isInbound === true ||
+    call.direction === "inbound" ||
+    (call.isInbound === undefined && call.direction === undefined)
   const direction: Database["public"]["Enums"]["call_direction"] = isInbound ? "inbound" : "outbound"
   // En call_started, NO mapear result (siempre será "missed" antes de contestar).
   // Solo mapear si el evento es completed/updated.
@@ -279,6 +299,8 @@ async function handleCallEvent(
     outcome,
     duration_seconds: typeof call.duration === "number" ? call.duration : null,
     caller_e164: callerE164 || null,
+    dialed_e164: dialedNumber,
+    tracking_number_id: tracking.tracking_number_id,
     notes: null,
     source: "800com",
     external_id: externalId,
