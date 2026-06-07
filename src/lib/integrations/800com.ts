@@ -517,13 +517,15 @@ async function loadTrackingNumbersByNumberId(
  * answeredBy phone → users.cell_phone.
  */
 async function getFallbackRepId(sb: DB, brandId: string): Promise<string> {
-  // Try: a user assigned to this brand with role 'rep' or 'manager'
+  // Try: a user assigned to this brand con rol rep/manager/admin (NUNCA provider:
+  // un provider no debe ser dueño de una llamada → distorsiona métricas).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ub } = await (sb as any)
     .from("user_brands")
     .select("user_id, users!inner(id, role, active)")
     .eq("brand_id", brandId)
     .eq("users.active", true)
+    .in("users.role", ["rep", "manager", "admin"])
     .limit(1)
     .maybeSingle()
   if (ub?.user_id) return ub.user_id as string

@@ -198,7 +198,7 @@ export async function identifyCaller(callId: string): Promise<IdentifyCallerResu
           phone,
           status: "new",
           source: "inbound_call",
-          assigned_rep_id: call.rep_id,
+          assigned_rep_id: null, // pool: admin/manager asignan manualmente
           address_line1: d?.streetLine_1 ?? null,
           address_line2: d?.streetLine_2 ?? null,
           city: d?.city ?? null,

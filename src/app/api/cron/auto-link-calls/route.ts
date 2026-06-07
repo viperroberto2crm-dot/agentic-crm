@@ -271,7 +271,7 @@ export async function GET(req: NextRequest) {
             email: email || null,
             status: "new",
             source: "inbound_call",
-            assigned_rep_id: orphan.rep_id,
+            assigned_rep_id: null, // pool: admin/manager asignan manualmente
             address_line1: addressLine1 || null,
             address_line2: addressLine2 || null,
             city: city || null,

@@ -469,7 +469,7 @@ export async function backfillLeadsForOrphanCalls(input: {
               phone,
               status: "new",
               source: "inbound_call",
-              assigned_rep_id: orphan.rep_id,
+              assigned_rep_id: null, // pool: admin/manager asignan manualmente
               notes: "Auto-creado desde llamada entrante (800.com backfill)",
             })
             .select("id")
@@ -632,22 +632,8 @@ export async function syncContactsFromConversations(input: {
       return { ok: false, error: "No hay tracking_numbers 800com activos para resolver brand" }
     }
 
-    // 2) Rep fallback por brand (primer admin/manager activo) — cache
-    const repByBrand = new Map<string, string | null>()
-    async function repFor(brandId: string): Promise<string | null> {
-      if (repByBrand.has(brandId)) return repByBrand.get(brandId)!
-      const { data: u } = await sb
-        .from("users")
-        .select("id")
-        .eq("active", true)
-        .in("role", ["admin", "manager", "rep"])
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle()
-      const id = u?.id ?? null
-      repByBrand.set(brandId, id)
-      return id
-    }
+    // 2) Leads entrantes van al POOL (assigned_rep_id = null): admin/manager
+    // los reparten. No se elige rep fallback acá.
 
     // 3) Paginar TODAS las conversations
     let conversationsSeen = 0
@@ -780,7 +766,6 @@ export async function syncContactsFromConversations(input: {
 
         // CREATE: nombre real si hay, sino fallback al teléfono (no perder al cliente)
         const createFirstName = firstName || phone
-        const repId = await repFor(brandId)
         const noteParts = [...noteExtra, "Importado de 800.com (contactos / ECID)"]
         if (!dryRun) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -792,7 +777,7 @@ export async function syncContactsFromConversations(input: {
             email: email || null,
             status: "new",
             source: "inbound_call",
-            assigned_rep_id: repId,
+            assigned_rep_id: null, // pool: admin/manager asignan manualmente
             address_line1: addressLine1 || null,
             address_line2: addressLine2 || null,
             city: city || null,

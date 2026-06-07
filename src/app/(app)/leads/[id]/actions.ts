@@ -48,7 +48,15 @@ export async function updateLead(id: string, raw: UpdateLeadInput) {
   const role = profile?.role ?? "rep"
   assertNotProvider(role)
 
-  const query = supabase.from("leads").update(input).eq("id", id)
+  // Un rep NO puede reasignar el lead a otro (la RLS controla QUÉ fila edita,
+  // no QUÉ valores; with_check es NULL). Quitamos assigned_rep_id del payload
+  // para reps; admin/manager sí pueden reasignar.
+  const updatePayload: UpdateLeadInput = { ...input }
+  if (role === "rep") {
+    delete (updatePayload as Partial<UpdateLeadInput>).assigned_rep_id
+  }
+
+  const query = supabase.from("leads").update(updatePayload).eq("id", id)
   const { error } = role === "rep"
     ? await query.eq("assigned_rep_id", user.id)
     : await query
