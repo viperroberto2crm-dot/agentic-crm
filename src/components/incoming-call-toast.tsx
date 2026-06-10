@@ -253,8 +253,17 @@ export function IncomingCallToast() {
 
     setup()
 
+    // El JWT expira ~1h. Sin re-auth, el canal Realtime sigue conectado pero
+    // RLS filtra todos los eventos en silencio y el toast deja de funcionar.
+    const { data: authSub } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "TOKEN_REFRESHED" && session?.access_token) {
+        sb.realtime.setAuth(session.access_token)
+      }
+    })
+
     return () => {
       cancelled = true
+      authSub.subscription.unsubscribe()
       if (channel) sb.removeChannel(channel)
     }
   }, [])
