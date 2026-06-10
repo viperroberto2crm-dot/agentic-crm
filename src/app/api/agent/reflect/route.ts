@@ -7,15 +7,12 @@ import { runReflection } from "@/lib/agent/reflection"
 type SB = SupabaseClient<Database>
 
 function isAuthorized(req: NextRequest): boolean {
-  const cronSecret = process.env.INTERNAL_CRON_SECRET
+  // Vercel Cron envía Authorization: Bearer <CRON_SECRET> automáticamente
+  // cuando la env var CRON_SECRET existe (mismo mecanismo que poll-800com).
   const auth = req.headers.get("authorization")
-  if (cronSecret && auth === `Bearer ${cronSecret}`) return true
-
-  // Vercel Cron envía GET sin Authorization custom, pero con user-agent específico
-  const ua = req.headers.get("user-agent") ?? ""
-  if (ua.startsWith("vercel-cron")) return true
-
-  return false
+  if (!auth) return false
+  const secrets = [process.env.INTERNAL_CRON_SECRET, process.env.CRON_SECRET].filter(Boolean)
+  return secrets.some((s) => auth === `Bearer ${s}`)
 }
 
 async function handle(req: NextRequest) {

@@ -11,12 +11,12 @@ const CHUNK_SIZE = 1000
 const CHUNK_OVERLAP = 100
 
 function isAuthorized(req: NextRequest): boolean {
-  const cronSecret = process.env.INTERNAL_CRON_SECRET
+  // Vercel Cron envía Authorization: Bearer <CRON_SECRET> automáticamente
+  // cuando la env var CRON_SECRET existe (mismo mecanismo que poll-800com).
   const auth = req.headers.get("authorization")
-  if (cronSecret && auth === `Bearer ${cronSecret}`) return true
-  const ua = req.headers.get("user-agent") ?? ""
-  if (ua.startsWith("vercel-cron")) return true
-  return false
+  if (!auth) return false
+  const secrets = [process.env.INTERNAL_CRON_SECRET, process.env.CRON_SECRET].filter(Boolean)
+  return secrets.some((s) => auth === `Bearer ${s}`)
 }
 
 function chunkText(text: string): string[] {
