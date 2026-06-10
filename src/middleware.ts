@@ -5,7 +5,8 @@ import { updateSession } from "@/lib/supabase/middleware";
 // (Los crons usan su propio CRON_SECRET en lugar de cookies de sesión.
 // Los webhooks validan su propia firma HMAC.)
 const PUBLIC_PATHS = [
-  "/api/agent/diag",
+  // /api/agent/diag YA NO es público: requiere sesión (se quitó 2026-06-10
+  // porque exponía qué env vars están configuradas a visitantes anónimos)
   "/api/agent/reflect",
   "/api/agent/daily-insights",
   "/api/agent/poll-800com",
