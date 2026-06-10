@@ -595,6 +595,19 @@ export async function deleteSale(saleId: string, leadId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
+  // Un rep solo puede borrar SUS propias ventas; admin/manager todas
+  // (mismo patrón que updateLead: scoping por dueño para reps)
+  if (role === "rep") {
+    const { data: sale } = await supabase
+      .from("sales")
+      .select("rep_id")
+      .eq("id", saleId)
+      .maybeSingle()
+    if (!sale || sale.rep_id !== user.id) {
+      throw new Error("Sin permiso para borrar esta venta")
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
   const { data: linkedPlan } = await sb
