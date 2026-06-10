@@ -431,7 +431,10 @@ function EditPlanDialog({
 
   const totalNum = parseFloat(totalDollars || "0")
   const countNum = parseInt(installmentCount || "0", 10)
-  const autoCalcAmount = totalNum > 0 && countNum > 0 ? (totalNum / countNum).toFixed(2) : ""
+  // Calcular en centavos enteros para evitar pérdida de precisión por toFixed
+  const autoCalcCents =
+    totalNum > 0 && countNum > 0 ? Math.round((totalNum * 100) / countNum) : 0
+  const autoCalcAmount = autoCalcCents > 0 ? (autoCalcCents / 100).toFixed(2) : ""
   const displayedInstallmentAmount = installmentAmountTouched ? installmentAmount : autoCalcAmount
   const effectiveFrequencyDays =
     frequency === "custom" ? parseInt(customFrequency || "0", 10) : parseInt(frequency, 10)
@@ -459,14 +462,18 @@ function EditPlanDialog({
     }
     if (scheduleOn) {
       const count = parseInt(installmentCount, 10)
-      const amountDollars = parseFloat(displayedInstallmentAmount || "0")
+      // Si el monto es auto-calculado, usar los centavos enteros directamente
+      // (evita el viaje centavos → string → float → centavos)
+      const amountCents = installmentAmountTouched
+        ? Math.round(parseFloat(displayedInstallmentAmount || "0") * 100)
+        : autoCalcCents
       if (!count || count < 1) { setError(t("schedule.installmentCount")); return }
-      if (!amountDollars || amountDollars <= 0) { setError(t("schedule.installmentAmount")); return }
+      if (!amountCents || amountCents <= 0) { setError(t("schedule.installmentAmount")); return }
       if (!effectiveFrequencyDays || effectiveFrequencyDays < 1) { setError(t("schedule.frequency")); return }
       if (!firstDueDate) { setError(t("schedule.firstDueDate")); return }
       sched = {
         installment_count: count,
-        installment_amount_cents: Math.round(amountDollars * 100),
+        installment_amount_cents: amountCents,
         frequency_days: effectiveFrequencyDays,
         first_due_date: firstDueDate,
       }
