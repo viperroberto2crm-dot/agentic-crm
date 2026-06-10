@@ -612,6 +612,10 @@ export type Database = {
           ai_extracted: Json | null
           called_at: string
           created_at: string
+          caller_e164: string | null
+          dialed_e164: string | null
+          tracking_number_id: string | null
+          transcription_status: string | null
         }
         Insert: {
           id?: string
@@ -630,6 +634,10 @@ export type Database = {
           ai_extracted?: Json | null
           called_at?: string
           created_at?: string
+          caller_e164?: string | null
+          dialed_e164?: string | null
+          tracking_number_id?: string | null
+          transcription_status?: string | null
         }
         Update: {
           id?: string
@@ -648,6 +656,10 @@ export type Database = {
           ai_extracted?: Json | null
           called_at?: string
           created_at?: string
+          caller_e164?: string | null
+          dialed_e164?: string | null
+          tracking_number_id?: string | null
+          transcription_status?: string | null
         }
         Relationships: [
           { foreignKeyName: "calls_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
