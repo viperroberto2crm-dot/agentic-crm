@@ -234,10 +234,10 @@ export default async function DashboardPage({
       {/* Section 1: Greeting + pivot stats + date range filter */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <p className="text-sm text-gray-400">{greeting}</p>
-          <h1 className="text-2xl font-semibold text-gray-900 mt-0.5">{name}</h1>
-          <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">{pivotText}</p>
-          <p className="text-[11px] text-gray-400 mt-1 leading-snug">{showingLabel}</p>
+          <p className="font-display text-sm font-medium text-[#5C6F68]">{greeting}</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[#2E8B6F] mt-0.5">{name}</h1>
+          <p className="text-[11px] text-[#93A39D] mt-1.5 leading-snug">{pivotText}</p>
+          <p className="text-[11px] text-[#93A39D] mt-1 leading-snug">{showingLabel}</p>
         </div>
         <div className="shrink-0">
           <DateRangeFilter

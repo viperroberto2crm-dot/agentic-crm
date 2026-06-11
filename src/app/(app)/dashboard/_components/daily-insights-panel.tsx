@@ -52,7 +52,7 @@ export function DailyInsightsPanel({ leads }: Props) {
   }
 
   return (
-    <Card className="bg-white border-gray-200">
+    <Card className="bg-white rounded-2xl border-[#E8E4DC]/60 shadow-[0_1px_2px_rgba(26,46,40,.05),0_2px_8px_rgba(26,46,40,.04)]">
       <CardContent className="p-4">
         <button
           type="button"

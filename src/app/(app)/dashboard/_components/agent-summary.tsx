@@ -32,25 +32,24 @@ export async function AgentSummaryCard({
 
   return (
     <Card
-      className="bg-white border-gray-200 border-l-2"
-      style={{ borderLeftColor: "var(--brand)" }}
+      className="border-0 rounded-2xl text-white shadow-[0_6px_20px_rgba(14,95,76,.22)]"
+      style={{ background: "linear-gradient(115deg, #0E5F4C 0%, #14735C 60%, #1C8A6E 100%)" }}
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <MessageSquare
-            className="w-4 h-4 mt-0.5 shrink-0"
-            style={{ color: "var(--brand)" }}
-          />
+          <span className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+            <MessageSquare className="w-4 h-4 text-white" />
+          </span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
+              <p className="text-[10px] text-white/70 uppercase tracking-widest font-semibold">
                 {t("agentDailySummary")}
               </p>
               {summary && (
                 <form action={regenerateAgentSummary}>
                   <button
                     type="submit"
-                    className="text-gray-400 hover:text-zinc-400 transition-colors cursor-pointer"
+                    className="text-white/60 hover:text-white transition-colors cursor-pointer"
                     title={t("regenerateSummary")}
                   >
                     <RotateCcw className="w-3 h-3" />
@@ -58,17 +57,17 @@ export async function AgentSummaryCard({
                 </form>
               )}
             </div>
-            <p className="text-sm text-gray-700 leading-relaxed">{body}</p>
+            <p className="text-sm text-white/90 leading-relaxed">{body}</p>
             {/* PHASE B plug-in: pending agent actions for this user */}
           </div>
         </div>
 
         {summary && (
-          <div className="mt-3 flex gap-2 flex-wrap pl-7">
+          <div className="mt-3 flex gap-2 flex-wrap pl-11">
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
+              className="h-7 text-[11px] bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white hover:border-white/45 rounded-lg px-3"
               asChild
             >
               <Link href="/leads?filter=stale">{t("viewStaleLeads")}</Link>
@@ -76,7 +75,7 @@ export async function AgentSummaryCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
+              className="h-7 text-[11px] bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white hover:border-white/45 rounded-lg px-3"
               asChild
             >
               <Link href="/calls">{t("logCall")}</Link>
@@ -84,7 +83,7 @@ export async function AgentSummaryCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-[11px] border-gray-300 text-gray-400 hover:text-gray-700 hover:border-gray-400 rounded-md px-3"
+              className="h-7 text-[11px] bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white hover:border-white/45 rounded-lg px-3"
               asChild
             >
               <Link href="/appointments">{t("viewAppts")}</Link>

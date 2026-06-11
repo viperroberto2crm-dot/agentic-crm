@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Sparkles,
   Package,
+  Sunrise,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -90,11 +91,11 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        "group relative flex items-center gap-3 rounded-md text-sm transition-all duration-150 select-none",
+        "group relative flex items-center gap-3 rounded-xl text-sm transition-all duration-150 select-none",
         collapsed ? "h-9 w-9 justify-center p-0 mx-auto" : "h-9 px-2.5",
         active
           ? "bg-white/15 text-white font-medium"
-          : "text-teal-100/70 hover:text-white hover:bg-white/10"
+          : "text-white/60 hover:text-white hover:bg-white/10"
       )}
     >
       {active && (
@@ -108,7 +109,7 @@ function NavLink({
           "w-4 h-4 shrink-0 transition-colors",
           active
             ? "text-[hsl(var(--accent))]"
-            : "text-teal-200/50 group-hover:text-teal-100"
+            : "text-white/50 group-hover:text-white"
         )}
       />
       {!collapsed && (
@@ -120,7 +121,7 @@ function NavLink({
             <span
               className={cn(
                 "text-[10px] font-semibold tabular-nums leading-none font-mono",
-                item.urgent ? "text-amber-400" : "text-teal-300/60"
+                item.urgent ? "text-amber-400" : "text-white/50"
               )}
             >
               {item.count}
@@ -144,7 +145,7 @@ function NavLink({
         <TooltipContent side="right" sideOffset={8} className="text-xs">
           {item.label}
           {item.count !== undefined && (
-            <span className={cn("ml-1.5", item.urgent ? "text-amber-400" : "text-teal-300/70")}>
+            <span className={cn("ml-1.5", item.urgent ? "text-amber-400" : "text-white/60")}>
               · {item.count}
               {item.urgent ? "!" : ""}
             </span>
@@ -219,10 +220,17 @@ function SidebarContent({
           )}
         >
           {collapsed ? (
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(var(--accent))" }} />
+            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0">
+              <Sunrise className="w-4 h-4 text-white" />
+            </span>
           ) : (
-            <span className="text-[11px] font-semibold tracking-[0.18em] uppercase text-teal-200/60 select-none">
-              Agentic CRM
+            <span className="flex items-center gap-2.5 select-none">
+              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0">
+                <Sunrise className="w-4 h-4 text-white" />
+              </span>
+              <span className="font-display text-[15px] font-semibold tracking-[0.14em] text-white">
+                HORIZON
+              </span>
             </span>
           )}
         </div>
@@ -260,14 +268,14 @@ function SidebarContent({
               <TooltipTrigger asChild>
                 <button
                   onClick={onOpenCommand}
-                  className="group h-9 w-9 mx-auto flex items-center justify-center rounded-md text-teal-200/50 hover:text-white hover:bg-white/10 transition-all"
+                  className="group h-9 w-9 mx-auto flex items-center justify-center rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all"
                 >
                   <Sparkles className="w-4 h-4 group-hover:text-[hsl(var(--accent))] transition-colors" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8} className="text-xs">
                 {t("askAgent")}
-                <kbd className="ml-1.5 font-mono bg-white/10 text-teal-200 border border-white/20 rounded px-1 text-[9px]">
+                <kbd className="ml-1.5 font-mono bg-white/10 text-white/70 border border-white/20 rounded px-1 text-[9px]">
                   ⌘K
                 </kbd>
               </TooltipContent>
@@ -275,11 +283,11 @@ function SidebarContent({
           ) : (
             <button
               onClick={onOpenCommand}
-              className="group flex items-center gap-3 w-full h-9 px-2.5 rounded-md text-sm text-teal-100/70 hover:text-white hover:bg-white/10 transition-all"
+              className="group flex items-center gap-3 w-full h-9 px-2.5 rounded-xl text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all"
             >
-              <Sparkles className="w-4 h-4 shrink-0 text-teal-200/50 group-hover:text-[hsl(var(--accent))] transition-colors" />
+              <Sparkles className="w-4 h-4 shrink-0 text-white/50 group-hover:text-[hsl(var(--accent))] transition-colors" />
               <span className="flex-1 text-left truncate">{t("askAgent")}</span>
-              <kbd className="text-[9px] text-teal-300/60 font-mono bg-white/5 border border-white/10 rounded px-1 py-0.5 leading-none">
+              <kbd className="text-[9px] text-white/50 font-mono bg-white/5 border border-white/10 rounded px-1 py-0.5 leading-none">
                 ⌘K
               </kbd>
             </button>
@@ -322,7 +330,7 @@ export function AppSidebar({
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "hidden md:flex flex-col h-screen bg-[#0D3D4A] border-r border-white/10",
+          "hidden md:flex flex-col h-screen bg-[#0A4538] border-r border-white/10",
           "transition-[width] duration-300 ease-in-out shrink-0 relative",
           collapsed ? "w-14" : "w-60"
         )}
@@ -332,7 +340,7 @@ export function AppSidebar({
         {/* Collapse toggle */}
         <button
           onClick={toggle}
-          className="absolute -right-3 top-[68px] z-10 w-6 h-6 rounded-full bg-[#0D3D4A] border border-white/20 flex items-center justify-center text-teal-300/60 hover:text-white hover:border-white/40 transition-all shadow-md"
+          className="absolute -right-3 top-[68px] z-10 w-6 h-6 rounded-full bg-[#0A4538] border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/40 transition-all shadow-md"
           aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
         >
           {collapsed ? (
@@ -347,7 +355,7 @@ export function AppSidebar({
       <Sheet open={mobileOpen} onOpenChange={(v) => !v && onMobileClose()}>
         <SheetContent
           side="left"
-          className="p-0 w-60 bg-[#0D3D4A] border-white/10"
+          className="p-0 w-60 bg-[#0A4538] border-white/10"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>{t("navigation")}</SheetTitle>

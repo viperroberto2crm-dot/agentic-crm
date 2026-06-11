@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estado del CRM — Cómo está conectado y cómo funciona</title>
+<style>
+  :root{
+    --ink:#1a2233; --muted:#5b6675; --line:#e3e8ef; --soft:#f5f7fa;
+    --teal:#0d7a73; --teal-d:#095952; --accent:#0d7a73; --amber:#9a6700; --red:#b42318;
+    --code-bg:#0f172a; --code-ink:#e2e8f0;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  body{
+    font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); line-height:1.5; margin:0; font-size:11pt;
+    background:#fff;
+  }
+  .page{max-width:880px; margin:0 auto; padding:36px 44px;}
+
+  /* Portada */
+  .cover{
+    background:linear-gradient(135deg,var(--teal-d),var(--teal));
+    color:#fff; padding:64px 44px; border-radius:0;
+  }
+  .cover .kicker{text-transform:uppercase; letter-spacing:.18em; font-size:10pt; opacity:.85; margin:0 0 14px;}
+  .cover h1{font-size:30pt; line-height:1.12; margin:0 0 16px; font-weight:700;}
+  .cover p{font-size:12pt; opacity:.92; margin:4px 0; max-width:600px;}
+  .cover .meta{margin-top:28px; font-size:10pt; opacity:.85; border-top:1px solid rgba(255,255,255,.25); padding-top:16px;}
+  .cover .pill{display:inline-block; background:rgba(255,255,255,.16); padding:4px 12px; border-radius:999px; font-size:9.5pt; margin:4px 6px 0 0;}
+
+  h2{
+    font-size:17pt; color:var(--teal-d); margin:38px 0 6px; padding-bottom:8px;
+    border-bottom:2px solid var(--teal); font-weight:700;
+  }
+  h3{font-size:12.5pt; color:var(--ink); margin:22px 0 6px; font-weight:700;}
+  h4{font-size:11pt; color:var(--muted); margin:16px 0 4px; font-weight:700;}
+  p{margin:8px 0;}
+  ul,ol{margin:8px 0 8px 0; padding-left:22px;}
+  li{margin:3px 0;}
+  strong{color:var(--ink);}
+  code{
+    font-family:"Cascadia Code",Consolas,"Courier New",monospace; font-size:9.5pt;
+    background:var(--soft); padding:1px 5px; border-radius:4px; color:#0a3b54;
+    border:1px solid var(--line);
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-ink); padding:16px 18px; border-radius:8px;
+    overflow:auto; font-family:"Cascadia Code",Consolas,"Courier New",monospace;
+    font-size:8.2pt; line-height:1.4; margin:12px 0; white-space:pre;
+  }
+  pre code{background:none; border:none; color:inherit; padding:0;}
+  table{border-collapse:collapse; width:100%; margin:12px 0; font-size:9.6pt;}
+  th{background:var(--teal); color:#fff; text-align:left; padding:7px 10px; font-weight:600;}
+  td{border:1px solid var(--line); padding:6px 10px; vertical-align:top;}
+  tr:nth-child(even) td{background:var(--soft);}
+  blockquote{
+    margin:14px 0; padding:10px 16px; background:#fff8e6; border-left:4px solid var(--amber);
+    border-radius:0 6px 6px 0; color:#5c4400; font-size:10pt;
+  }
+  blockquote.warn{background:#fef2f2; border-left-color:var(--red); color:#7a1c14;}
+  hr{border:none; border-top:1px solid var(--line); margin:30px 0;}
+  .lead{font-size:11.5pt; color:var(--muted);}
+  .toc{background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:16px 22px; margin:24px 0;}
+  .toc h4{margin-top:0;}
+  .toc ol{columns:2; column-gap:32px;}
+  .badge{display:inline-block; font-size:8.5pt; font-weight:700; padding:2px 8px; border-radius:999px;}
+  .badge.ok{background:#e7f6ec; color:#1a7f37;}
+  .badge.pend{background:#fff4e0; color:#9a6700;}
+  .footer-note{font-size:9pt; color:var(--muted); margin-top:8px;}
+
+  @page{ size:A4; margin:16mm 14mm; }
+  @media print{
+    .page{max-width:none; padding:0;}
+    .cover{border-radius:0; margin:-16mm -14mm 0; padding:48px 44px;}
+    h2{break-after:avoid;}
+    h3,h4{break-after:avoid;}
+    pre,table,blockquote{break-inside:avoid;}
+    .pagebreak{break-before:page;}
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <p class="kicker">Documento de inspección · agentic-crm</p>
+  <h1>Estado del CRM<br>Cómo está conectado y cómo funciona</h1>
+  <p>Mapa técnico completo del sistema: captura de llamadas, datos, seguridad, aplicación, bot e integraciones.</p>
+  <div class="meta">
+    Refleja el código real al <strong>2026-06-08</strong> — no de memoria. Generado tras mapear los 4 subsistemas.
+    <div>
+      <span class="pill">Next.js 15</span>
+      <span class="pill">Supabase</span>
+      <span class="pill">Vercel</span>
+      <span class="pill">800.com</span>
+      <span class="pill">Meta Lead Ads</span>
+      <span class="pill">Claude · Hermes</span>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+<div class="toc">
+  <h4>Contenido</h4>
+  <ol>
+    <li>Mapa general</li>
+    <li>Captura de llamadas (800.com)</li>
+    <li>Secuencia de una llamada entrante</li>
+    <li>Meta Lead Ads</li>
+    <li>Modelo de datos</li>
+    <li>Seguridad y acceso (RLS)</li>
+    <li>La aplicación (páginas)</li>
+    <li>Bot interno y Hermes</li>
+    <li>Crons y disparadores</li>
+    <li>Procedimientos operativos</li>
+    <li>Salud actual y pendientes</li>
+  </ol>
+</div>
+
+<h2>0 · Mapa general en una frente</h2>
+<pre><code>                          ┌──────────────────────────────────────┐
+   FUENTES DE LEADS       │            CRM (Next.js 15)           │      USUARIOS
+   ───────────────        │         Vercel + Supabase             │      ────────
+                          │                                       │
+  800.com (llamadas) ───► Webhook /api/webhooks/800com/voice ───► │
+                          │                                  │    │   Admin   ─┐
+  800.com (polling)  ───► Cron /api/cron/auto-link-calls ────┤    │   Manager ─┤
+                          │                                  │    │   Rep     ─┼─► RLS por rol+brand
+  Meta Lead Ads      ───► Cron /api/agent/poll-meta-leads ───┤    │   Provider─┘
+                          │                                  ▼    │
+                          │                          ┌─────────────┐
+  Bot interno (Claude)◄──►│  /api/agent/ask          │  Postgres   │
+                          │  tools read/write        │  (Supabase) │
+  Hermes (auto-salud)◄───►│  /api/hermes/tick        └─────────────┘
+                          └──────────────────────────────────────┘</code></pre>
+
+<p>El CRM es un <strong>pipeline de ventas y citas multi-marca</strong>:
+<strong>Lead → Llamada → Cita → Venta → Pagos (planes a plazos)</strong>, con control de acceso por rol y por marca.</p>
+<ul>
+  <li><strong>Framework:</strong> Next.js 15 App Router (Server Actions + Server Components)</li>
+  <li><strong>Base de datos / Auth / Realtime:</strong> Supabase (Postgres)</li>
+  <li><strong>Hosting:</strong> Vercel (Rolling Releases — el deploy NO auto-promueve el alias prod, hay que <code>vercel alias set</code>)</li>
+  <li><strong>Integraciones vivas:</strong> 800.com (call tracking) y Meta Lead Ads (formularios Facebook)</li>
+  <li><strong>IA:</strong> bot interno con Claude (<code>claude-sonnet-4-6</code>) + Hermes (bot de auto-salud)</li>
+</ul>
+
+<h2 class="pagebreak">1 · Captura de llamadas (800.com)</h2>
+<p>Hay <strong>3 caminos</strong> que meten llamadas/contactos al CRM, todos deduplican y son idempotentes.</p>
+
+<h3>1.1 Webhook en tiempo real — <code>webhooks/800com/voice/route.ts</code></h3>
+<p><strong>El receptor protegido.</strong> Es lo que hace que una llamada aparezca al instante.</p>
+<ul>
+  <li><strong>Eventos:</strong> <code>call_started</code> (INSERT, outcome=null) · <code>call_completed</code> (UPDATE outcome+duración) · <code>call_decorated</code> (UPDATE grabación+transcript) · <code>call_updated</code> · <code>sms_received</code> ignorado.</li>
+  <li><strong>Auth:</strong> secreto en query param <code>?secret=</code> (<code>EIGHTHUNDRED_WEBHOOK_SECRET</code>).</li>
+  <li><strong>Ejecución asíncrona:</strong> responde <code>200</code> de inmediato y hace el trabajo en <code>after()</code> con try/catch. Evita el timeout corto de 800.com.</li>
+  <li><strong>Dedup:</strong> por <code>external_id</code> + <code>source='800com'</code>. Si chocan started/completed, el 2º INSERT falla por índice único y se trata como OK ("race: duplicate").</li>
+  <li><strong>resolveTracking:</strong> match por <code>provider_metadata.number_id</code> → fallback por número marcado → <code>{ brand_id, rep_id, tracking_number_id }</code>. Rep = primer rep/manager/admin activo del brand; si no, admin activo más antiguo.</li>
+  <li><strong>Dirección:</strong> <code>isInbound===true || direction==="inbound" || (ambos undefined)</code>. Si <code>isInbound===false</code> → outbound (evita el "toast fantasma").</li>
+  <li><strong>Columnas del INSERT:</strong> <code>brand_id, lead_id, rep_id, direction, outcome, duration_seconds, caller_e164, dialed_e164, tracking_number_id, source, external_id, recording_url, called_at, ringing_at, transcription</code>.</li>
+</ul>
+<blockquote class="warn"><strong>Regla operativa:</strong> no tocar este archivo sin autorización explícita. Históricamente romper aquí cortó la captura por horas.</blockquote>
+
+<h3>1.2 Cron de enlace — <code>cron/auto-link-calls/route.ts</code></h3>
+<p>Engancha llamadas huérfanas (<code>lead_id IS NULL</code>) a leads.</p>
+<ul>
+  <li><strong>Auth:</strong> Bearer <code>CRON_SECRET</code> o <code>HERMES_SECRET</code>. <strong>Ventana:</strong> <code>?days=N</code> (default 1).</li>
+  <li><strong>Topes:</strong> <code>ORPHANS_LIMIT=500</code>, <code>CONV_MAX_PAGES=5</code>, <code>MAX_ENRICH=50</code> (no exceder <code>maxDuration=60</code>).</li>
+  <li><strong>Flujo:</strong> resuelve teléfono → busca conversación (<code>enhancedCallerId</code>) → match por <code>(brand_id, phone)</code> o crea lead (<code>assigned_rep_id:null</code>, pool) → enriquece ECID → <code>UPDATE calls SET lead_id</code>.</li>
+</ul>
+
+<h3>1.3 Toast en tiempo real + identificación</h3>
+<p><code>incoming-call-toast.tsx</code> + <code>calls/actions.ts</code> — lo que ve el rep cuando entra una llamada.</p>
+<ul>
+  <li>El toast escucha <code>postgres_changes</code> (INSERT en <code>calls</code>) por Supabase Realtime.</li>
+  <li>Si no hay lead, marca "identificando…" y llama a <code>identifyCaller(callId)</code>: (1) si ya tiene lead → nombre sin costo; (2) match por teléfono → enlaza sin costo; (3) ECID lookup (cacheado=gratis, en vivo≈$0.05) → crea lead con nombre/dirección/carrier.</li>
+  <li>Muestra: nombre o teléfono, estado del lead, saldo del plan activo, última cita, ciudad/estado/carrier.</li>
+</ul>
+
+<h3>1.4 El cliente de API — <code>lib/integrations/800com.ts</code></h3>
+<ul>
+  <li><code>GET /v2/calls</code> — historial (cursor, sleep 1100ms anti rate-limit 60/min).</li>
+  <li><code>GET /companies/{id}/conversations</code> — contactos con <code>enhancedCallerId</code> (nombre, ciudad, carrier, emails). Normaliza cursor.</li>
+  <li><code>POST /v2/companies/{company}/ecid/lookups</code> — Enhanced Caller ID: dirección, lineType, emails. <strong>Cacheado=gratis; en vivo=cobra.</strong></li>
+  <li><code>maybeEnrichLead</code> (<code>ecid-enrich.ts</code>): nunca lanza error, salta la API si ya hay <code>address_line1</code>, y solo llena campos vacíos.</li>
+</ul>
+
+<h3>1.5 Backfill manual (admin)</h3>
+<ul>
+  <li><code>syncTrackingNumbersFromEightHundred</code> — registra los números en BD (requisito para que el webhook resuelva).</li>
+  <li><code>backfillCallsFromEightHundred</code> — importa llamadas históricas (7d default, hasta 200 páginas).</li>
+  <li><code>backfillLeadsForOrphanCalls</code> — como el cron pero ventana larga; <code>dryRun=true</code> por defecto.</li>
+  <li><code>syncContactsFromConversations</code> — sincroniza TODOS los contactos (+ archivados) + ECID opcional; cuenta <code>ecid_lookups/ecid_charged</code>.</li>
+</ul>
+
+<h2 class="pagebreak">2 · Secuencia exacta de una llamada entrante</h2>
+<p>Lo que pasa, en orden, desde que marcan un número de campaña hasta que el rep ve la info completa. Cada evento de 800.com es un POST separado al mismo webhook y toca la <strong>misma fila</strong> de <code>calls</code> (dedup por <code>external_id</code>).</p>
+<pre><code>  CLIENTE marca +1-888-307-3743 (número "Buses" de Si Se Pierde)
+        │
+        ▼
+ ┌─────────────────────────────────────────────────────────────────────┐
+ │ T+0.0s   800.com → POST /api/webhooks/800com/voice?secret=…          │
+ │          type: "call_started"                                        │
+ │          data: { id: 998877, caller:"+17149260731",                  │
+ │                  dialed:"+18883073743", numberId:416682,             │
+ │                  isInbound:true, startedAt:"…" }                      │
+ └─────────────────────────────────────────────────────────────────────┘
+        │  responde 200 { ok, accepted } AL INSTANTE
+        │  y agenda el trabajo en after() (no bloquea a 800.com)
+        ▼
+   after() [T+0.1s aprox]
+        │  1. dedup: ¿existe call external_id=998877? → NO
+        │  2. resolveTracking(numberId 416682) → tracking "Buses"
+        │       → { brand_id:SiSePierde, rep_id:<rep activo>, tracking_number_id }
+        │  3. dirección: isInbound===true → "inbound"
+        │  4. findLeadByPhone → NULL (cliente nuevo)
+        │  5. INSERT calls { external_id, source:"800com", direction:"inbound",
+        │        outcome:NULL,  ← "sonando"
+        │        caller_e164, dialed_e164, tracking_number_id,
+        │        brand_id, rep_id, lead_id:NULL, called_at, ringing_at }
+        ▼  el INSERT dispara Supabase Realtime
+ ┌─────────────────────────────────────────────────────────────────────┐
+ │ T+0.3s   NAVEGADOR del rep — incoming-call-toast.tsx                  │
+ │          recibe el INSERT → muestra TOAST + 🔔                       │
+ │          lead_id=NULL → "identificando…" + identifyCaller(998877)    │
+ └─────────────────────────────────────────────────────────────────────┘
+        ▼  identifyCaller (mientras suena)
+        │  a. ¿la call ya tiene lead? NO
+        │  b. match por teléfono → NO
+        │  c. lookupEnhancedCallerId(…)  ← ECID (cacheado gratis / vivo ≈$0.05)
+        │       → { name:"Brian Franks", city, state, street, zip, carrier }
+        │  d. crea LEAD (status:new, source:inbound_call, assigned_rep_id:NULL)
+        │  e. UPDATE calls SET lead_id = <nuevo lead>
+        ▼
+   EL TOAST se actualiza: "Brian Franks · Phoenix, AZ · Verizon"
+   (el rep contesta con nombre y datos en pantalla)
+
+        ────────── la llamada termina ──────────
+
+ ┌─────────────────────────────────────────────────────────────────────┐
+ │ T+45s    POST … type:"call_completed"                                │
+ │          data:{ id:998877, result:"answered", duration:42, endedAt } │
+ └─────────────────────────────────────────────────────────────────────┘
+        │  after(): dedup encuentra la fila → UPDATE (no INSERT)
+        │  outcome "answered" → "connected"; duration_seconds=42
+        ▼
+ ┌─────────────────────────────────────────────────────────────────────┐
+ │ T+90s    POST … type:"call_decorated"                                │
+ │          data:{ id:998877, recordingUrl:"https://…", transcription } │
+ └─────────────────────────────────────────────────────────────────────┘
+        │  after(): UPDATE misma fila → recording_url, transcription
+        ▼
+   /calls y /calls/[id]: Brian Franks · inbound · connected · 0:42 ·
+   campaña "Buses" · grabación reproducible · transcript</code></pre>
+
+<h4>Puntos clave</h4>
+<ul>
+  <li><strong>Una sola fila, varios eventos.</strong> started la crea; completed y decorated la actualizan por <code>external_id</code>. Nunca se duplica.</li>
+  <li><strong>El toast no espera al cron.</strong> La identificación ocurre vía <code>identifyCaller</code> mientras suena.</li>
+  <li><strong>Atribución desde el primer evento.</strong> <code>dialed_e164</code> + <code>tracking_number_id</code> se escriben en el INSERT.</li>
+  <li><strong>Si el ECID en vivo falla</strong>, la llamada queda capturada con <code>caller_e164</code>; el cron reintenta después.</li>
+  <li><strong>Red de seguridad:</strong> <code>poll-800com</code> (diario) y <code>backfillCallsFromEightHundred</code> (manual) recuperan por <code>external_id</code>.</li>
+  <li><strong>Saliente:</strong> idéntico pero <code>direction="outbound"</code> y el toast no se dispara.</li>
+</ul>
+
+<h2 class="pagebreak">3 · Meta Lead Ads (formularios de Facebook)</h2>
+<ul>
+  <li><strong>Módulo:</strong> <code>lib/integrations/meta-lead-ads.ts</code>. <strong>Polling:</strong> <code>api/agent/poll-meta-leads</code> (cron-job.org cada 15 min + cron Vercel diario).</li>
+  <li><strong>Flujo:</strong> carga <code>tracking_forms</code> activos → sincroniza preguntas del formulario (Graph API) → pagina leads (cursor, 250ms, lookback 90d) → dedup en 3 capas (<code>external_id</code>+meta → email → teléfono E.164) → merge o crea lead (<code>status='new'</code>, <code>source='facebook'</code>).</li>
+  <li><strong>Custom fields:</strong> <code>meta_lead_id, meta_form_id, meta_form_name, meta_ad/adset/campaign_id</code> + cada pregunta personalizada.</li>
+  <li><strong>Token:</strong> <code>META_PAGE_ACCESS_TOKEN</code>. El "Data Access" caduca cada ~75–90 días. Si caduca → <strong>HTTP 500 + <code>META_TOKEN_EXPIRED</code></strong> dispara alerta. Renovación manual (Graph API Explorer → env var en Vercel).</li>
+</ul>
+
+<h2>4 · Modelo de datos (Supabase / Postgres)</h2>
+<h4>Tablas núcleo</h4>
+<table>
+  <tr><th>Tabla</th><th>Para qué</th><th>Relaciones clave</th></tr>
+  <tr><td><code>users</code></td><td>Cuentas + rol (admin/manager/rep/provider)</td><td>→ brands</td></tr>
+  <tr><td><code>brands</code></td><td>Marcas/empresas (multi-tenant)</td><td>raíz</td></tr>
+  <tr><td><code>user_brands</code></td><td>Qué usuario ve qué marca (N:N)</td><td>→ users, brands</td></tr>
+  <tr><td><code>leads</code></td><td>Prospectos (tel, email, dirección, status, source, assigned_rep_id, external_id/provider)</td><td>→ brands, users</td></tr>
+  <tr><td><code>calls</code></td><td>Llamadas (dirección, outcome, caller_e164, dialed_e164, tracking_number_id, external_id, recording, transcript)</td><td>→ brands, leads, users</td></tr>
+  <tr><td><code>tracking_numbers</code></td><td>Números de campaña (phone_e164, provider_metadata.number_id)</td><td>→ brands</td></tr>
+  <tr><td><code>appointments</code></td><td>Citas (lead→rep→provider, tipo, status, provider_approved, shipped_at)</td><td>→ brands, leads, users, clinics</td></tr>
+  <tr><td><code>sales</code></td><td>Ventas (amount_cents, payment_status/method, Stripe ids, paid_at)</td><td>→ brands, leads, users</td></tr>
+  <tr><td><code>sale_items / products</code></td><td>Líneas de venta y catálogo</td><td>→ sales, products, brands</td></tr>
+  <tr><td><code>payment_plans</code></td><td>Planes a plazos (total, installment_count, frequency_days, first_due_date, overrides)</td><td>→ leads, brands</td></tr>
+  <tr><td><code>abonos</code></td><td>Pagos individuales de un plan</td><td>→ payment_plans, leads</td></tr>
+  <tr><td><code>subscriptions</code></td><td>Cobros recurrentes (Stripe)</td><td>→ leads, products</td></tr>
+  <tr><td><code>tasks</code></td><td>Tareas asignables (priority, status, related_lead_id)</td><td>→ users, leads</td></tr>
+  <tr><td><code>clinics</code></td><td>Ubicaciones de clínica</td><td>→ brands</td></tr>
+  <tr><td><code>lead_assignments</code></td><td>Auditoría de reasignaciones</td><td>→ leads, users</td></tr>
+  <tr><td><code>notifications / notification_prefs</code></td><td>Avisos y preferencias</td><td>→ users</td></tr>
+</table>
+<h4>Tablas de IA</h4>
+<ul>
+  <li><strong>Agente:</strong> <code>agent_runs, agent_actions, agent_pending_actions</code> (cola de aprobación, expira 7d), <code>agent_policies, agent_goals, agent_skills</code>.</li>
+  <li><strong>Conocimiento:</strong> <code>knowledge_patterns, self_reflection_runs, skill_applications</code>.</li>
+  <li><strong>Hermes:</strong> <code>hermes_ticks, hermes_observations, hermes_resolutions</code>.</li>
+</ul>
+<h4>Idempotencia / índices únicos</h4>
+<ul>
+  <li><code>calls</code> UNIQUE (<code>external_id</code>, <code>source</code>) — evita llamadas duplicadas.</li>
+  <li><code>leads_brand_phone_uniq</code> — UNIQUE (<code>brand_id</code>, <code>phone</code>) — evita leads duplicados (creado en esta inspección + 3 duplicados fusionados).</li>
+  <li>Manejo de carreras: si choca el teléfono único, se enlaza al "ganador".</li>
+</ul>
+<blockquote>Los tipos generados (<code>src/types/database.ts</code>) están desactualizados para <code>caller_e164</code>, <code>dialed_e164</code>, <code>tracking_number_id</code> y <code>external_id/provider</code> en leads → el código usa <code>(sb as any)</code>. Funciona, pero conviene regenerar tipos.</blockquote>
+
+<h2 class="pagebreak">5 · Seguridad y acceso (RLS por rol + marca)</h2>
+<p><strong>Roles:</strong> <code>admin</code> (todo) · <code>manager</code> (su marca) · <code>rep</code> (lo suyo) · <code>provider</code> (solo leads de SUS citas).</p>
+<table>
+  <tr><th>Recurso</th><th>Admin</th><th>Manager</th><th>Rep</th><th>Provider</th></tr>
+  <tr><td>Leads</td><td>todos</td><td>de la marca</td><td>assigned_rep_id = yo</td><td>solo vía appointments</td></tr>
+  <tr><td>Calls</td><td>todas</td><td>de la marca</td><td>propias</td><td>✗</td></tr>
+  <tr><td>Appointments</td><td>todas</td><td>de la marca</td><td>propias</td><td>propias</td></tr>
+  <tr><td>Sales / Payments</td><td>todas</td><td>de la marca</td><td>propias</td><td>✗</td></tr>
+  <tr><td>Shipping</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+  <tr><td>Settings (marcas/usuarios/tracking)</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td></tr>
+</table>
+<h4>Clientes de Supabase</h4>
+<ul>
+  <li><strong>Browser</strong> (anon key) — RLS activa, Client Components.</li>
+  <li><strong>Server</strong> (anon key + cookie) — RLS activa, Server Actions/Components.</li>
+  <li><strong>Admin</strong> (service role) — <strong>bypassa RLS</strong>, solo para operaciones privilegiadas tras verificar el rol.</li>
+</ul>
+<h4>Auth</h4>
+<ul>
+  <li>Supabase Auth (password / OTP). Sesión en cookie HttpOnly.</li>
+  <li>Middleware redirige a <code>/login</code> sin sesión. <code>PUBLIC_PATHS</code>: <code>/api/agent/, /api/hermes/, /api/webhooks/, /api/cron/, /auth/confirm</code>.</li>
+  <li>Marca activa en cookie <code>crm_brand_slug</code>.</li>
+</ul>
+
+<h2>6 · La aplicación (páginas)</h2>
+<p>Todo bajo <code>src/app/(app)/</code>, con sidebar y acceso por rol.</p>
+<ul>
+  <li><strong>/dashboard</strong> — KPIs (llamadas, citas, ventas, pagos), citas de hoy, leads urgentes, insights, resumen del agente. Provider → /appointments.</li>
+  <li><strong>/leads</strong> — lista filtrable, export CSV, import (admin/mgr), import-plans, nuevo lead. Provider solo ve leads de sus citas.</li>
+  <li><strong>/leads/[id]</strong> — perfil + timeline (llamadas, citas, ventas), planes con abonos, edición/reasignación.</li>
+  <li><strong>/leads/import-plans</strong> — sube Excel (Plans + Payments), crea leads + planes + abonos.</li>
+  <li><strong>/calls · /calls/[id]</strong> — log (fallback caller_e164), reproductor, transcript, atribución de campaña.</li>
+  <li><strong>/appointments</strong> — citas (lead→rep→provider), estados, aprobación de provider, reasignación inline.</li>
+  <li><strong>/sales (+subscriptions)</strong> — ingresos por venta o por paciente, cobrado vs por cobrar, ticket promedio.</li>
+  <li><strong>/payments-due</strong> — próximos vencimientos (FIFO con overrides), progreso, agregar abono.</li>
+  <li><strong>/shipping</strong> — (admin/mgr) citas aprobadas sin enviar → "Marcar como enviado".</li>
+  <li><strong>/tasks</strong> — tareas por status/prioridad; rep ve las suyas.</li>
+  <li><strong>/settings</strong> — perfil, productos, marca, clínicas, usuarios, tracking numbers.</li>
+  <li><strong>/admin/*</strong> — registro de webhook 800.com, probes, backfills, ECID, insights.</li>
+</ul>
+
+<h2 class="pagebreak">7 · Bot interno (Claude) y Hermes</h2>
+<h3>Bot de consulta — <code>/api/agent/ask</code></h3>
+<ul>
+  <li>Modelo <code>claude-sonnet-4-6</code>, máx 3 rondas de tools, historial de últimos 5 runs.</li>
+  <li><strong>Tools de lectura:</strong> <code>list_brands, get_leads, get_schedule_today, get_sales_kpi, get_calls_summary, get_tasks_open</code>.</li>
+  <li><strong>Rep-scoping:</strong> admin/manager sin filtro; rep filtrado por <code>rep_id</code>/<code>assigned_rep_id</code>.</li>
+  <li><strong>Zona horaria:</strong> "hoy" se resuelve en Pacific Time, se guarda en UTC.</li>
+  <li><strong>Tools de escritura</strong> (<code>create_task, update_lead_status, log_call_note</code>): pasan por autonomía y bandeja de aprobación (<code>agent_pending_actions</code>).</li>
+  <li><strong>RAG</strong> sobre transcripciones (requiere <code>OPENAI_API_KEY</code>). <strong>UI:</strong> sin chat dedicado; botón ⌘K + resumen diario + bandeja de pendientes.</li>
+</ul>
+<blockquote class="warn"><strong>Pendiente conocido (#11):</strong> algunas tools devuelven <code>[]</code>/<code>{}</code> cuando la query falla, y el bot puede decir "$0"/vacío en vez de avisar del error. Cambiarlo toca el contrato de las tools — aún no autorizado.</blockquote>
+<h3>Hermes — bot de auto-salud (<code>/api/hermes/tick</code>)</h3>
+<p><strong>Ticks</strong> periódicos → detecta <strong>observaciones</strong> (duplicados, salud del webhook, leads estancados) con severidad → aplica <strong>resoluciones</strong> automáticas si son seguras, o escala a humano (<code>requires_approval</code>).</p>
+
+<h2>8 · Crons y disparadores</h2>
+<h4>Vercel (UTC)</h4>
+<table>
+  <tr><th>Ruta</th><th>Horario</th><th>Para qué</th></tr>
+  <tr><td><code>/api/agent/reflect</code></td><td>07:00</td><td>Detección de patrones del bot</td></tr>
+  <tr><td><code>/api/agent/daily-insights</code></td><td>07:30</td><td>Resúmenes diarios por rep</td></tr>
+  <tr><td><code>/api/agent/poll-800com</code></td><td>08:00</td><td>Importa llamadas (24h)</td></tr>
+  <tr><td><code>/api/agent/transcribe-calls</code></td><td>08:15</td><td>Transcribe + embebe audio</td></tr>
+  <tr><td><code>/api/agent/poll-meta-leads</code></td><td>08:30</td><td>Importa leads de Meta (90d)</td></tr>
+</table>
+<h4>cron-job.org (externos)</h4>
+<table>
+  <tr><th>Ruta</th><th>Intervalo</th><th>Para qué</th></tr>
+  <tr><td><code>/api/agent/poll-meta-leads</code></td><td>15 min</td><td>Ingesta casi-realtime de Facebook</td></tr>
+  <tr><td><code>/api/cron/auto-link-calls</code></td><td>10 min</td><td>Enlaza llamadas huérfanas a leads</td></tr>
+</table>
+
+<h2>9 · Procedimientos operativos</h2>
+<ul>
+  <li><strong>Deploy:</strong> <code>git push</code> → <code>npx vercel --prod --yes</code> → extraer URL → <code>npx vercel alias set &lt;URL&gt; proyectosagentic-crm.vercel.app</code> <strong>y</strong> <code>... agentic-crm-sigma.vercel.app</code>. (Rolling Releases NO auto-promueve el alias.)</li>
+  <li><strong>Antes de cada commit:</strong> <code>npx tsc --noEmit</code> debe pasar.</li>
+  <li><strong>SQL en Supabase:</strong> se MUESTRA el SQL, el usuario lo corre manualmente. Nunca ejecutar cambios de BD directo.</li>
+  <li><strong>Cambios:</strong> preferir aditivos; verificar tipos; si afecta una operación, revisar y ajustar antes de aplicar.</li>
+  <li><strong>800.com #195485 (A&amp;O)</strong> es la cuenta master; "Si Se Pierde" es uno de los números (3 tracking activos: Buses, Radio, Billboard).</li>
+</ul>
+
+<h2>10 · Salud actual y pendientes</h2>
+<h4>Funcionando y verificado <span class="badge ok">OK</span></h4>
+<ul>
+  <li>Captura de llamadas (webhook + cron + toast) con atribución de campaña (<code>dialed_e164</code> + <code>tracking_number_id</code>).</li>
+  <li>Identificación en tiempo real del que llama (ECID, gratis-cuando-cacheado).</li>
+  <li>Extracción completa de contactos (nombre, dirección, email, carrier) vía conversations + ECID.</li>
+  <li>Dedup de leads cerrado en BD (<code>leads_brand_phone_uniq</code> + 3 duplicados fusionados).</li>
+  <li>Meta Lead Ads activo con detección de token caducado. RLS sólida por rol + marca.</li>
+</ul>
+<h4>Pendientes <span class="badge pend">PEND</span></h4>
+<ul>
+  <li><strong>#11</strong> — bot que no diga "$0" cuando una tool falla (cambia contrato de tools, sin autorizar).</li>
+  <li>Regenerar tipos de Supabase para quitar los <code>(sb as any)</code>.</li>
+  <li>Verificar en Vercel: <code>INTERNAL_CRON_SECRET</code> y que los jobs de cron-job.org sigan activos.</li>
+  <li>Opcional: SQL para mover leads viejos mal asignados al pool.</li>
+</ul>
+
+<hr>
+<p class="footer-note">Para revertir un deploy malo: <code>npx vercel alias set &lt;deploy-anterior&gt; proyectosagentic-crm.vercel.app</code>. · Documento generado el 2026-06-08 desde el código real del repositorio <code>agentic-crm</code>.</p>
+
+</div>
+</body>
+</html>
