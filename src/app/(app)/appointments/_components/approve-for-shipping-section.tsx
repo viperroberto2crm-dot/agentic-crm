@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { CheckCircle2, Package, Loader2 } from "lucide-react"
+import { CheckCircle2, Package, Loader2, StickyNote } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { approveForShipping, unapproveForShipping } from "../actions"
+import { approveForShipping, saveProviderNotes, unapproveForShipping } from "../actions"
 
 type Props = {
   appointmentId: string
@@ -143,6 +143,27 @@ export function ApproveForShippingSection({
     })
   }
 
+  // Guardar SOLO notas: no aprueba, no crea entrada en Shipping
+  function handleSaveNotesOnly() {
+    if (!notes.trim()) {
+      setError("Escribe las notas antes de guardar")
+      return
+    }
+    setError(null)
+    startTransition(async () => {
+      try {
+        await saveProviderNotes({
+          appointment_id: appointmentId,
+          provider_notes: notes.trim(),
+        })
+        router.refresh()
+        if (onAfterApprove) onAfterApprove()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error")
+      }
+    })
+  }
+
   return (
     <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3 space-y-2">
       <div>
@@ -168,20 +189,35 @@ export function ApproveForShippingSection({
         />
       </div>
 
-      <Button
-        type="button"
-        onClick={handleApprove}
-        disabled={isPending || !notes.trim()}
-        className="h-8 bg-amber-600 hover:bg-amber-700 text-white text-xs"
-      >
-        {isPending ? (
-          <>
-            <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> ...
-          </>
-        ) : (
-          t("approveAndShip")
-        )}
-      </Button>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          type="button"
+          onClick={handleApprove}
+          disabled={isPending || !notes.trim()}
+          className="h-8 bg-amber-600 hover:bg-amber-700 text-white text-xs"
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> ...
+            </>
+          ) : (
+            t("approveAndShip")
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleSaveNotesOnly}
+          disabled={isPending || !notes.trim()}
+          className="h-8 text-xs border-amber-300 text-amber-800 hover:bg-amber-100 bg-white"
+        >
+          <StickyNote className="w-3 h-3 mr-1.5" />
+          Guardar solo notas (sin envío)
+        </Button>
+      </div>
+      <p className="text-[10px] text-amber-700/80">
+        &quot;Guardar solo notas&quot; registra tus notas sin crear envío. Usa &quot;{t("approveAndShip")}&quot; solo cuando la consulta requiere mandar producto.
+      </p>
 
       {error && (
         <p className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">

@@ -468,6 +468,40 @@ export async function approveForShipping(raw: z.infer<typeof ApproveForShippingS
   revalidatePath("/appointments")
 }
 
+// Guarda SOLO las notas del provider, sin aprobar para envío.
+// provider_approved queda intacto → la cita NO entra a la cola de Shipping.
+export async function saveProviderNotes(raw: z.infer<typeof ApproveForShippingSchema>) {
+  const input = ApproveForShippingSchema.parse(raw)
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  if (role !== "provider" && role !== "admin" && role !== "manager") {
+    throw new Error("Solo provider/admin pueden guardar notas")
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  if (role === "provider") {
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select("provider_id")
+      .eq("id", input.appointment_id)
+      .single()
+    if (!appt || appt.provider_id !== user.id) {
+      throw new Error("Solo el provider asignado puede guardar notas de esta cita")
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("appointments")
+    .update({ provider_notes: input.provider_notes })
+    .eq("id", input.appointment_id)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/appointments")
+}
+
 export async function unapproveForShipping(appointmentId: string) {
   const supabase = await typedClient()
   const { role } = await getCurrentRole(supabase)
