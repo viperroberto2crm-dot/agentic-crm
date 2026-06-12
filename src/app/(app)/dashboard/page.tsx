@@ -249,21 +249,21 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* PHASE B plug-in: Daily Insights (leads sin contactar) */}
-      <DailyInsightsPanel leads={staleLeadsForPanel} />
-
-      {/* Section 2: Agent daily summary */}
-      <AgentSummaryCard summary={summary} timezone={timezone} />
-
-      {/* PHASE D plug-in: skill applications relevant to today's pipeline */}
-
-      {/* Section 3: KPI grid */}
+      {/* Section 2: KPI grid — arriba, lo primero que ve el usuario */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <CallsKpiCard data={kpiCalls} label={callsLabel} />
         <ApptsKpiCard data={kpiAppts} label={apptsLabel} />
         <SalesKpiCard data={kpiSales} label={salesLabel} />
         <PendingKpiCard data={kpiPending} />
       </div>
+
+      {/* PHASE B plug-in: Daily Insights (leads sin contactar) */}
+      <DailyInsightsPanel leads={staleLeadsForPanel} />
+
+      {/* Section 3: Agent daily summary */}
+      <AgentSummaryCard summary={summary} timezone={timezone} />
+
+      {/* PHASE D plug-in: skill applications relevant to today's pipeline */}
 
       {/* Section 4 + 5: Today's appointments + Urgent leads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

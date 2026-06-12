@@ -7,6 +7,7 @@ import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { formatApptDateTime } from "@/lib/datetime"
 import { MarkAsShippedButton } from "./_components/mark-as-shipped-button"
+import { RemoveFromShippingButton } from "./_components/remove-from-shipping-button"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -181,7 +182,8 @@ export default async function ShippingPage() {
                   </p>
                 </div>
 
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
+                  <RemoveFromShippingButton appointmentId={a.id} />
                   <MarkAsShippedButton appointmentId={a.id} />
                 </div>
               </div>
