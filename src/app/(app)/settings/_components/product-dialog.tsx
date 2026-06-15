@@ -45,7 +45,7 @@ type FormState = {
   price: string
   display_price: string
   display_unit: string
-  cadence: "one_time" | "weekly" | "monthly" | "annual"
+  cadence: "one_time" | "weekly" | "monthly" | "quarterly" | "annual"
   recurring: boolean
   best_value: boolean
   active: boolean
@@ -93,7 +93,7 @@ function defaultForm(product?: ProductRow): FormState {
     price: centsToDisplay(product.price_cents),
     display_price: centsToDisplay(product.display_price_cents),
     display_unit: product.display_unit ?? "",
-    cadence: (product.cadence as "one_time" | "weekly" | "monthly" | "annual") ?? "monthly",
+    cadence: (product.cadence as "one_time" | "weekly" | "monthly" | "quarterly" | "annual") ?? "monthly",
     recurring: product.recurring,
     best_value: product.best_value,
     active: product.active,
@@ -116,6 +116,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
     one_time: t("cadenceOneTime"),
     weekly: t("cadenceWeekly"),
     monthly: t("cadenceMonthly"),
+    quarterly: t("cadenceQuarterly"),
     annual: t("cadenceAnnual"),
   }
 
@@ -270,7 +271,7 @@ export function ProductDialog({ mode, product, brandId, categories, open, onClos
               <Select
                 value={form.cadence}
                 onValueChange={(v) => {
-                  const next = v as "one_time" | "weekly" | "monthly" | "annual"
+                  const next = v as "one_time" | "weekly" | "monthly" | "quarterly" | "annual"
                   set("cadence", next)
                   // Si es pago único, forzar recurring=false (no tiene sentido recurring + one_time)
                   if (next === "one_time") set("recurring", false)

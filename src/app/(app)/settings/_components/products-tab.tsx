@@ -30,6 +30,7 @@ export function ProductsTab({ products, brandId, categories, readonly = false }:
   const CADENCE_LABELS: Record<string, string> = {
     weekly: t("weekly"),
     monthly: t("monthly"),
+    quarterly: t("quarterly"),
     annual: t("annual"),
   }
 

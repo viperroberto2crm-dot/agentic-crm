@@ -307,7 +307,7 @@ export async function deleteUser(
 
 // ── Products ───────────────────────────────────────────────────────────────────
 
-const CADENCE_DAYS: Record<string, number> = { one_time: 0, weekly: 7, monthly: 30, annual: 365 }
+const CADENCE_DAYS: Record<string, number> = { one_time: 0, weekly: 7, monthly: 30, quarterly: 90, annual: 365 }
 
 const ProductSchema = z.object({
   brand_id: z.string().uuid(),
@@ -318,7 +318,7 @@ const ProductSchema = z.object({
   price_cents: z.number().int().min(0),
   display_price_cents: z.number().int().min(0).nullable(),
   display_unit: z.string().nullable(),
-  cadence: z.enum(["one_time", "weekly", "monthly", "annual"]),
+  cadence: z.enum(["one_time", "weekly", "monthly", "quarterly", "annual"]),
   recurring: z.boolean(),
   best_value: z.boolean(),
   active: z.boolean(),
