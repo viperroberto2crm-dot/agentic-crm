@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/api/admin/800com/",
   "/api/hermes/",  // Hermes bot: tick + futuros endpoints. Usa HERMES_SECRET/CRON_SECRET en lugar de session.
   "/api/webhooks/",  // todos los webhooks (800com, twilio futuro, etc.)
+  "/api/leads/public",  // captura de leads desde landing pages externas. Auth via x-api-key.
   "/api/cron/",  // crons internos (auto-link-calls, etc.). Auth via CRON_SECRET/HERMES_SECRET.
   "/auth/confirm",  // verifyOtp de invite/recovery/magic-link: el usuario aún NO tiene sesión.
 ]
