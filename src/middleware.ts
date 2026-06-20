@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/api/agent/daily-insights",
   "/api/agent/poll-800com",
   "/api/agent/poll-meta-leads",
+  "/api/agent/poll-practicebetter",
   "/api/agent/transcribe-calls",
   "/api/admin/800com/",
   "/api/hermes/",  // Hermes bot: tick + futuros endpoints. Usa HERMES_SECRET/CRON_SECRET en lugar de session.

@@ -4,6 +4,7 @@
     { "path": "/api/agent/daily-insights", "schedule": "30 7 * * *" },
     { "path": "/api/agent/poll-800com", "schedule": "0 8 * * *" },
     { "path": "/api/agent/transcribe-calls", "schedule": "15 8 * * *" },
-    { "path": "/api/agent/poll-meta-leads", "schedule": "30 8 * * *" }
+    { "path": "/api/agent/poll-meta-leads", "schedule": "30 8 * * *" },
+    { "path": "/api/agent/poll-practicebetter", "schedule": "45 8 * * *" }
   ]
 }

@@ -864,6 +864,8 @@ export type Database = {
           created_by: string | null
           external_id: string | null
           external_provider: string | null
+          pb_record_id: string | null
+          pb_synced_at: string | null
           created_at: string
           updated_at: string
         }
@@ -891,6 +893,8 @@ export type Database = {
           created_by?: string | null
           external_id?: string | null
           external_provider?: string | null
+          pb_record_id?: string | null
+          pb_synced_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -918,6 +922,8 @@ export type Database = {
           created_by?: string | null
           external_id?: string | null
           external_provider?: string | null
+          pb_record_id?: string | null
+          pb_synced_at?: string | null
           created_at?: string
           updated_at?: string
         }
