@@ -140,6 +140,27 @@ export type PbAvailabilitySlot = {
   [k: string]: unknown
 }
 
+// ── Paginación ───────────────────────────────────────────────────────────────
+// PB devuelve { count, hasMore, items: [...] }. Recorremos todas las páginas
+// con skip/limit hasta agotar (hasMore=false), con un tope de seguridad.
+
+type PbPage<T> = { count?: number; hasMore?: boolean; items?: T[] }
+
+async function listAllPaged<T>(path: string, query?: Record<string, string>): Promise<T[]> {
+  const out: T[] = []
+  const limit = 100
+  const maxPages = 50 // tope de seguridad (5,000 items)
+  for (let page = 0; page < maxPages; page++) {
+    const params = new URLSearchParams({ ...query, skip: String(page * limit), limit: String(limit) })
+    const data = await pbFetch<PbPage<T> | T[]>(`${path}?${params.toString()}`)
+    const items = Array.isArray(data) ? data : data.items ?? []
+    out.push(...items)
+    const hasMore = Array.isArray(data) ? items.length === limit : Boolean(data.hasMore)
+    if (!hasMore || items.length === 0) break
+  }
+  return out
+}
+
 // ── Endpoints que usaremos ───────────────────────────────────────────────────
 
 /** Crea un cliente (record) en Practice Better. Devuelve el record creado. */
@@ -155,34 +176,19 @@ export async function createPbRecord(input: {
   })
 }
 
-/** Lista records (clientes). Soporta paginación simple por query. */
+/** Lista records (clientes), todas las páginas. */
 export async function listPbRecords(query?: Record<string, string>): Promise<PbRecord[]> {
-  const qs = query ? `?${new URLSearchParams(query).toString()}` : ""
-  const data = await pbFetch<PbRecord[] | { data?: PbRecord[]; records?: PbRecord[] }>(
-    `/consultant/records${qs}`,
-  )
-  if (Array.isArray(data)) return data
-  return data.data ?? data.records ?? []
+  return listAllPaged<PbRecord>("/consultant/records", query)
 }
 
-/** Lista invoices (pagos). */
+/** Lista invoices (pagos), todas las páginas. */
 export async function listPbInvoices(query?: Record<string, string>): Promise<PbInvoice[]> {
-  const qs = query ? `?${new URLSearchParams(query).toString()}` : ""
-  const data = await pbFetch<PbInvoice[] | { data?: PbInvoice[]; invoices?: PbInvoice[] }>(
-    `/consultant/payments/invoices${qs}`,
-  )
-  if (Array.isArray(data)) return data
-  return data.data ?? data.invoices ?? []
+  return listAllPaged<PbInvoice>("/consultant/payments/invoices", query)
 }
 
-/** Lista package instances (sesiones/programas ≈ citas). */
+/** Lista package instances (sesiones/programas ≈ citas), todas las páginas. */
 export async function listPbPackages(query?: Record<string, string>): Promise<PbPackageInstance[]> {
-  const qs = query ? `?${new URLSearchParams(query).toString()}` : ""
-  const data = await pbFetch<
-    PbPackageInstance[] | { data?: PbPackageInstance[]; instances?: PbPackageInstance[] }
-  >(`/consultant/packages/instances${qs}`)
-  if (Array.isArray(data)) return data
-  return data.data ?? data.instances ?? []
+  return listAllPaged<PbPackageInstance>("/consultant/packages/instances", query)
 }
 
 /** Consulta slots de disponibilidad del consultant (para agendar desde el CRM). */
@@ -190,11 +196,11 @@ export async function listPbAvailability(
   query?: Record<string, string>,
 ): Promise<PbAvailabilitySlot[]> {
   const qs = query ? `?${new URLSearchParams(query).toString()}` : ""
-  const data = await pbFetch<PbAvailabilitySlot[] | { data?: PbAvailabilitySlot[]; slots?: PbAvailabilitySlot[] }>(
+  const data = await pbFetch<PbAvailabilitySlot[] | { items?: PbAvailabilitySlot[]; slots?: PbAvailabilitySlot[] }>(
     `/consultant/availability/slots${qs}`,
   )
   if (Array.isArray(data)) return data
-  return data.data ?? data.slots ?? []
+  return data.items ?? data.slots ?? []
 }
 
 /** Normaliza el id de un objeto PB (a veces `id`, a veces `_id`). */

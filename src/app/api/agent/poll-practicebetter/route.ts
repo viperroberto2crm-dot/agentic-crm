@@ -120,16 +120,20 @@ async function handle(req: NextRequest) {
   const url = new URL(req.url)
   if (url.searchParams.get("debug") === "1") {
     try {
+      const firstItem = (v: unknown): unknown => {
+        const items = (v as { items?: unknown[] })?.items
+        return Array.isArray(items) && items.length ? items[0] : v
+      }
       const [recs, invs, pkgs] = await Promise.all([
-        pbRawGet("/consultant/records").catch((e) => ({ error: String(e) })),
-        pbRawGet("/consultant/payments/invoices").catch((e) => ({ error: String(e) })),
-        pbRawGet("/consultant/packages/instances").catch((e) => ({ error: String(e) })),
+        pbRawGet("/consultant/records?limit=1").catch((e) => ({ error: String(e) })),
+        pbRawGet("/consultant/payments/invoices?limit=1").catch((e) => ({ error: String(e) })),
+        pbRawGet("/consultant/packages/instances?limit=1").catch((e) => ({ error: String(e) })),
       ])
       return NextResponse.json({
         debug: true,
-        records: shapeOf(recs),
-        invoices: shapeOf(invs),
-        packages: shapeOf(pkgs),
+        recordSample: shapeOf(firstItem(recs)),
+        invoiceSample: shapeOf(firstItem(invs)),
+        packageSample: shapeOf(firstItem(pkgs)),
       })
     } catch (e) {
       return NextResponse.json({ debug: true, error: String(e) }, { status: 500 })
