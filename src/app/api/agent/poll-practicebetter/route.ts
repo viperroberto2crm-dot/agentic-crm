@@ -7,32 +7,12 @@ import {
   listPbRecords,
   listPbInvoices,
   listPbPackages,
-  pbRawGet,
   pbId,
   MissingPbCredentialsError,
   type PbRecord,
   type PbInvoice,
   type PbPackageInstance,
 } from "@/lib/integrations/practice-better"
-
-// Resumen RECURSIVO de la forma de una respuesta (solo tipos/keys, nunca
-// valores → no expone PII de pacientes). depth limita la profundidad.
-function shapeOf(v: unknown, depth = 2): unknown {
-  if (Array.isArray(v)) {
-    return { _array: v.length, of: v.length && depth > 0 ? shapeOf(v[0], depth - 1) : undefined }
-  }
-  if (v && typeof v === "object") {
-    const obj = v as Record<string, unknown>
-    const out: Record<string, unknown> = {}
-    for (const k of Object.keys(obj)) {
-      const val = obj[k]
-      if (val && typeof val === "object" && depth > 0) out[k] = shapeOf(val, depth - 1)
-      else out[k] = Array.isArray(val) ? `array(${val.length})` : val === null ? "null" : typeof val
-    }
-    return out
-  }
-  return typeof v
-}
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -116,31 +96,6 @@ async function handle(req: NextRequest) {
 
   const sb = createAdminClient() as unknown as DB
   const summary = { brands: "", records: 0, matched: 0, payments: 0, appointments: 0, skipped: 0, ambiguous: 0 }
-
-  // Modo diagnóstico: ?debug=1 devuelve la FORMA de las respuestas crudas de
-  // PB (sin escribir nada en la base). Sirve para ajustar los parsers.
-  const url = new URL(req.url)
-  if (url.searchParams.get("debug") === "1") {
-    try {
-      const firstItem = (v: unknown): unknown => {
-        const items = (v as { items?: unknown[] })?.items
-        return Array.isArray(items) && items.length ? items[0] : v
-      }
-      const [recs, invs, pkgs] = await Promise.all([
-        pbRawGet("/consultant/records?limit=1").catch((e) => ({ error: String(e) })),
-        pbRawGet("/consultant/payments/invoices?limit=1").catch((e) => ({ error: String(e) })),
-        pbRawGet("/consultant/packages/instances?limit=1").catch((e) => ({ error: String(e) })),
-      ])
-      return NextResponse.json({
-        debug: true,
-        recordSample: shapeOf(firstItem(recs), 2),
-        invoiceSample: shapeOf(firstItem(invs), 2),
-        packageSample: shapeOf(firstItem(pkgs), 2),
-      })
-    } catch (e) {
-      return NextResponse.json({ debug: true, error: String(e) }, { status: 500 })
-    }
-  }
 
   try {
     // ── 0) Resolver las marcas de Practice Better (CSV) ─────────────────────

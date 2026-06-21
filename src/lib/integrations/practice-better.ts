@@ -209,8 +209,3 @@ export async function listPbAvailability(
 export function pbId(obj: { id?: string; _id?: string } | null | undefined): string | null {
   return obj?.id ?? obj?._id ?? null
 }
-
-/** DIAGNÓSTICO: devuelve la respuesta cruda de un path GET (solo lectura). */
-export async function pbRawGet(path: string): Promise<unknown> {
-  return pbFetch<unknown>(path)
-}
