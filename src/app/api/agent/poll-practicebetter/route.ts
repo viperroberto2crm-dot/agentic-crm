@@ -23,15 +23,17 @@ type DB = SupabaseClient<Database>
 // Polling Practice Better → CRM (citas + pagos).
 // Patrón idéntico a poll-800com / poll-meta-leads: cron con Bearer CRON_SECRET.
 //
-// Flujo:
-//   1) Traer records (clientes) de PB.
-//   2) Para cada record, matchear con un lead del CRM por pb_record_id,
-//      email o teléfono. Si matchea, guardar pb_record_id en el lead.
-//   3) Traer invoices (pagos) y packages (citas); upsert en pb_payments /
-//      pb_appointments vinculados al lead correspondiente. El brand se HEREDA
-//      del lead matcheado (nunca se mezclan marcas).
-//   Records sin lead correspondiente se IGNORAN (no creamos leads automáticos
-//      para evitar ruido; decisión del diseño 2026-06-09).
+// AISLAMIENTO DE MARCA (crítico): Practice Better abarca VARIAS clínicas
+// (PRACTICE_BETTER_BRAND_SLUGS = CSV, ej. "sunnyslim,sisepierde,la-esperanza").
+// El matching se hace SOLO contra leads de esas marcas. Si un cliente de PB
+// coincide con leads en MÁS DE UNA marca (mismo email/tel en 2 clínicas), se
+// SALTA en vez de adivinar — así nunca se atribuye a la clínica equivocada.
+// El brand de cada cita/pago se HEREDA del lead matcheado. Si la env var no
+// está, el cron NO corre.
+//
+// Rendimiento: traemos los leads de esas marcas UNA vez y matcheamos en
+// memoria. Match por pb_record_id, luego email exacto (lowercase), luego
+// teléfono E.164. Records sin lead se ignoran.
 
 function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get("authorization")
@@ -51,7 +53,41 @@ function firstString(...vals: unknown[]): string | null {
   return null
 }
 
-type LeadMatch = { lead_id: string; brand_id: string }
+type LeadLite = {
+  id: string
+  brand_id: string
+  email: string | null
+  phone: string | null
+  pb_record_id: string | null
+}
+
+// Trae TODOS los leads de las marcas dadas, paginando (máx 1000/req).
+async function fetchLeadsForBrands(sb: DB, brandIds: string[]): Promise<LeadLite[]> {
+  const all: LeadLite[] = []
+  const pageSize = 1000
+  for (let from = 0; from < 50_000; from += pageSize) {
+    const { data, error } = await sb
+      .from("leads")
+      .select("id, brand_id, email, phone, pb_record_id")
+      .in("brand_id", brandIds)
+      .range(from, from + pageSize - 1)
+    if (error) throw new Error(`leads fetch: ${error.message}`)
+    const rows = (data ?? []) as LeadLite[]
+    all.push(...rows)
+    if (rows.length < pageSize) break
+  }
+  return all
+}
+
+type Cand = { leadId: string; brandId: string }
+// Resuelve candidatos a un único match seguro: si todos comparten brand,
+// devuelve el primero; si hay >1 marca distinta, es AMBIGUO → null.
+function resolveUnique(cands: Cand[] | undefined): Cand | null {
+  if (!cands || cands.length === 0) return null
+  const brands = new Set(cands.map((c) => c.brandId))
+  if (brands.size > 1) return null // ambiguo entre clínicas: no adivinar
+  return cands[0]
+}
 
 async function handle(req: NextRequest) {
   if (!isAuthorized(req)) {
@@ -59,78 +95,101 @@ async function handle(req: NextRequest) {
   }
 
   const sb = createAdminClient() as unknown as DB
-  const summary = { records: 0, matched: 0, payments: 0, appointments: 0, skipped: 0 }
+  const summary = { brands: "", records: 0, matched: 0, payments: 0, appointments: 0, skipped: 0, ambiguous: 0 }
 
   try {
-    // ── 1) Records de PB → mapa pb_record_id → {lead_id, brand_id} ──────────
+    // ── 0) Resolver las marcas de Practice Better (CSV) ─────────────────────
+    const slugsRaw = process.env.PRACTICE_BETTER_BRAND_SLUGS
+    if (!slugsRaw) {
+      return NextResponse.json(
+        { error: "PRACTICE_BETTER_BRAND_SLUGS no configurada" },
+        { status: 503 },
+      )
+    }
+    const slugs = slugsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    const { data: brandRows } = await sb.from("brands").select("id, slug").in("slug", slugs)
+    const brandIds = ((brandRows ?? []) as { id: string; slug: string }[]).map((b) => b.id)
+    if (brandIds.length === 0) {
+      return NextResponse.json(
+        { error: `ninguna marca encontrada para '${slugsRaw}'` },
+        { status: 503 },
+      )
+    }
+    summary.brands = ((brandRows ?? []) as { slug: string }[]).map((b) => b.slug).join(",")
+
+    // ── 1) Cargar leads de esas marcas e indexar (con detección de ambigüedad)
+    const leads = await fetchLeadsForBrands(sb, brandIds)
+    const byPbId = new Map<string, Cand>() // pb_record_id → {leadId, brandId}
+    const byEmail = new Map<string, Cand[]>() // email lowercase → candidatos
+    const byPhone = new Map<string, Cand[]>() // phone E.164 → candidatos
+    for (const l of leads) {
+      const cand: Cand = { leadId: l.id, brandId: l.brand_id }
+      if (l.pb_record_id) byPbId.set(l.pb_record_id, cand)
+      if (l.email && l.email.trim()) {
+        const k = l.email.trim().toLowerCase()
+        byEmail.set(k, [...(byEmail.get(k) ?? []), cand])
+      }
+      if (l.phone && l.phone.trim()) {
+        const k = l.phone.trim()
+        byPhone.set(k, [...(byPhone.get(k) ?? []), cand])
+      }
+    }
+
+    // ── 2) Records de PB → mapa pb_record_id → {leadId, brandId} ────────────
     const records = await listPbRecords()
     summary.records = records.length
-    const recordToLead = new Map<string, LeadMatch>()
+    const recordToLead = new Map<string, Cand>()
+    const toLink: Array<{ leadId: string; recId: string }> = []
 
     for (const rec of records as PbRecord[]) {
       const recId = pbId(rec)
       if (!recId) continue
 
-      const email = firstString(rec.email)
+      const email = firstString(rec.email)?.toLowerCase() ?? null
       const phoneRaw = firstString(rec.phone, rec.mobile)
-      const phone = phoneRaw ? normalizeToE164(phoneRaw) || phoneRaw : null
+      const phone = phoneRaw ? normalizeToE164(phoneRaw) || null : null
 
-      // Buscar lead: por pb_record_id ya vinculado, luego email, luego teléfono
-      let match: LeadMatch | null = null
-
-      const { data: byPb } = await sb
-        .from("leads")
-        .select("id, brand_id")
-        .eq("pb_record_id", recId)
-        .maybeSingle()
-      if (byPb) match = { lead_id: byPb.id, brand_id: byPb.brand_id }
-
-      if (!match && email) {
-        const { data } = await sb
-          .from("leads")
-          .select("id, brand_id")
-          .ilike("email", email)
-          .limit(1)
-          .maybeSingle()
-        if (data) match = { lead_id: data.id, brand_id: data.brand_id }
-      }
-      if (!match && phone) {
-        const { data } = await sb
-          .from("leads")
-          .select("id, brand_id")
-          .eq("phone", phone)
-          .limit(1)
-          .maybeSingle()
-        if (data) match = { lead_id: data.id, brand_id: data.brand_id }
-      }
+      // pb_record_id es único y seguro; email/teléfono pasan por resolveUnique
+      // que descarta coincidencias ambiguas entre clínicas.
+      const linked = byPbId.get(recId) ?? null
+      const byEmailMatch = !linked && email ? resolveUnique(byEmail.get(email)) : null
+      const byPhoneMatch = !linked && !byEmailMatch && phone ? resolveUnique(byPhone.get(phone)) : null
+      const match = linked ?? byEmailMatch ?? byPhoneMatch
 
       if (!match) {
-        summary.skipped++
+        // ¿hubo candidatos pero ambiguos? contarlo aparte para visibilidad
+        const hadEmailCands = email && (byEmail.get(email)?.length ?? 0) > 0
+        const hadPhoneCands = phone && (byPhone.get(phone)?.length ?? 0) > 0
+        if (hadEmailCands || hadPhoneCands) summary.ambiguous++
+        else summary.skipped++
         continue
       }
       summary.matched++
       recordToLead.set(recId, match)
+      if (!byPbId.has(recId)) toLink.push({ leadId: match.leadId, recId })
+    }
 
-      // Vincular pb_record_id al lead (si aún no lo tiene)
+    // Vincular pb_record_id en los leads que aún no lo tenían
+    for (const { leadId, recId } of toLink) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb as any)
         .from("leads")
         .update({ pb_record_id: recId, pb_synced_at: new Date().toISOString() })
-        .eq("id", match.lead_id)
+        .eq("id", leadId)
     }
 
-    // ── 2) Invoices (pagos) → pb_payments ───────────────────────────────────
+    // ── 3) Invoices (pagos) → pb_payments ───────────────────────────────────
     const invoices = await listPbInvoices()
     for (const inv of invoices as PbInvoice[]) {
       const id = pbId(inv)
       const recId = firstString(inv.recordId, inv.clientId)
       if (!id || !recId) continue
       const match = recordToLead.get(recId)
-      if (!match) continue // pago de un cliente sin lead en el CRM: ignorar
+      if (!match) continue // pago de un cliente sin lead matcheado: ignorar
 
       const row = {
-        brand_id: match.brand_id,
-        lead_id: match.lead_id,
+        brand_id: match.brandId,
+        lead_id: match.leadId,
         pb_id: id,
         pb_record_id: recId,
         amount_cents: toCents(inv.total ?? inv.amount),
@@ -145,10 +204,11 @@ async function handle(req: NextRequest) {
       const { error } = await (sb as any)
         .from("pb_payments")
         .upsert(row, { onConflict: "pb_id" })
-      if (!error) summary.payments++
+      if (error) console.error("[poll-pb] pago upsert:", error.message)
+      else summary.payments++
     }
 
-    // ── 3) Packages (citas) → pb_appointments ───────────────────────────────
+    // ── 4) Packages (citas) → pb_appointments ───────────────────────────────
     const packages = await listPbPackages()
     for (const pkg of packages as PbPackageInstance[]) {
       const id = pbId(pkg)
@@ -158,8 +218,8 @@ async function handle(req: NextRequest) {
       if (!match) continue
 
       const row = {
-        brand_id: match.brand_id,
-        lead_id: match.lead_id,
+        brand_id: match.brandId,
+        lead_id: match.leadId,
         pb_id: id,
         pb_record_id: recId,
         name: firstString(pkg.name),
@@ -172,7 +232,8 @@ async function handle(req: NextRequest) {
       const { error } = await (sb as any)
         .from("pb_appointments")
         .upsert(row, { onConflict: "pb_id" })
-      if (!error) summary.appointments++
+      if (error) console.error("[poll-pb] cita upsert:", error.message)
+      else summary.appointments++
     }
 
     return NextResponse.json({ ok: true, ...summary })
