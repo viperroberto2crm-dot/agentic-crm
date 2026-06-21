@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
+import { createPbRecord, pbId, MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -999,4 +1000,66 @@ export async function fetchProducts(brandId: string) {
 
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+// ── Practice Better: crear paciente manualmente desde el perfil del lead ──────
+// Rep/manager/admin pueden mandar un lead a Practice Better. No-bloqueante:
+// devuelve {ok,error} en vez de lanzar, para que el botón muestre el error.
+export async function sendLeadToPracticeBetter(
+  leadId: string,
+): Promise<{ ok: boolean; error?: string; alreadyLinked?: boolean }> {
+  const supabase = await typedClient()
+  const { role } = await getCurrentRole(supabase)
+  assertNotProvider(role) // rep/manager/admin permitidos
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: "No autorizado" }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: lead } = await sb
+    .from("leads")
+    .select("id, first_name, last_name, email, pb_record_id, assigned_rep_id")
+    .eq("id", leadId)
+    .maybeSingle()
+  if (!lead) return { ok: false, error: "Lead no encontrado" }
+  // Un rep solo puede mandar a PB SUS propios leads (no depender solo de RLS)
+  if (role === "rep" && lead.assigned_rep_id !== user.id) {
+    return { ok: false, error: "Sin permiso para este lead" }
+  }
+  if (lead.pb_record_id) return { ok: true, alreadyLinked: true }
+
+  try {
+    const rec = await createPbRecord({
+      firstName: lead.first_name || "(Sin nombre)",
+      lastName: lead.last_name || undefined,
+      email: lead.email || undefined,
+    })
+    const recId = pbId(rec)
+    if (!recId) {
+      // Paciente quizá creado en PB pero sin id parseable: NO reintentar a ciegas
+      console.error("[sendLeadToPB] PB no devolvió id parseable para lead", leadId, JSON.stringify(rec).slice(0, 300))
+      return { ok: false, error: "Practice Better no devolvió un id. No reintentes; el polling lo vinculará por email." }
+    }
+
+    const { error } = await sb
+      .from("leads")
+      .update({ pb_record_id: recId, pb_synced_at: new Date().toISOString() })
+      .eq("id", leadId)
+    if (error) {
+      // El paciente YA se creó en PB; si reintentas crearías un duplicado.
+      console.error("[sendLeadToPB] paciente creado en PB", recId, "pero falló el vínculo en DB:", error.message)
+      return {
+        ok: false,
+        error: "Paciente creado en Practice Better, pero no se pudo vincular. NO reintentes — el polling lo vinculará solo.",
+      }
+    }
+
+    revalidatePath(`/leads/${leadId}`)
+    return { ok: true }
+  } catch (e) {
+    if (e instanceof MissingPbCredentialsError) {
+      return { ok: false, error: "Practice Better no está configurado" }
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Error al crear en Practice Better" }
+  }
 }

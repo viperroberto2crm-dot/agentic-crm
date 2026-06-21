@@ -1,5 +1,6 @@
 import { Calendar, DollarSign, CheckCircle2, Clock } from "lucide-react"
 import { formatApptDateTime, formatDate } from "@/lib/datetime"
+import { SendToPbButton } from "./send-to-pb-button"
 
 // Card de solo lectura: muestra las citas y pagos que el polling trae de
 // Practice Better para este lead. Datos pre-cargados en page.tsx (server).
@@ -29,9 +30,13 @@ function fmtMoney(cents: number, currency: string | null): string {
 export function PracticeBetterCard({
   appointments,
   payments,
+  leadId,
+  hasPbRecord,
 }: {
   appointments: PbAppt[]
   payments: PbPayment[]
+  leadId: string
+  hasPbRecord: boolean
 }) {
   const totalPaidCents = payments.reduce((s, p) => s + (p.amount_cents ?? 0), 0)
   const currency = payments[0]?.currency ?? "USD"
@@ -50,9 +55,20 @@ export function PracticeBetterCard({
         )}
       </div>
 
-      {!hasData && (
+      {/* No vinculado todavía → botón para crear el paciente en PB */}
+      {!hasPbRecord && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Este lead no está en Practice Better.
+          </p>
+          <SendToPbButton leadId={leadId} />
+        </div>
+      )}
+
+      {/* Vinculado pero sin datos sincronizados aún */}
+      {hasPbRecord && !hasData && (
         <p className="text-xs text-muted-foreground">
-          Sin citas ni pagos sincronizados todavía.
+          Paciente vinculado. Aún no hay citas ni pagos sincronizados.
         </p>
       )}
 

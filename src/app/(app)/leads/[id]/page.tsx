@@ -249,10 +249,15 @@ export default async function LeadDetailPage({
         </Card>
       )}
 
-      {role !== "provider" && (pbAppointments.length > 0 || pbPayments.length > 0) && (
+      {lead.brand_id && role !== "provider" && (
         <Card className="bg-white border-border/60">
           <CardContent className="pt-5">
-            <PracticeBetterCard appointments={pbAppointments} payments={pbPayments} />
+            <PracticeBetterCard
+              appointments={pbAppointments}
+              payments={pbPayments}
+              leadId={id}
+              hasPbRecord={Boolean((lead as { pb_record_id?: string | null }).pb_record_id)}
+            />
           </CardContent>
         </Card>
       )}
