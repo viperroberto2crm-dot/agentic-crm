@@ -7,12 +7,30 @@ import {
   listPbRecords,
   listPbInvoices,
   listPbPackages,
+  pbRawGet,
   pbId,
   MissingPbCredentialsError,
   type PbRecord,
   type PbInvoice,
   type PbPackageInstance,
 } from "@/lib/integrations/practice-better"
+
+// Resumen de la forma de una respuesta cruda, sin exponer datos sensibles.
+function shapeOf(v: unknown): unknown {
+  if (Array.isArray(v)) {
+    return { type: "array", length: v.length, firstKeys: v[0] && typeof v[0] === "object" ? Object.keys(v[0] as object) : null }
+  }
+  if (v && typeof v === "object") {
+    const obj = v as Record<string, unknown>
+    const out: Record<string, string> = {}
+    for (const k of Object.keys(obj)) {
+      const val = obj[k]
+      out[k] = Array.isArray(val) ? `array(${val.length})` : val === null ? "null" : typeof val
+    }
+    return { type: "object", keys: out }
+  }
+  return { type: typeof v, value: v }
+}
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -96,6 +114,27 @@ async function handle(req: NextRequest) {
 
   const sb = createAdminClient() as unknown as DB
   const summary = { brands: "", records: 0, matched: 0, payments: 0, appointments: 0, skipped: 0, ambiguous: 0 }
+
+  // Modo diagnóstico: ?debug=1 devuelve la FORMA de las respuestas crudas de
+  // PB (sin escribir nada en la base). Sirve para ajustar los parsers.
+  const url = new URL(req.url)
+  if (url.searchParams.get("debug") === "1") {
+    try {
+      const [recs, invs, pkgs] = await Promise.all([
+        pbRawGet("/consultant/records").catch((e) => ({ error: String(e) })),
+        pbRawGet("/consultant/payments/invoices").catch((e) => ({ error: String(e) })),
+        pbRawGet("/consultant/packages/instances").catch((e) => ({ error: String(e) })),
+      ])
+      return NextResponse.json({
+        debug: true,
+        records: shapeOf(recs),
+        invoices: shapeOf(invs),
+        packages: shapeOf(pkgs),
+      })
+    } catch (e) {
+      return NextResponse.json({ debug: true, error: String(e) }, { status: 500 })
+    }
+  }
 
   try {
     // ── 0) Resolver las marcas de Practice Better (CSV) ─────────────────────
