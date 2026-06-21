@@ -95,41 +95,43 @@ async function pbFetch<T>(path: string, init?: RequestInit): Promise<T> {
 // La API está en beta; estos tipos cubren lo que usamos y son tolerantes a
 // campos extra. Se ajustan cuando veamos respuestas reales en el polling.
 
+// Estructura real confirmada vía debug 2026-06-10.
+type PbMoney = { amount?: number; currency?: string }
+type PbProfile = { firstName?: string; lastName?: string; emailAddress?: string }
+type PbClientRecord = { id?: string; profile?: PbProfile }
+
 export type PbRecord = {
   id?: string
-  _id?: string
-  firstName?: string
-  lastName?: string
-  email?: string
-  phone?: string
-  mobile?: string
+  profile?: PbProfile
+  client?: { id?: string; emailAddress?: string }
+  isActive?: boolean
+  status?: string
   [k: string]: unknown
 }
 
 export type PbInvoice = {
   id?: string
-  _id?: string
-  recordId?: string
-  clientId?: string
-  status?: string
-  total?: number
-  amount?: number
+  clientRecord?: PbClientRecord
+  invoiceNumber?: string
+  invoiceDate?: string
+  dateModified?: string
+  paid?: boolean
+  paymentStatus?: string
   currency?: string
-  paidDate?: string
-  date?: string
-  number?: string
+  total?: PbMoney
+  amountPaid?: PbMoney
   [k: string]: unknown
 }
 
 export type PbPackageInstance = {
   id?: string
-  _id?: string
-  recordId?: string
-  clientId?: string
   name?: string
-  status?: string
-  startDate?: string
-  scheduledAt?: string
+  clientRecord?: PbClientRecord
+  confirmationStatus?: string
+  paymentStatus?: string
+  confirmed?: boolean
+  dateCreated?: string
+  dateModified?: string
   [k: string]: unknown
 }
 

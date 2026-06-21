@@ -190,22 +190,20 @@ async function handle(req: NextRequest) {
       const recId = pbId(rec)
       if (!recId) continue
 
-      const email = firstString(rec.email)?.toLowerCase() ?? null
-      const phoneRaw = firstString(rec.phone, rec.mobile)
-      const phone = phoneRaw ? normalizeToE164(phoneRaw) || null : null
+      // Email real: profile.emailAddress (o client.emailAddress). Sin teléfono
+      // en el perfil de PB → matcheamos por email.
+      const email =
+        firstString(rec.profile?.emailAddress, rec.client?.emailAddress)?.toLowerCase() ?? null
 
-      // pb_record_id es único y seguro; email/teléfono pasan por resolveUnique
-      // que descarta coincidencias ambiguas entre clínicas.
+      // pb_record_id es único y seguro; email pasa por resolveUnique que
+      // descarta coincidencias ambiguas entre clínicas.
       const linked = byPbId.get(recId) ?? null
       const byEmailMatch = !linked && email ? resolveUnique(byEmail.get(email)) : null
-      const byPhoneMatch = !linked && !byEmailMatch && phone ? resolveUnique(byPhone.get(phone)) : null
-      const match = linked ?? byEmailMatch ?? byPhoneMatch
+      const match = linked ?? byEmailMatch
 
       if (!match) {
-        // ¿hubo candidatos pero ambiguos? contarlo aparte para visibilidad
         const hadEmailCands = email && (byEmail.get(email)?.length ?? 0) > 0
-        const hadPhoneCands = phone && (byPhone.get(phone)?.length ?? 0) > 0
-        if (hadEmailCands || hadPhoneCands) summary.ambiguous++
+        if (hadEmailCands) summary.ambiguous++
         else summary.skipped++
         continue
       }
@@ -227,7 +225,7 @@ async function handle(req: NextRequest) {
     const invoices = await listPbInvoices()
     for (const inv of invoices as PbInvoice[]) {
       const id = pbId(inv)
-      const recId = firstString(inv.recordId, inv.clientId)
+      const recId = firstString(inv.clientRecord?.id)
       if (!id || !recId) continue
       const match = recordToLead.get(recId)
       if (!match) continue // pago de un cliente sin lead matcheado: ignorar
@@ -237,11 +235,11 @@ async function handle(req: NextRequest) {
         lead_id: match.leadId,
         pb_id: id,
         pb_record_id: recId,
-        amount_cents: toCents(inv.total ?? inv.amount),
-        currency: firstString(inv.currency),
-        status: firstString(inv.status),
-        paid_at: firstString(inv.paidDate, inv.date),
-        number: firstString(inv.number),
+        amount_cents: toCents(inv.total?.amount),
+        currency: firstString(inv.currency, inv.total?.currency),
+        status: firstString(inv.paymentStatus),
+        paid_at: inv.paid ? firstString(inv.invoiceDate, inv.dateModified) : null,
+        number: firstString(inv.invoiceNumber),
         raw: inv,
         updated_at: new Date().toISOString(),
       }
@@ -257,7 +255,7 @@ async function handle(req: NextRequest) {
     const packages = await listPbPackages()
     for (const pkg of packages as PbPackageInstance[]) {
       const id = pbId(pkg)
-      const recId = firstString(pkg.recordId, pkg.clientId)
+      const recId = firstString(pkg.clientRecord?.id)
       if (!id || !recId) continue
       const match = recordToLead.get(recId)
       if (!match) continue
@@ -268,8 +266,8 @@ async function handle(req: NextRequest) {
         pb_id: id,
         pb_record_id: recId,
         name: firstString(pkg.name),
-        status: firstString(pkg.status),
-        scheduled_at: firstString(pkg.scheduledAt, pkg.startDate),
+        status: firstString(pkg.confirmationStatus, pkg.paymentStatus),
+        scheduled_at: firstString(pkg.dateCreated, pkg.dateModified),
         raw: pkg,
         updated_at: new Date().toISOString(),
       }
