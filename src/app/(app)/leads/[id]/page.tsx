@@ -9,6 +9,7 @@ import { LeadHeader } from "./_components/lead-header"
 import { LeadActions } from "./_components/lead-actions"
 import { ActivityTimeline } from "./_components/activity-timeline"
 import { PaymentPlansSection } from "./_components/payment-plans-section"
+import { PracticeBetterCard, type PbAppt, type PbPayment } from "./_components/practice-better-card"
 import { JustCreatedBanner } from "./_components/just-created-banner"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
@@ -33,7 +34,7 @@ export default async function LeadDetailPage({
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("leads")
 
-  const [lead, profileRes, callsRes, apptsRes, salesRes] = await Promise.all([
+  const [lead, profileRes, callsRes, apptsRes, salesRes, pbApptsRes, pbPayRes] = await Promise.all([
     fetchLeadById(sb, id),
     sb.from("users").select("role").eq("id", user.id).single(),
     sb.from("calls")
@@ -45,7 +46,19 @@ export default async function LeadDetailPage({
     sb.from("sales")
       .select("id, created_at, paid_at, amount_cents, payment_status, payment_method")
       .eq("lead_id", id).order("created_at", { ascending: false }).limit(20),
+    // pb_appointments / pb_payments no están en los tipos generados → cast
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb as any).from("pb_appointments")
+      .select("id, name, status, scheduled_at")
+      .eq("lead_id", id).order("scheduled_at", { ascending: false }).limit(20),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb as any).from("pb_payments")
+      .select("id, amount_cents, currency, status, paid_at, number")
+      .eq("lead_id", id).order("paid_at", { ascending: false }).limit(20),
   ])
+
+  const pbAppointments = (pbApptsRes?.data ?? []) as PbAppt[]
+  const pbPayments = (pbPayRes?.data ?? []) as PbPayment[]
 
   let clinicsForModal: {
     id: string
@@ -232,6 +245,14 @@ export default async function LeadDetailPage({
               leadId={id}
               brandId={lead.brand_id}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {role !== "provider" && (pbAppointments.length > 0 || pbPayments.length > 0) && (
+        <Card className="bg-white border-border/60">
+          <CardContent className="pt-5">
+            <PracticeBetterCard appointments={pbAppointments} payments={pbPayments} />
           </CardContent>
         </Card>
       )}
