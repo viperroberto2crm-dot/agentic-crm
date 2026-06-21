@@ -15,21 +15,23 @@ import {
   type PbPackageInstance,
 } from "@/lib/integrations/practice-better"
 
-// Resumen de la forma de una respuesta cruda, sin exponer datos sensibles.
-function shapeOf(v: unknown): unknown {
+// Resumen RECURSIVO de la forma de una respuesta (solo tipos/keys, nunca
+// valores → no expone PII de pacientes). depth limita la profundidad.
+function shapeOf(v: unknown, depth = 2): unknown {
   if (Array.isArray(v)) {
-    return { type: "array", length: v.length, firstKeys: v[0] && typeof v[0] === "object" ? Object.keys(v[0] as object) : null }
+    return { _array: v.length, of: v.length && depth > 0 ? shapeOf(v[0], depth - 1) : undefined }
   }
   if (v && typeof v === "object") {
     const obj = v as Record<string, unknown>
-    const out: Record<string, string> = {}
+    const out: Record<string, unknown> = {}
     for (const k of Object.keys(obj)) {
       const val = obj[k]
-      out[k] = Array.isArray(val) ? `array(${val.length})` : val === null ? "null" : typeof val
+      if (val && typeof val === "object" && depth > 0) out[k] = shapeOf(val, depth - 1)
+      else out[k] = Array.isArray(val) ? `array(${val.length})` : val === null ? "null" : typeof val
     }
-    return { type: "object", keys: out }
+    return out
   }
-  return { type: typeof v, value: v }
+  return typeof v
 }
 
 export const runtime = "nodejs"
@@ -131,9 +133,9 @@ async function handle(req: NextRequest) {
       ])
       return NextResponse.json({
         debug: true,
-        recordSample: shapeOf(firstItem(recs)),
-        invoiceSample: shapeOf(firstItem(invs)),
-        packageSample: shapeOf(firstItem(pkgs)),
+        recordSample: shapeOf(firstItem(recs), 2),
+        invoiceSample: shapeOf(firstItem(invs), 2),
+        packageSample: shapeOf(firstItem(pkgs), 2),
       })
     } catch (e) {
       return NextResponse.json({ debug: true, error: String(e) }, { status: 500 })
