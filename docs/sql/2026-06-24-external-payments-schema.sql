@@ -15,8 +15,11 @@ CREATE TABLE IF NOT EXISTS external_payments (
   currency        TEXT,
   status          TEXT,                          -- completed | pending | refunded | failed
   origin          TEXT,                          -- 'web' | 'in_person' | 'invoice' | 'unknown'
+  items           TEXT,                          -- resumen de productos: "Membresía Mensual, GLP semanal"
+  customer_name   TEXT,
   customer_email  TEXT,
   customer_phone  TEXT,
+  customer_address TEXT,
   reference       TEXT,                          -- referencia del link/página, si existe
   paid_at         TIMESTAMPTZ,
   raw             JSONB,                         -- payload crudo del proveedor

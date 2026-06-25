@@ -8,8 +8,12 @@ import {
   normalizeSquareStatus,
   squareOrigin,
   retrieveSquareCustomer,
+  retrieveSquareOrder,
+  normalizeBookingStatus,
+  bookingEndsAt,
   type SquareWebhookEvent,
   type SquarePayment,
+  type SquareBooking,
 } from "@/lib/integrations/square"
 
 export const runtime = "nodejs"
@@ -17,21 +21,90 @@ export const dynamic = "force-dynamic"
 
 type DB = SupabaseClient<Database>
 
-// Webhook de pagos de Square → tabla genérica external_payments.
+// Webhook de Square → pagos (external_payments) y citas (external_appointments).
 // Patrón: firma HMAC (como 800com) + aislamiento de marca (como Practice
-// Better: la marca se HEREDA del lead; si el email coincide en >1 marca, no
+// Better: la marca se HEREDA del lead; si el contacto coincide en >1 marca, NO
 // se adivina). Idempotente por (provider, external_id).
+// Por ahora SOLO categoriza/registra: vincula a leads existentes; los que no
+// matchean quedan sin vincular. (Crear leads se activará al separar cuentas.)
 
 type Cand = { leadId: string; brandId: string }
-function resolveUnique(cands: Cand[] | undefined): Cand | null {
-  if (!cands || cands.length === 0) return null
+function resolveUnique(cands: Cand[]): Cand | null {
+  if (cands.length === 0) return null
   const brands = new Set(cands.map((c) => c.brandId))
   if (brands.size > 1) return null // ambiguo entre clínicas: no adivinar
   return cands[0]
 }
 
+// Resuelve el lead por email (escapado) y luego teléfono, dentro de las marcas
+// de Square. Compartido por pagos y citas. Devuelve null si no matchea o ambiguo.
+async function resolveLead(
+  sb: DB,
+  email: string | null,
+  phone: string | null,
+): Promise<Cand | null> {
+  const slugsRaw = process.env.SQUARE_BRAND_SLUGS
+  if (!slugsRaw || (!email && !phone)) return null
+  const slugs = slugsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+  const { data: brandRows } = await sb.from("brands").select("id").in("slug", slugs)
+  const brandIds = ((brandRows ?? []) as { id: string }[]).map((b) => b.id)
+  if (brandIds.length === 0) return null
+
+  const cands: Cand[] = []
+  if (email) {
+    // Escapar comodines LIKE (%, _, \): el email viene de Square. ilike preserva
+    // el match sin distinción de mayúsculas (emails guardados con cualquier casing).
+    const emailPattern = email.replace(/([\\%_])/g, "\\$1")
+    const { data } = await sb
+      .from("leads")
+      .select("id, brand_id")
+      .in("brand_id", brandIds)
+      .ilike("email", emailPattern)
+    for (const l of (data ?? []) as { id: string; brand_id: string }[]) {
+      cands.push({ leadId: l.id, brandId: l.brand_id })
+    }
+  }
+  if (phone && cands.length === 0) {
+    const { data } = await sb
+      .from("leads")
+      .select("id, brand_id")
+      .in("brand_id", brandIds)
+      .eq("phone", phone)
+    for (const l of (data ?? []) as { id: string; brand_id: string }[]) {
+      cands.push({ leadId: l.id, brandId: l.brand_id })
+    }
+  }
+  return resolveUnique(cands)
+}
+
+// Obtiene contacto del cliente (email/teléfono/nombre/dirección); enriquece
+// con la API de Square si hay customer_id.
+type Contact = {
+  email: string | null
+  phone: string | null
+  name: string | null
+  address: string | null
+  customer: unknown | null
+}
+async function contactFor(directEmail: string | null, customerId: string | undefined): Promise<Contact> {
+  let email = directEmail?.trim().toLowerCase() ?? null
+  let phone: string | null = null
+  let name: string | null = null
+  let address: string | null = null
+  let customer: unknown | null = null
+  if (customerId) {
+    const cust = await retrieveSquareCustomer(customerId)
+    if (!email && cust.email) email = cust.email.trim().toLowerCase()
+    if (cust.phone) phone = normalizeToE164(cust.phone) || null
+    name = cust.name
+    address = cust.address
+    customer = cust.customer
+  }
+  return { email, phone, name, address, customer }
+}
+
 export async function POST(request: Request) {
-  // 1) Leer cuerpo CRUDO (necesario para verificar la firma)
+  // 1) Cuerpo CRUDO (necesario para verificar la firma)
   const rawBody = await request.text()
 
   // 2) Verificar firma
@@ -55,97 +128,100 @@ export async function POST(request: Request) {
   }
 
   const type = event.type ?? ""
-  if (type !== "payment.created" && type !== "payment.updated") {
-    // Otros eventos: aceptamos con 200 para que Square no reintente
-    return NextResponse.json({ ok: true, ignored: type })
-  }
-
-  const payment = event.data?.object?.payment
-  const paymentId = payment?.id
-  if (!payment || !paymentId) {
-    return NextResponse.json({ ok: true, ignored: "no payment" })
-  }
-
   const sb = createAdminClient() as unknown as DB
 
   try {
-    // 4) Obtener email/teléfono del comprador
-    let email = payment.buyer_email_address?.trim().toLowerCase() ?? null
-    let phone: string | null = null
-    if ((!email || !phone) && payment.customer_id) {
-      const cust = await retrieveSquareCustomer(payment.customer_id)
-      if (!email && cust.email) email = cust.email.trim().toLowerCase()
-      if (cust.phone) phone = normalizeToE164(cust.phone) || null
-    }
+    // ── PAGOS ───────────────────────────────────────────────────────────────
+    if (type === "payment.created" || type === "payment.updated") {
+      const payment = event.data?.object?.payment
+      if (!payment?.id) return NextResponse.json({ ok: true, ignored: "no payment" })
 
-    // 5) Resolver lead dentro de las marcas de Square (marca heredada del lead)
-    const slugsRaw = process.env.SQUARE_BRAND_SLUGS
-    let match: Cand | null = null
-    if (slugsRaw && (email || phone)) {
-      const slugs = slugsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      const { data: brandRows } = await sb.from("brands").select("id").in("slug", slugs)
-      const brandIds = ((brandRows ?? []) as { id: string }[]).map((b) => b.id)
-      if (brandIds.length > 0) {
-        const cands: Cand[] = []
-        if (email) {
-          // Escapar comodines LIKE (%, _, \) — el email viene de Square y un
-          // '%' literal convertiría el match en wildcard. ilike preserva el
-          // match sin distinción de mayúsculas (los emails guardados pueden
-          // tener cualquier casing).
-          const emailPattern = email.replace(/([\\%_])/g, "\\$1")
-          const { data } = await sb
-            .from("leads")
-            .select("id, brand_id")
-            .in("brand_id", brandIds)
-            .ilike("email", emailPattern)
-          for (const l of (data ?? []) as { id: string; brand_id: string }[]) {
-            cands.push({ leadId: l.id, brandId: l.brand_id })
-          }
-        }
-        if (phone && cands.length === 0) {
-          const { data } = await sb
-            .from("leads")
-            .select("id, brand_id")
-            .in("brand_id", brandIds)
-            .eq("phone", phone)
-          for (const l of (data ?? []) as { id: string; brand_id: string }[]) {
-            cands.push({ leadId: l.id, brandId: l.brand_id })
-          }
-        }
-        match = resolveUnique(cands)
+      const c = await contactFor(payment.buyer_email_address ?? null, payment.customer_id)
+      const match = await resolveLead(sb, c.email, c.phone)
+      const p = payment as SquarePayment
+
+      // Productos comprados (membresía/GLP/etc) viven en el order
+      let items: string | null = null
+      let orderRaw: unknown = null
+      if (p.order_id) {
+        const ord = await retrieveSquareOrder(p.order_id)
+        items = ord.items
+        orderRaw = ord.order
       }
+
+      const row = {
+        provider: "square",
+        brand_id: match?.brandId ?? null,
+        lead_id: match?.leadId ?? null,
+        external_id: payment.id,
+        event_id: event.event_id ?? null,
+        amount_cents: typeof p.amount_money?.amount === "number" ? p.amount_money.amount : 0,
+        currency: p.amount_money?.currency ?? null,
+        status: normalizeSquareStatus(p.status),
+        origin: squareOrigin(p),
+        items,
+        customer_name: c.name,
+        customer_email: c.email,
+        customer_phone: c.phone,
+        customer_address: c.address,
+        reference: p.reference_id ?? p.note ?? null,
+        paid_at: p.created_at ?? null,
+        raw: { payment: p, customer: c.customer, order: orderRaw },
+        updated_at: new Date().toISOString(),
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (sb as any)
+        .from("external_payments")
+        .upsert(row, { onConflict: "provider,external_id" })
+      if (error) {
+        console.error("[square webhook] pago upsert:", error.message)
+        return NextResponse.json({ error: "db error" }, { status: 500 })
+      }
+      return NextResponse.json({ ok: true, kind: "payment", linked: Boolean(match) })
     }
 
-    // 6) Upsert en external_payments (idempotente por provider+external_id)
-    const p = payment as SquarePayment
-    const row = {
-      provider: "square",
-      brand_id: match?.brandId ?? null,
-      lead_id: match?.leadId ?? null,
-      external_id: paymentId,
-      event_id: event.event_id ?? null,
-      amount_cents: typeof p.amount_money?.amount === "number" ? p.amount_money.amount : 0,
-      currency: p.amount_money?.currency ?? null,
-      status: normalizeSquareStatus(p.status),
-      origin: squareOrigin(p),
-      customer_email: email,
-      customer_phone: phone,
-      reference: p.reference_id ?? p.note ?? null,
-      paid_at: p.created_at ?? null,
-      raw: p,
-      updated_at: new Date().toISOString(),
+    // ── CITAS ───────────────────────────────────────────────────────────────
+    if (type === "booking.created" || type === "booking.updated") {
+      const booking = event.data?.object?.booking
+      if (!booking?.id) return NextResponse.json({ ok: true, ignored: "no booking" })
+
+      const c = await contactFor(null, booking.customer_id)
+      const match = await resolveLead(sb, c.email, c.phone)
+      const b = booking as SquareBooking
+      const seg = b.appointment_segments?.[0]
+
+      const row = {
+        provider: "square",
+        brand_id: match?.brandId ?? null,
+        lead_id: match?.leadId ?? null,
+        external_id: booking.id,
+        event_id: event.event_id ?? null,
+        status: normalizeBookingStatus(b.status),
+        service: seg?.service_variation_id ?? null, // ID por ahora (v1)
+        staff: seg?.team_member_id ?? null,
+        starts_at: b.start_at ?? null,
+        ends_at: bookingEndsAt(b),
+        customer_name: c.name,
+        customer_email: c.email,
+        customer_phone: c.phone,
+        customer_address: c.address,
+        note: b.customer_note ?? b.seller_note ?? null,
+        raw: { booking: b, customer: c.customer },
+        updated_at: new Date().toISOString(),
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (sb as any)
+        .from("external_appointments")
+        .upsert(row, { onConflict: "provider,external_id" })
+      if (error) {
+        console.error("[square webhook] cita upsert:", error.message)
+        return NextResponse.json({ error: "db error" }, { status: 500 })
+      }
+      return NextResponse.json({ ok: true, kind: "booking", linked: Boolean(match) })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (sb as any)
-      .from("external_payments")
-      .upsert(row, { onConflict: "provider,external_id" })
-    if (error) {
-      console.error("[square webhook] upsert error:", error.message)
-      return NextResponse.json({ error: "db error" }, { status: 500 })
-    }
-
-    return NextResponse.json({ ok: true, linked: Boolean(match) })
+    // Otros eventos: 200 para que Square no reintente
+    return NextResponse.json({ ok: true, ignored: type })
   } catch (e) {
     console.error("[square webhook] error:", e instanceof Error ? e.message : String(e))
     return NextResponse.json({ error: "internal" }, { status: 500 })
