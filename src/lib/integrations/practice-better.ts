@@ -172,9 +172,15 @@ export async function createPbRecord(input: {
   email?: string
   phone?: string
 }): Promise<PbRecord> {
+  // PB espera los datos dentro de un objeto `profile` (campo email = emailAddress).
+  // Confirmado por la estructura del GET /consultant/records.
+  const profile: Record<string, string> = { firstName: input.firstName }
+  if (input.lastName) profile.lastName = input.lastName
+  if (input.email) profile.emailAddress = input.email
+  if (input.phone) profile.phoneNumber = input.phone
   return pbFetch<PbRecord>("/consultant/records", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ profile }),
   })
 }
 
