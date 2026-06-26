@@ -1038,10 +1038,21 @@ export async function sendLeadToPracticeBetter(
     }
   }
 
+  // PB exige firstName Y lastName. Si el lead no tiene apellido, partimos el
+  // nombre completo; si aun así no hay apellido, usamos un guion para cumplir.
+  let firstName = (lead.first_name ?? "").trim() || "Paciente"
+  let lastName = (lead.last_name ?? "").trim()
+  if (!lastName && firstName.includes(" ")) {
+    const parts = firstName.split(/\s+/)
+    firstName = parts[0]
+    lastName = parts.slice(1).join(" ")
+  }
+  if (!lastName) lastName = "—"
+
   try {
     const rec = await createPbRecord({
-      firstName: lead.first_name || "(Sin nombre)",
-      lastName: lead.last_name || undefined,
+      firstName,
+      lastName,
       email: leadEmail,
     })
     const recId = pbId(rec)
