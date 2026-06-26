@@ -1028,11 +1028,21 @@ export async function sendLeadToPracticeBetter(
   }
   if (lead.pb_record_id) return { ok: true, alreadyLinked: true }
 
+  // Practice Better REQUIERE email para crear un paciente. Validamos antes
+  // de llamar para mostrar un mensaje claro en vez del error técnico de PB.
+  const leadEmail = (lead.email ?? "").trim()
+  if (!leadEmail) {
+    return {
+      ok: false,
+      error: "Este lead no tiene email. Agrégale un email primero para poder crear el paciente en Practice Better.",
+    }
+  }
+
   try {
     const rec = await createPbRecord({
       firstName: lead.first_name || "(Sin nombre)",
       lastName: lead.last_name || undefined,
-      email: lead.email || undefined,
+      email: leadEmail,
     })
     const recId = pbId(rec)
     if (!recId) {
