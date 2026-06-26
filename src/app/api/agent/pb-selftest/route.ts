@@ -23,6 +23,17 @@ function authorized(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "no autorizado" }, { status: 401 })
 
+  // Limpieza de un record específico (huérfano de prueba): ?cleanup=<id>
+  const cleanupId = new URL(req.url).searchParams.get("cleanup")
+  if (cleanupId) {
+    try {
+      await deletePbRecord(cleanupId)
+      return NextResponse.json({ ok: true, cleaned: cleanupId })
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+    }
+  }
+
   const stamp = `${Date.now()}`
   try {
     const rec = await createPbRecord({

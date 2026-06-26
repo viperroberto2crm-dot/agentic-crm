@@ -42,10 +42,12 @@ function isAuthorized(req: NextRequest): boolean {
   return secrets.some((s) => auth === `Bearer ${s}`)
 }
 
+// Practice Better entrega los montos YA en centavos (confirmado con datos
+// reales 2026-06-25: invoice total.amount = 8500 = $85.00). NO multiplicar.
 function toCents(v: unknown): number {
   const n = typeof v === "number" ? v : typeof v === "string" ? parseFloat(v) : NaN
   if (!isFinite(n)) return 0
-  return Math.round(n * 100)
+  return Math.round(n)
 }
 
 function firstString(...vals: unknown[]): string | null {

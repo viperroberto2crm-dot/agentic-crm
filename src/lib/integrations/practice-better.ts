@@ -86,9 +86,11 @@ async function pbFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => "")
     throw new Error(`PB ${init?.method ?? "GET"} ${path} -> ${res.status}: ${text.slice(0, 300)}`)
   }
-  // 204 No Content
+  // 204 No Content o body vacío (ej. DELETE) → no intentar parsear JSON
   if (res.status === 204) return undefined as unknown as T
-  return (await res.json()) as T
+  const text = await res.text()
+  if (!text) return undefined as unknown as T
+  return JSON.parse(text) as T
 }
 
 // ── Tipos (parciales, según api-docs.practicebetter.io) ──────────────────────
