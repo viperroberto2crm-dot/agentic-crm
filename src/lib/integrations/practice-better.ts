@@ -184,6 +184,11 @@ export async function createPbRecord(input: {
   })
 }
 
+/** Borra un record (cliente) de Practice Better por id. */
+export async function deletePbRecord(recordId: string): Promise<void> {
+  await pbFetch<unknown>(`/consultant/records/${recordId}`, { method: "DELETE" })
+}
+
 /** Lista records (clientes), todas las páginas. */
 export async function listPbRecords(query?: Record<string, string>): Promise<PbRecord[]> {
   return listAllPaged<PbRecord>("/consultant/records", query)
