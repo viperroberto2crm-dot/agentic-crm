@@ -14,6 +14,7 @@
  */
 
 import type { CheckContext, CheckDefinition, Observation } from "./types"
+import { listCallsPage } from "@/lib/integrations/800com"
 
 // ── Check 1: silencio de webhook 800.com ────────────────────────────────────
 const CHECK_CALLS_SILENCE: CheckDefinition = {
@@ -202,9 +203,114 @@ const CHECK_ORPHAN_SALES: CheckDefinition = {
   },
 }
 
+// ── Check 5: números de 800.com recibiendo llamadas pero SIN registrar ──────
+// Raíz del incidente La Esperanza (2026-07-02): un número que NO está en
+// tracking_numbers hace que resolveTracking devuelva null → el webhook
+// descarta la llamada en silencio (200 OK, sin insertar). Así se perdieron
+// llamadas de Mailers/Banners durante semanas sin que nadie se enterara.
+// Este check compara los números que RECIBEN llamadas entrantes en 800.com
+// contra los registrados y alerta si alguno se está perdiendo, para que el
+// admin lo registre antes de perder más leads.
+const CHECK_UNREGISTERED_NUMBERS: CheckDefinition = {
+  name: "unregistered_numbers",
+  description:
+    "Detecta números de 800.com que reciben llamadas entrantes pero NO están registrados (activos) en tracking_numbers — sus llamadas se descartan en silencio.",
+  async run(ctx: CheckContext): Promise<Observation[]> {
+    // Sin credenciales de 800.com no podemos consultar la API — no romper el tick.
+    const apiKey = process.env.EIGHTHUNDRED_API_KEY
+    const companyIdRaw = process.env.EIGHTHUNDRED_COMPANY_ID
+    if (!apiKey || !companyIdRaw) return []
+    const companyId = parseInt(companyIdRaw, 10)
+    if (Number.isNaN(companyId)) return []
+
+    // 1) number_ids CONOCIDOS: todos los de tracking_numbers, activos o no.
+    //    Un número desactivado a propósito (active=false, ej. los "Buses"/"Radio"
+    //    marcados como duplicados de Billboard) es una decisión intencional de
+    //    NO capturar → no debe disparar alerta si le entra una llamada suelta.
+    //    Solo alertamos por números TOTALMENTE ausentes del registro (el caso
+    //    real de Mailers/Banners: nunca registrados → llamadas perdidas).
+    // tracking_numbers no está en los tipos generados — cast puntual, mismo
+    // patrón que 800com.ts y tracking-numbers-actions.ts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tnRows } = await (ctx.sb as any)
+      .from("tracking_numbers")
+      .select("provider_metadata")
+      .eq("provider", "800com")
+    const known = new Set<number>()
+    for (const r of (tnRows ?? []) as Array<{
+      provider_metadata: { number_id?: number } | null
+    }>) {
+      const nid = r.provider_metadata?.number_id
+      if (typeof nid === "number") known.add(nid)
+    }
+
+    // 2) Números con llamadas ENTRANTES en las últimas 24h. Cap bajo de páginas
+    //    para mantener el tick liviano (máx ~300 calls / 3 páginas).
+    const endDate = ctx.now.toISOString()
+    const startDate = new Date(ctx.now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    const called = new Map<number, { phone: string; label: string | null; count: number }>()
+    let cursor: string | undefined
+    let pages = 0
+    const MAX_PAGES = 3
+    try {
+      while (pages < MAX_PAGES) {
+        const page = await listCallsPage({ companyId, startDate, endDate, perPage: 100, cursor })
+        pages++
+        for (const call of page.data) {
+          if (call.direction === "outbound") continue // solo entrantes
+          const nid = call.number?.id
+          if (typeof nid !== "number") continue
+          const prev = called.get(nid)
+          if (prev) prev.count++
+          else
+            called.set(nid, {
+              phone: call.number?.number ?? "",
+              label: call.number?.label ?? null,
+              count: 1,
+            })
+        }
+        const next = page.meta?.nextCursor
+        if (!next) break
+        cursor = next
+      }
+    } catch {
+      // Si 800.com falla, no rompemos el tick; simplemente no observamos.
+      return []
+    }
+
+    // 3) Números con llamadas pero totalmente ausentes del registro → se están
+    //    descartando en silencio (webhook resolveTracking devuelve null).
+    const missing = [...called.entries()].filter(([nid]) => !known.has(nid))
+    if (missing.length === 0) return []
+
+    const totalLost = missing.reduce((s, [, v]) => s + v.count, 0)
+    return [
+      {
+        check_type: "unregistered_numbers",
+        severity: "critical",
+        summary: `${missing.length} número(s) de 800.com reciben llamadas pero NO están registrados en tracking_numbers — ${totalLost} llamada(s) en 24h se están descartando en silencio. Regístralos por marca.`,
+        details: {
+          window_hours: 24,
+          missing_numbers: missing.map(([nid, v]) => ({
+            number_id: nid,
+            phone: v.phone,
+            label: v.label,
+            calls_24h: v.count,
+          })),
+        },
+        // Sin auto-fix: registrar un número requiere decidir a qué MARCA
+        // pertenece (decisión humana). Se escala al admin.
+        suggested_tool: undefined,
+        auto_resolve: false,
+      },
+    ]
+  },
+}
+
 export const CHECKS: CheckDefinition[] = [
   CHECK_CALLS_SILENCE,
   CHECK_UNLINKED_CALLS,
   CHECK_DUPLICATE_CALLS,
   CHECK_ORPHAN_SALES,
+  CHECK_UNREGISTERED_NUMBERS,
 ]
