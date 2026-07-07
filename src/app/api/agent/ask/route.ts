@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
-import { resolveAuthorizedBrandId } from "@/lib/queries/brand-access"
+import { resolveEffectiveBrandId, NO_BRAND_SENTINEL } from "@/lib/queries/brand-access"
 import { cookies } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
@@ -70,20 +70,33 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   ) as unknown as DB
 
+  // Rol del user actual — se consulta UNA sola vez y se reusa en toda la
+  // request (resolución de marca + scope de data tools + file tools).
+  const { data: profileRow } = await (supabase as unknown as DB)
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+  const userRole = (profileRow?.role ?? "rep") as string
+
   // Brand from cookie — validado contra user_brands (admin = acceso global).
   // Evita que un rep/manager cambie la cookie a otra marca y lea sus datos.
+  // Para NO admin, resolveEffectiveBrandId NUNCA devuelve null: siempre su marca
+  // autorizada (o la primera si la cookie apunta a una ajena) → las data tools,
+  // que corren en un cliente service-role, SIEMPRE filtran por marca. Admin
+  // conserva null = todas las marcas (acceso global intencional).
   const cookieStore = await cookies()
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-  const brandId = await resolveAuthorizedBrandId(
+  const effectiveBrandId = await resolveEffectiveBrandId(
     supabase as unknown as DB,
     user.id,
+    userRole,
     brandSlug,
   )
-  // Slug presente pero sin autorización (o inválido) → denegar. Un slug null
-  // (sin marca seleccionada) sigue el camino normal (brandId null).
-  if (brandSlug && !brandId) {
-    return NextResponse.json({ error: "Marca no autorizada" }, { status: 403 })
+  if (effectiveBrandId === NO_BRAND_SENTINEL) {
+    return NextResponse.json({ error: "Sin marca autorizada" }, { status: 403 })
   }
+  const brandId: string | null = effectiveBrandId
 
   const { data: runRow, error: runInsertErr } = await sb
     .from("agent_runs")
@@ -206,13 +219,8 @@ Ejemplo INCORRECTO (Spanglish): "Tienes 4 appointments hoy. La primera es a las 
     // Las file tools generan artefactos descargables sin aprobación (solo lectura).
     const allTools = [...AGENT_TOOLS, ...WRITE_TOOLS, ...RAG_TOOLS, ...FILE_TOOLS]
 
-    // Resolver rol del user actual (para scope de file tools)
-    const { data: profileForCtx } = await sb
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-    const userRole = (profileForCtx?.role ?? "rep") as string
+    // userRole ya se resolvió una sola vez al inicio de la request (reusado
+    // para resolución de marca, scope de data tools y file tools).
 
     // ---------- 3) Primera llamada a Claude ----------
     let response = await anthropic.messages.create({

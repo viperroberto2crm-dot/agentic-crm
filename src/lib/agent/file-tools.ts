@@ -108,13 +108,23 @@ async function executeGenerateSalesReport(
   input: GenerateSalesReportInput,
 ): Promise<FileToolResult> {
   try {
-    // Resolver brand slug → brandId
+    // Brand scoping (SEGURIDAD): solo un admin puede elegir la marca vía
+    // input.brand (incluido "all" = todas). Un NO admin queda forzado a su
+    // marca autorizada (ctx.brandId, ya resuelta vía resolveEffectiveBrandId en
+    // el route), IGNORANDO input.brand por completo — así no puede pedir el XLSX
+    // de otra marca ni de todas.
     let brandId: string | null = null
-    if (input.brand && input.brand !== "all") {
-      brandId = await getBrandIdBySlug(input.brand, sb)
-      if (!brandId) {
-        return { ok: false, error: "No encontré datos para los filtros indicados." }
+    if (ctx.role === "admin") {
+      if (input.brand && input.brand !== "all") {
+        brandId = await getBrandIdBySlug(input.brand, sb)
+        if (!brandId) {
+          return { ok: false, error: "No encontré datos para los filtros indicados." }
+        }
       }
+      // input.brand === "all" o ausente → brandId null (todas las marcas).
+    } else {
+      // NO admin: forzar su marca autorizada; input.brand se descarta.
+      brandId = ctx.brandId
     }
 
     // Resolver rep_name → repId (solo si user es admin/manager)

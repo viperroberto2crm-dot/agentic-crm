@@ -4,6 +4,7 @@ import { getLocale } from "next-intl/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { resolveEffectiveBrandId, NO_BRAND_SENTINEL } from "@/lib/queries/brand-access"
 import type { Database } from "@/types/database"
 import { buildReportData, type ReportFilters } from "@/lib/exports/report-data"
 import { buildReportWorkbook, buildReportFilename } from "@/lib/exports/xlsx-builder"
@@ -40,22 +41,32 @@ export async function GET(req: NextRequest) {
     | "pending"
     | null
 
-  // Resolver brand: parámetro tiene prioridad sobre cookie del switcher global
+  // Resolver brand (SEGURIDAD): solo un admin puede nombrar la marca vía el
+  // parámetro ?brand= (prioridad sobre cookie). Un NO admin no puede pedir el
+  // reporte de una marca ajena → se ignora ?brand= y se fuerza su marca
+  // autorizada (o 403 si no tiene ninguna).
   let brandId: string | null = null
-  if (brandSlugParam) {
-    brandId = await getBrandIdBySlug(brandSlugParam, sb)
-    if (!brandId) {
-      return NextResponse.json(
-        { error: `Marca no encontrada: ${brandSlugParam}` },
-        { status: 400 },
-      )
+  if (role === "admin") {
+    if (brandSlugParam) {
+      brandId = await getBrandIdBySlug(brandSlugParam, sb)
+      if (!brandId) {
+        return NextResponse.json(
+          { error: `Marca no encontrada: ${brandSlugParam}` },
+          { status: 400 },
+        )
+      }
     }
+    // Sin ?brand= → brandId null (todas las marcas), acceso global admin.
   } else {
+    // NO admin: ?brand= se descarta. Se resuelve su marca autorizada partiendo
+    // de la cookie del switcher (si apunta a una ajena, cae a la primera suya).
     const cookieStore = await cookies()
     const cookieSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-    // Si no vino brand en query, default es "Todas" (brandId=null).
-    // No usamos la cookie aquí porque el dialog ya pasa el brand explícito.
-    void cookieSlug
+    const effectiveBrandId = await resolveEffectiveBrandId(sb, user.id, role, cookieSlug)
+    if (effectiveBrandId === NO_BRAND_SENTINEL) {
+      return NextResponse.json({ error: "Sin marca autorizada" }, { status: 403 })
+    }
+    brandId = effectiveBrandId
   }
 
   // Validar rango si no es histórico

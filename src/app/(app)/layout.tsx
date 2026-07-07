@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import type { Tables } from "@/types/database"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { resolveEffectiveBrandId, NO_BRAND_SENTINEL } from "@/lib/queries/brand-access"
 import { countPendingActions } from "@/lib/agent/pending-actions"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -103,20 +103,28 @@ export default async function AppLayout({
   // Pending agent-actions count (solo admin/manager ven la bandeja)
   let pendingCount = 0
   if (profile.role === "admin" || profile.role === "manager") {
+    // Brand efectiva validada contra user_brands ANTES de la query con
+    // admin-client (bypass RLS). Un manager solo cuenta pending de su marca
+    // autorizada; admin: null = todas.
     const cookieStore = await cookies()
     const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-    const brandId = brandSlug
-      ? await getBrandIdBySlug(brandSlug, supabase as unknown as SupabaseClient<Database>)
-      : null
-    try {
-      const admin = createAdminClient() as unknown as SupabaseClient<Database>
-      pendingCount = await countPendingActions(admin, {
-        brandId,
-        userId: user.id,
-        role: profile.role,
-      })
-    } catch (err) {
-      console.error("[layout] countPendingActions:", err)
+    const effectiveBrandId = await resolveEffectiveBrandId(
+      supabase as unknown as SupabaseClient<Database>,
+      user.id,
+      profile.role,
+      brandSlug,
+    )
+    if (effectiveBrandId !== NO_BRAND_SENTINEL) {
+      try {
+        const admin = createAdminClient() as unknown as SupabaseClient<Database>
+        pendingCount = await countPendingActions(admin, {
+          brandId: effectiveBrandId,
+          userId: user.id,
+          role: profile.role,
+        })
+      } catch (err) {
+        console.error("[layout] countPendingActions:", err)
+      }
     }
   }
 

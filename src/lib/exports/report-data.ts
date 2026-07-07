@@ -241,6 +241,15 @@ export async function buildReportData(
   if (!filters.historico && filters.from && filters.to && filters.from > filters.to) {
     return { ok: false, error: "El rango es inválido (from > to)", code: "invalid_range" }
   }
+  // from/to se interpolan crudos en un filtro PostgREST `.or(...)`. Exigimos
+  // formato fecha/ISO estricto (sin comas/paréntesis) para evitar inyección de
+  // ramas OR extra vía query params (?from=/&to=).
+  const ISO_DATE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/
+  for (const v of [filters.from, filters.to]) {
+    if (v && !ISO_DATE.test(v)) {
+      return { ok: false, error: "Fecha inválida en el rango", code: "invalid_range" }
+    }
+  }
 
   // Idioma para textos generados (status, tipo, periodo, marca "Todas")
   const d = getReportDict(ctx.lang ?? "es")

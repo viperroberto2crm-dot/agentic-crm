@@ -12,7 +12,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { cookies } from "next/headers"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { resolveEffectiveBrandId, NO_BRAND_SENTINEL } from "@/lib/queries/brand-access"
 
 type SB = SupabaseClient<Database>
 
@@ -111,11 +111,20 @@ export async function listPendingActions(): Promise<PendingActionRow[]> {
 
   const supabase = (await createClient()) as unknown as SB
 
+  // Brand efectiva validada contra user_brands ANTES de pasar a la query con
+  // admin-client (bypass RLS). Un manager NUNCA obtiene pending de una marca
+  // ajena: queda forzado a su marca autorizada. Admin: null = todas.
   const cookieStore = await cookies()
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-  const brandId = brandSlug
-    ? await getBrandIdBySlug(brandSlug, supabase)
-    : null
+  const effectiveBrandId = await resolveEffectiveBrandId(
+    supabase,
+    userId,
+    role,
+    brandSlug,
+  )
+  // NO admin sin ninguna marca autorizada → no exponemos pending de nadie.
+  if (effectiveBrandId === NO_BRAND_SENTINEL) return []
+  const brandId: string | null = effectiveBrandId
 
   // service client para evitar RLS al listar (la auth ya quedó verificada arriba)
   const admin = createAdminClient() as unknown as SB

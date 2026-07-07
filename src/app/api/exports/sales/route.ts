@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { cookies } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { resolveEffectiveBrandId, NO_BRAND_SENTINEL } from "@/lib/queries/brand-access"
 import { buildCsv, buildCsvFilename, type CsvCell } from "@/lib/exports/csv"
 import type { Database } from "@/types/database"
 
@@ -36,9 +36,15 @@ export async function GET(req: NextRequest) {
     .single()
   const role = (profile?.role ?? "rep") as string
 
+  // Brand resolution validado contra user_brands: un NO admin no puede nombrar
+  // una marca ajena (queda forzado a su marca autorizada). Admin: null = todas.
   const cookieStore = await cookies()
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-  const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
+  const effectiveBrandId = await resolveEffectiveBrandId(sb, user.id, role, brandSlug)
+  if (effectiveBrandId === NO_BRAND_SENTINEL) {
+    return NextResponse.json({ error: "Sin marca autorizada" }, { status: 403 })
+  }
+  const brandId: string | null = effectiveBrandId
 
   const url = new URL(req.url)
   const from = url.searchParams.get("from")
