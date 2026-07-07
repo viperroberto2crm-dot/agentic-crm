@@ -954,6 +954,18 @@
       "log_call_note": "Registrar llamada: {outcome}"
     }
   },
+  "incomingCall": {
+    "incoming": "Llamada entrando",
+    "newNumber": "Número nuevo",
+    "identifying": "identificando…",
+    "via": "via {brand}",
+    "status": "Estado",
+    "activePlan": "Plan activo — saldo {balance}",
+    "lastAppt": "Última cita: {date}",
+    "openLead": "Abrir lead",
+    "viewCall": "Ver llamada",
+    "close": "Cerrar"
+  },
   "exports": {
     "exportButton": "Exportar",
     "dateRange": {

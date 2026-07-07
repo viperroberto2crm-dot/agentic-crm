@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { Eye, CheckCircle2, ArrowRight } from "lucide-react"
 import {
   backfillLeadsForOrphanCalls,
   type BackfillLeadsResult,
@@ -81,11 +82,20 @@ export function BackfillLeadsClient() {
             dryRun ? "bg-zinc-900 hover:bg-zinc-800" : "bg-emerald-600 hover:bg-emerald-700"
           }`}
         >
-          {isPending
-            ? "Procesando…"
-            : dryRun
-              ? "👀 PASO 3A: Previsualizar leads a crear"
-              : "✅ PASO 3B: CREAR leads y linkear ahora (definitivo)"}
+          {isPending ? (
+            "Procesando…"
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              {dryRun ? (
+                <Eye className="w-4 h-4 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              )}
+              {dryRun
+                ? "PASO 3A: Previsualizar leads a crear"
+                : "PASO 3B: CREAR leads y linkear ahora (definitivo)"}
+            </span>
+          )}
         </button>
       </div>
 
@@ -131,9 +141,12 @@ export function BackfillLeadsClient() {
           )}
 
           {result.dry_run && result.leads_created > 0 && (
-            <p className="text-emerald-900 font-medium text-xs pt-1">
-              👉 Si se ve bien, destildá &quot;Dry run&quot; y click &quot;Crear
-              leads y linkear&quot; para aplicar.
+            <p className="text-emerald-900 font-medium text-xs pt-1 flex items-start gap-1.5">
+              <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                Si se ve bien, destildá &quot;Dry run&quot; y click &quot;Crear
+                leads y linkear&quot; para aplicar.
+              </span>
             </p>
           )}
         </div>

@@ -59,11 +59,11 @@ export default async function SalesPage({
   const locale = await getLocale()
 
   const STATUS_CONFIG = {
-    paid:     { label: t("paid"),     className: "border-emerald-500/40 text-emerald-400" },
-    pending:  { label: t("pending"),  className: "border-amber-500/40 text-amber-400" },
-    failed:   { label: t("failed"),   className: "border-red-500/40 text-red-500" },
-    refunded: { label: t("refunded"), className: "border-zinc-600 text-gray-400" },
-    partial:  { label: t("partial"),  className: "border-blue-500/40 text-blue-400" },
+    paid:     { label: t("paid"),     className: "border-[#2E8B6F]/40 text-[#2E8B6F]" },
+    pending:  { label: t("pending"),  className: "border-[#D9A441]/40 text-[#D9A441]" },
+    failed:   { label: t("failed"),   className: "border-[#E07856]/40 text-[#E07856]" },
+    refunded: { label: t("refunded"), className: "border-[#E8E4DC] text-[#93A39D]" },
+    partial:  { label: t("partial"),  className: "border-blue-500/30 text-blue-600" },
   } as const
 
   const [profileRes, cookieStore, params] = await Promise.all([

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { AlertTriangle } from "lucide-react"
 import { lookupEnhancedCallerId } from "@/lib/integrations/800com"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
@@ -57,8 +58,9 @@ export default async function EcidTestPage({
           Hace UN lookup contra el endpoint <code>/v2/companies/{`{company}`}/ecid/lookups</code>.
           Útil para validar la integración antes del backfill masivo.
         </p>
-        <p className="text-xs text-amber-600 mt-1">
-          ⚠️ Cada live-lookup se cobra. Cache hits no se cobran de nuevo. Usa &quot;Force live&quot; con cuidado.
+        <p className="text-xs text-amber-600 mt-1 flex items-start gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>Cada live-lookup se cobra. Cache hits no se cobran de nuevo. Usa &quot;Force live&quot; con cuidado.</span>
         </p>
       </div>
 

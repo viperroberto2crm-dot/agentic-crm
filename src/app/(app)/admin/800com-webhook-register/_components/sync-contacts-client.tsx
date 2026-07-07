@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { Eye, CheckCircle2, ArrowRight, AlertTriangle } from "lucide-react"
 import {
   syncContactsFromConversations,
   type SyncContactsResult,
@@ -78,11 +79,20 @@ export function SyncContactsClient() {
             dryRun ? "bg-zinc-900 hover:bg-zinc-800" : "bg-emerald-600 hover:bg-emerald-700"
           }`}
         >
-          {isPending
-            ? "Procesando… (puede tardar)"
-            : dryRun
-              ? "👀 Previsualizar extracción"
-              : "✅ Extraer y guardar contactos (definitivo)"}
+          {isPending ? (
+            "Procesando… (puede tardar)"
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              {dryRun ? (
+                <Eye className="w-4 h-4 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              )}
+              {dryRun
+                ? "Previsualizar extracción"
+                : "Extraer y guardar contactos (definitivo)"}
+            </span>
+          )}
         </button>
       </div>
 
@@ -121,16 +131,20 @@ export function SyncContactsClient() {
           )}
 
           {result.dry_run && (result.leads_created > 0 || result.leads_updated > 0) && (
-            <p className="text-emerald-900 font-medium text-xs pt-1">
-              👉 Si se ve bien, destildá &quot;Modo prueba&quot; y volvé a correr para guardar.
+            <p className="text-emerald-900 font-medium text-xs pt-1 flex items-start gap-1.5">
+              <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>Si se ve bien, destildá &quot;Modo prueba&quot; y volvé a correr para guardar.</span>
             </p>
           )}
 
           {result.ecid_charged > 0 && (
-            <p className="text-amber-700 font-medium text-xs pt-1">
-              ⚠️ {result.ecid_charged} lookups ECID NO estaban cacheados y se
-              cobraron. El resto fue gratis. Si querés cero costo, destildá
-              &quot;Completar con ECID&quot; (traés solo lo que viene en conversations).
+            <p className="text-amber-700 font-medium text-xs pt-1 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                {result.ecid_charged} lookups ECID NO estaban cacheados y se
+                cobraron. El resto fue gratis. Si querés cero costo, destildá
+                &quot;Completar con ECID&quot; (traés solo lo que viene en conversations).
+              </span>
             </p>
           )}
         </div>

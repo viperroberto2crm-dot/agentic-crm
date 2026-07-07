@@ -954,6 +954,18 @@
       "log_call_note": "Log call: {outcome}"
     }
   },
+  "incomingCall": {
+    "incoming": "Incoming call",
+    "newNumber": "New number",
+    "identifying": "identifying…",
+    "via": "via {brand}",
+    "status": "Status",
+    "activePlan": "Active plan — balance {balance}",
+    "lastAppt": "Last appointment: {date}",
+    "openLead": "Open lead",
+    "viewCall": "View call",
+    "close": "Close"
+  },
   "exports": {
     "exportButton": "Export",
     "dateRange": {

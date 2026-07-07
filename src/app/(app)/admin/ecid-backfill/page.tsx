@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { AlertTriangle, LifeBuoy } from "lucide-react"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { countCandidates } from "./actions"
 import { BackfillClient } from "./_components/backfill-client"
@@ -46,7 +47,10 @@ export default async function EcidBackfillPage() {
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs text-amber-800 space-y-1">
-        <p className="font-semibold">⚠️ Garantías del backfill:</p>
+        <p className="font-semibold flex items-center gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          Garantías del backfill:
+        </p>
         <ul className="list-disc pl-5 space-y-0.5">
           <li>Solo enriquece leads con <code>address_line1 IS NULL</code> y phone presente.</li>
           <li>NUNCA sobrescribe campos que ya tengan valor (excepto first_name si parece teléfono).</li>
@@ -79,7 +83,10 @@ export default async function EcidBackfillPage() {
       )}
 
       <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs text-amber-900">
-        <p className="font-semibold mb-1">🛟 Backup recomendado ANTES del run real:</p>
+        <p className="font-semibold mb-1 flex items-center gap-1.5">
+          <LifeBuoy className="w-3.5 h-3.5 shrink-0" />
+          Backup recomendado ANTES del run real:
+        </p>
         <pre className="bg-white border border-amber-200 rounded p-2 overflow-x-auto whitespace-pre text-amber-900 text-[11px]">
 {`CREATE TABLE leads_backup_2026_05_27_before_ecid AS
 SELECT * FROM leads;`}

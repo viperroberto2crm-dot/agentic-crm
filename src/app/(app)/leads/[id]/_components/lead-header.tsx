@@ -7,14 +7,14 @@ import { getTranslations, getLocale } from "next-intl/server"
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
 
 const STATUS_CLASS: Record<LeadStatus, string> = {
-  new:             "border-zinc-700 text-zinc-400",
-  contacted:       "border-blue-500/40 text-blue-400",
-  qualified:       "border-violet-500/40 text-violet-400",
-  appointment_set: "border-amber-500/40 text-amber-400",
-  sold:            "border-emerald-500/40 text-emerald-400",
-  lost:            "border-red-500/40 text-red-500",
-  on_hold:         "border-yellow-500/40 text-yellow-500",
-  not_interested:  "border-zinc-500/40 text-gray-500",
+  new:             "border-[#E8E4DC] text-[#5C6F68]",
+  contacted:       "border-blue-500/30 text-blue-600",
+  qualified:       "border-violet-500/30 text-violet-600",
+  appointment_set: "border-[#D9A441]/40 text-[#D9A441]",
+  sold:            "border-[#2E8B6F]/40 text-[#2E8B6F]",
+  lost:            "border-red-500/30 text-red-600",
+  on_hold:         "border-amber-500/30 text-amber-600",
+  not_interested:  "border-[#E8E4DC] text-[#93A39D]",
 }
 
 type Props = {
@@ -43,7 +43,7 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
   const tShip = await getTranslations("shipping")
   const locale = await getLocale()
   const label = ts(lead.status)
-  const className = STATUS_CLASS[lead.status] ?? "border-zinc-700 text-zinc-400"
+  const className = STATUS_CLASS[lead.status] ?? "border-[#E8E4DC] text-[#5C6F68]"
   const createdLabel = new Intl.DateTimeFormat(locale, {
     dateStyle: "long",
   }).format(new Date(lead.created_at))
@@ -52,7 +52,7 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
     <div className="space-y-4">
       <Link
         href="/leads"
-        className="inline-flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         Leads
@@ -77,7 +77,7 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
               </Badge>
             )}
             {lead.brand && (
-              <span className="flex items-center gap-1 text-[10px] text-zinc-600">
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <span
                   className="w-1.5 h-1.5 rounded-full"
                   style={{ background: lead.brand.brand_color ?? "#3B82F6" }}
@@ -86,11 +86,11 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
               </span>
             )}
             {lead.rep && (
-              <span className="text-[10px] text-zinc-600">
+              <span className="text-[10px] text-muted-foreground">
                 Rep: {lead.rep.name}
               </span>
             )}
-            <span className="flex items-center gap-1 text-[10px] text-zinc-600">
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <Calendar className="w-2.5 h-2.5" />
               {tl("createdOn", { date: createdLabel })}
             </span>
@@ -99,7 +99,7 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
 
         {lead.ai_score !== null && (
           <div className="text-right shrink-0">
-            <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Score</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Score</p>
             <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--brand)" }}>
               {lead.ai_score}
             </p>
@@ -107,7 +107,7 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-4 text-sm text-zinc-400">
+      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
         <a
           href={`tel:${lead.phone}`}
           className="flex items-center gap-1.5 hover:text-foreground transition-colors"
@@ -134,7 +134,7 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
           </a>
         )}
         {(lead.city || lead.state) && (
-          <span className="flex items-center gap-1.5 text-zinc-600">
+          <span className="flex items-center gap-1.5 text-muted-foreground">
             <MapPin className="w-3.5 h-3.5" />
             {[lead.city, lead.state].filter(Boolean).join(", ")}
           </span>

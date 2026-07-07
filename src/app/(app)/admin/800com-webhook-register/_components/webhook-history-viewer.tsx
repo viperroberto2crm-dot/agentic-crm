@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useState, useTransition } from "react"
-import { Loader2, RefreshCw, ChevronDown, ChevronRight } from "lucide-react"
+import { Loader2, RefreshCw, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { fetchWebhookHistory, fetchWebhookHistoryDetail, WebhookHistoryItem } from "../webhook-history"
 
@@ -117,11 +117,14 @@ export function WebhookHistoryViewer({
       )}
 
       {items && items.length === 0 && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900">
-          ⚠️ El history está vacío. 800.com no ha intentado entregar ningún evento
-          a este webhook desde que fue registrado. Posibles causas: el número marcado
-          no está bajo la company id correcta, o el webhook fue registrado después
-          de las llamadas.
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 flex items-start gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            El history está vacío. 800.com no ha intentado entregar ningún evento
+            a este webhook desde que fue registrado. Posibles causas: el número marcado
+            no está bajo la company id correcta, o el webhook fue registrado después
+            de las llamadas.
+          </span>
         </div>
       )}
 

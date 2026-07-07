@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Phone, X } from "lucide-react"
+import { useTranslations } from "next-intl"
+import { Phone, Wallet, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { Database } from "@/types/database"
 import { identifyCaller } from "@/app/(app)/calls/actions"
@@ -155,6 +156,7 @@ async function enrichCall(call: CallRow): Promise<IncomingCall> {
 
 export function IncomingCallToast() {
   const router = useRouter()
+  const t = useTranslations("incomingCall")
   const [calls, setCalls] = useState<IncomingCall[]>([])
   const audioPrimedRef = useRef(false)
 
@@ -288,7 +290,7 @@ export function IncomingCallToast() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] uppercase tracking-wider text-emerald-600 font-bold mb-0.5">
-                📞 Llamada entrando
+                {t("incoming")}
               </p>
               {call.leadName ? (
                 <p className="text-base font-semibold text-gray-900 truncate">
@@ -296,12 +298,12 @@ export function IncomingCallToast() {
                 </p>
               ) : call.identifying ? (
                 <p className="text-base font-semibold text-gray-900 truncate">
-                  {call.callerPhone ? formatPhone(call.callerPhone) : "Número nuevo"}
-                  <span className="ml-2 text-xs font-normal text-gray-400 animate-pulse">identificando…</span>
+                  {call.callerPhone ? formatPhone(call.callerPhone) : t("newNumber")}
+                  <span className="ml-2 text-xs font-normal text-gray-400 animate-pulse">{t("identifying")}</span>
                 </p>
               ) : (
                 <p className="text-base font-semibold text-gray-900 truncate">
-                  {call.callerPhone ? formatPhone(call.callerPhone) : "Número nuevo"}
+                  {call.callerPhone ? formatPhone(call.callerPhone) : t("newNumber")}
                 </p>
               )}
               {/* Teléfono debajo del nombre cuando ya tenemos nombre */}
@@ -317,7 +319,7 @@ export function IncomingCallToast() {
               )}
               {call.brandName && (
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  via {call.brandName}
+                  {t("via", { brand: call.brandName })}
                 </p>
               )}
 
@@ -326,20 +328,21 @@ export function IncomingCallToast() {
                 <div className="mt-2 space-y-1 text-xs">
                   {call.leadStatus && (
                     <p className="text-gray-700">
-                      Status:{" "}
+                      {t("status")}:{" "}
                       <span className="font-medium">
                         {call.leadStatus.replace(/_/g, " ")}
                       </span>
                     </p>
                   )}
                   {call.hasActivePlan && (
-                    <p className="text-amber-700 font-medium">
-                      💰 Plan activo — balance {fmtCents(call.planBalance)}
+                    <p className="text-amber-700 font-medium flex items-center gap-1">
+                      <Wallet className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                      {t("activePlan", { balance: fmtCents(call.planBalance) })}
                     </p>
                   )}
                   {call.lastApptDate && (
                     <p className="text-gray-600">
-                      Última cita: {new Date(call.lastApptDate).toLocaleDateString()}
+                      {t("lastAppt", { date: new Date(call.lastApptDate).toLocaleDateString() })}
                     </p>
                   )}
                 </div>
@@ -353,7 +356,7 @@ export function IncomingCallToast() {
                     onClick={() => dismiss(call.callId)}
                     className="text-xs font-medium px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
                   >
-                    Open lead
+                    {t("openLead")}
                   </Link>
                 ) : (
                   <button
@@ -363,7 +366,7 @@ export function IncomingCallToast() {
                     }}
                     className="text-xs font-medium px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
                   >
-                    Ver call
+                    {t("viewCall")}
                   </button>
                 )}
               </div>
@@ -371,7 +374,7 @@ export function IncomingCallToast() {
             <button
               onClick={() => dismiss(call.callId)}
               className="text-gray-400 hover:text-gray-700 shrink-0"
-              title="Cerrar"
+              title={t("close")}
             >
               <X className="w-4 h-4" />
             </button>

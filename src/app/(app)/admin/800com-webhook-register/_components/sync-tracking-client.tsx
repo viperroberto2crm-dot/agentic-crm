@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { Eye, CheckCircle2, ArrowRight } from "lucide-react"
 import {
   syncTrackingNumbersFromEightHundred,
   type SyncTrackingResult,
@@ -66,11 +67,20 @@ export function SyncTrackingClient() {
             dryRun ? "bg-zinc-900 hover:bg-zinc-800" : "bg-emerald-600 hover:bg-emerald-700"
           }`}
         >
-          {isPending
-            ? "Procesando…"
-            : dryRun
-              ? "👀 PASO 1A: Previsualizar numbers faltantes"
-              : "✅ PASO 1B: REGISTRAR numbers ahora (definitivo)"}
+          {isPending ? (
+            "Procesando…"
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              {dryRun ? (
+                <Eye className="w-4 h-4 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              )}
+              {dryRun
+                ? "PASO 1A: Previsualizar numbers faltantes"
+                : "PASO 1B: REGISTRAR numbers ahora (definitivo)"}
+            </span>
+          )}
         </button>
       </div>
 
@@ -125,17 +135,23 @@ export function SyncTrackingClient() {
           )}
 
           {dryRun && result.added.length > 0 && (
-            <p className="text-emerald-900 font-medium text-xs pt-1">
-              👉 Si esto está bien, destildá &quot;Dry run&quot; y click
-              &quot;Sincronizar ahora&quot; para insertar.
+            <p className="text-emerald-900 font-medium text-xs pt-1 flex items-start gap-1.5">
+              <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                Si esto está bien, destildá &quot;Dry run&quot; y click
+                &quot;Sincronizar ahora&quot; para insertar.
+              </span>
             </p>
           )}
 
           {!dryRun && result.added.length > 0 && (
-            <p className="text-emerald-900 font-medium text-xs pt-1">
-              👉 Próximo paso: arriba en &quot;Backfill calls&quot;, corré
-              backfill desde hace 30 días para traer las llamadas históricas
-              de los numbers nuevos.
+            <p className="text-emerald-900 font-medium text-xs pt-1 flex items-start gap-1.5">
+              <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                Próximo paso: arriba en &quot;Backfill calls&quot;, corré
+                backfill desde hace 30 días para traer las llamadas históricas
+                de los numbers nuevos.
+              </span>
             </p>
           )}
         </div>

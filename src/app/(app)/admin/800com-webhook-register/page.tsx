@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { ClipboardList } from "lucide-react"
 import { listWebhooks, registerWebhook, deleteWebhook } from "./actions"
 import { fetchWebhookHistory, fetchWebhookHistoryDetail } from "./webhook-history"
 import { RegisterWebhookClient } from "./_components/register-webhook-client"
@@ -55,7 +56,10 @@ export default async function EightHundredWebhookRegisterPage() {
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded p-4 text-xs text-amber-900 space-y-2">
-        <p className="font-semibold">📋 Pre-requisito</p>
+        <p className="font-semibold flex items-center gap-1.5">
+          <ClipboardList className="w-3.5 h-3.5 shrink-0" />
+          Pre-requisito
+        </p>
         <p>
           La env var <code>EIGHTHUNDRED_WEBHOOK_SECRET</code> en Vercel está{" "}
           {webhookSecretConfigured ? (
