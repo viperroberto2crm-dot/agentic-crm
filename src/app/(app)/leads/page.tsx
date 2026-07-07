@@ -38,6 +38,7 @@ export default async function LeadsPage({
 
   const role = (profileRes.data?.role ?? "rep") as string
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+  const allMode = brandSlug === "__all__"
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
 
   const sp = params as Record<string, string | string[] | undefined>
@@ -63,15 +64,37 @@ export default async function LeadsPage({
     )
   }
 
+  // "All companies" mode: strictly limit to the user's AUTHORIZED brands.
+  // admin → every brand; non-admin → only their user_brands rows.
+  let authorizedBrandIds: string[] | undefined
+  if (allMode) {
+    if (role === "admin") {
+      const { data: brandRows } = await sb.from("brands").select("id")
+      authorizedBrandIds = (brandRows ?? []).map((b) => b.id as string)
+    } else {
+      const { data: ubRows } = await sb
+        .from("user_brands")
+        .select("brand_id")
+        .eq("user_id", user.id)
+      authorizedBrandIds = (ubRows ?? []).map((r) => r.brand_id as string)
+    }
+  }
+
+  const showCompany = allMode
+
   const { leads, total } = await fetchLeads(sb, user.id, role, {
-    brandId, status, source, search, leadIds: providerLeadIds,
+    brandId: allMode ? null : brandId,
+    brandIds: authorizedBrandIds,
+    status, source, search, leadIds: providerLeadIds,
     limit: 50, offset,
   })
 
-  // Reps disponibles para reasignar bulk (admin/manager only)
+  // Reps disponibles para reasignar bulk (admin/manager only).
+  // En modo "todas las compañías" se omite: la reasignación bulk necesita un
+  // solo brand, así que se pasa brandReps=[] (bulk delete sigue funcionando).
   const canReassign = role === "admin" || role === "manager"
   let brandReps: { id: string; name: string }[] = []
-  if (canReassign && brandId) {
+  if (canReassign && !allMode && brandId) {
     // 1) Sacar user_ids del brand
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: ubData } = await (sb as any)
@@ -144,6 +167,7 @@ export default async function LeadsPage({
           leads={leads}
           canBulkDelete={role === "admin" || role === "manager"}
           brandReps={brandReps}
+          showCompany={showCompany}
           logQuickCall={logQuickCall}
           statusLabels={{
             new: ts("new"),
@@ -160,6 +184,7 @@ export default async function LeadsPage({
             createNew: t("createNew"),
             quickCallTitle: t("quickCallTitle"),
             colLastContact: t("colLastContact"),
+            colCompany: t("company"),
             deleteSelected: t("deleteSelected"),
             deleting: t("deleting"),
             deleteConfirmTitle: t("deleteBulkConfirm"),

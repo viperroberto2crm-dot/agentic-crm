@@ -14,12 +14,13 @@ export type LeadRow = {
   ai_score: number | null
   last_contacted_at: string | null
   created_at: string
-  brand: { id: string; name: string; slug: string } | null
+  brand: { id: string; name: string; slug: string; brand_color: string | null } | null
   rep: { id: string; name: string } | null
 }
 
 export type LeadsFilters = {
   brandId?: string | null
+  brandIds?: string[]   // "all companies" mode: strict allow-list of authorized brands
   status?: string | null
   source?: string | null
   search?: string | null
@@ -43,12 +44,18 @@ export async function fetchLeads(
   const limit = filters.limit ?? 50
   const offset = filters.offset ?? 0
 
+  // "All companies" mode: an empty allow-list means the user has no authorized
+  // brands — return nothing rather than falling back to an unfiltered query.
+  if (filters.brandIds && filters.brandIds.length === 0) {
+    return { leads: [], total: 0 }
+  }
+
   let query = sb
     .from("leads")
     .select(
       `id, first_name, last_name, phone, email, status, source,
        ai_score, last_contacted_at, created_at,
-       brand:brands!leads_brand_id_fkey(id, name, slug),
+       brand:brands!leads_brand_id_fkey(id, name, slug, brand_color),
        rep:users!leads_assigned_rep_id_fkey(id, name)`,
       { count: "exact" }
     )
@@ -72,7 +79,11 @@ export async function fetchLeads(
     }
   }
 
-  if (filters.brandId) {
+  // In "all companies" mode, strictly scope to the authorized brand ids.
+  // This replaces the single-brand filter when a non-empty list is provided.
+  if (filters.brandIds && filters.brandIds.length > 0) {
+    query = query.in("brand_id", filters.brandIds)
+  } else if (filters.brandId) {
     query = query.eq("brand_id", filters.brandId)
   }
 
@@ -136,7 +147,7 @@ export async function fetchLeads(
       ai_score: number | null
       last_contacted_at: string | null
       created_at: string
-      brand: { id: string; name: string; slug: string } | null
+      brand: { id: string; name: string; slug: string; brand_color: string | null } | null
       rep: { id: string; name: string } | null
     }
     return {

@@ -20,9 +20,17 @@ type BrandContextValue = {
   activeBrand: Brand | null
   brands: Brand[]
   setActiveBrand: (brand: Brand) => void
+  isAllCompanies: boolean
+  setAllCompanies: () => void
 }
 
 const BrandContext = createContext<BrandContextValue | null>(null)
+
+export const ALL_COMPANIES = "__all__"
+
+// Neutral accent used in "all companies" mode so no single brand color
+// dominates the chrome. HORIZON green.
+const NEUTRAL_BRAND_HEX = "#0E5F4C"
 
 const FALLBACK_COLORS: Record<string, string> = {
   "si-se-pierde": "#E11D48",
@@ -62,6 +70,17 @@ function applyBrandColor(brand: Brand) {
   root.style.setProperty("--brand-hsl", hsl)
 }
 
+function applyNeutralColor() {
+  const hex = NEUTRAL_BRAND_HEX
+  const hsl = hexToHsl(hex)
+  const root = document.documentElement
+  root.style.setProperty("--accent", hsl)
+  root.style.setProperty("--accent-foreground", "0 0% 100%")
+  root.style.setProperty("--ring", hsl)
+  root.style.setProperty("--brand", hex)
+  root.style.setProperty("--brand-hsl", hsl)
+}
+
 function setSlugCookie(slug: string) {
   document.cookie = `crm_brand_slug=${slug}; path=/; max-age=31536000; SameSite=Lax`
 }
@@ -74,27 +93,49 @@ export function BrandProvider({
   children: React.ReactNode
 }) {
   const [activeBrand, setActiveBrandState] = useState<Brand | null>(null)
+  const [isAllCompanies, setIsAllCompanies] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
     if (!brands.length) return
     const storedId = localStorage.getItem("activeBrandId")
+    // "All companies" is only valid when the user has 2+ brands.
+    if (storedId === ALL_COMPANIES && brands.length >= 2) {
+      setActiveBrandState(null)
+      setIsAllCompanies(true)
+      applyNeutralColor()
+      setSlugCookie(ALL_COMPANIES)
+      return
+    }
     const found = brands.find((b) => b.id === storedId) ?? brands[0]
     setActiveBrandState(found)
+    setIsAllCompanies(false)
     applyBrandColor(found)
     setSlugCookie(found.slug)
   }, [brands])
 
   const setActiveBrand = useCallback((brand: Brand) => {
     setActiveBrandState(brand)
+    setIsAllCompanies(false)
     localStorage.setItem("activeBrandId", brand.id)
     applyBrandColor(brand)
     setSlugCookie(brand.slug)
     router.refresh()
   }, [router])
 
+  const setAllCompanies = useCallback(() => {
+    setActiveBrandState(null)
+    setIsAllCompanies(true)
+    localStorage.setItem("activeBrandId", ALL_COMPANIES)
+    applyNeutralColor()
+    setSlugCookie(ALL_COMPANIES)
+    router.refresh()
+  }, [router])
+
   return (
-    <BrandContext.Provider value={{ activeBrand, brands, setActiveBrand }}>
+    <BrandContext.Provider
+      value={{ activeBrand, brands, setActiveBrand, isAllCompanies, setAllCompanies }}
+    >
       {children}
     </BrandContext.Provider>
   )

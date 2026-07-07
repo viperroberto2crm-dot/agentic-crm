@@ -37,6 +37,7 @@ export type BulkLeadRow = {
   status: LeadStatus
   ai_score: number | null
   last_contacted_at: string | null
+  brand: { id: string; name: string; slug: string; brand_color: string | null } | null
   rep: { id: string; name: string } | null
 }
 
@@ -44,6 +45,7 @@ type Props = {
   leads: BulkLeadRow[]
   canBulkDelete: boolean
   brandReps?: { id: string; name: string }[]
+  showCompany?: boolean
   logQuickCall: (leadId: string, fd: FormData) => Promise<void>
   statusLabels: Record<LeadStatus, string>
   labels: {
@@ -51,6 +53,7 @@ type Props = {
     createNew: string
     quickCallTitle: string
     colLastContact: string
+    colCompany: string
     deleteSelected: string
     deleting: string
     deleteConfirmTitle: string
@@ -59,6 +62,12 @@ type Props = {
     cancel: string
     selectAll: string
   }
+}
+
+// Fallback dot colors by slug, mirrors brand-selector's BRAND_COLORS.
+const BRAND_COLORS: Record<string, string> = {
+  "si-se-pierde": "#E11D48",
+  "sunny-slim": "#F59E0B",
 }
 
 const STATUS_CLASS: Record<LeadStatus, string> = {
@@ -98,6 +107,7 @@ export function LeadsTableBulk({
   leads,
   canBulkDelete,
   brandReps = [],
+  showCompany = false,
   logQuickCall,
   statusLabels,
   labels,
@@ -267,6 +277,11 @@ export function LeadsTableBulk({
               <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">
                 Lead
               </th>
+              {showCompany && (
+                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
+                  {labels.colCompany}
+                </th>
+              )}
               <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
                 Status
               </th>
@@ -315,6 +330,29 @@ export function LeadsTableBulk({
                     </Link>
                     <span className="text-[11px] text-gray-400 font-mono">{lead.phone}</span>
                   </td>
+
+                  {showCompany && (
+                    <td className="py-3 pr-4">
+                      {lead.brand ? (
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{
+                              backgroundColor:
+                                lead.brand.brand_color ??
+                                BRAND_COLORS[lead.brand.slug] ??
+                                "#3B82F6",
+                            }}
+                          />
+                          <span className="text-xs text-gray-500 truncate max-w-[140px]">
+                            {lead.brand.name}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+                  )}
 
                   <td className="py-3 pr-4">
                     <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg}`}>

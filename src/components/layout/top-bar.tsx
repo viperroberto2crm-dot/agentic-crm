@@ -24,7 +24,7 @@ type TopBarProps = {
 }
 
 export function TopBar({ user, unreadCount, pendingCount, onOpenMobile, onOpenCommand }: TopBarProps) {
-  const { activeBrand, brands, setActiveBrand } = useBrand()
+  const { activeBrand, brands, setActiveBrand, isAllCompanies, setAllCompanies } = useBrand()
   const locale = useLocale()
   const [, startTransition] = useTransition()
 
@@ -52,6 +52,8 @@ export function TopBar({ user, unreadCount, pendingCount, onOpenMobile, onOpenCo
         brands={brands}
         activeBrand={activeBrand}
         onSelect={setActiveBrand}
+        isAllActive={isAllCompanies}
+        onSelectAll={setAllCompanies}
       />
 
       <div className="flex-1" />
