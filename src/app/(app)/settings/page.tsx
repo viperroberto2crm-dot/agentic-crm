@@ -5,7 +5,7 @@ import { cookies } from "next/headers"
 import Link from "next/link"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { resolveAuthorizedBrandId } from "@/lib/queries/brand-access"
 import { ProfileForm } from "./_components/profile-form"
 import { BrandForm } from "./_components/brand-form"
 import { UsersTab, type UserRow } from "./_components/users-tab"
@@ -42,7 +42,10 @@ export default async function SettingsPage({
   const profile = profileRes.data
   const role = (profile?.role ?? "rep") as string
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-  const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
+  // Validar la marca de la cookie contra user_brands (admin = acceso global).
+  // Un rep que cambie la cookie a otra marca ya no puede leer su catálogo de
+  // productos (bloque admin-client de abajo) porque brandId será null.
+  const brandId = await resolveAuthorizedBrandId(sb, user.id, brandSlug)
 
   const sp = params as Record<string, string | string[] | undefined>
   const tab = typeof sp.tab === "string" ? sp.tab : "perfil"

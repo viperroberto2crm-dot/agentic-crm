@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { resolveAuthorizedBrandId } from "@/lib/queries/brand-access"
 import { cookies } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
@@ -70,12 +70,20 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   ) as unknown as DB
 
-  // Brand from cookie
+  // Brand from cookie — validado contra user_brands (admin = acceso global).
+  // Evita que un rep/manager cambie la cookie a otra marca y lea sus datos.
   const cookieStore = await cookies()
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
-  const brandId = brandSlug
-    ? await getBrandIdBySlug(brandSlug, supabase as unknown as DB)
-    : null
+  const brandId = await resolveAuthorizedBrandId(
+    supabase as unknown as DB,
+    user.id,
+    brandSlug,
+  )
+  // Slug presente pero sin autorización (o inválido) → denegar. Un slug null
+  // (sin marca seleccionada) sigue el camino normal (brandId null).
+  if (brandSlug && !brandId) {
+    return NextResponse.json({ error: "Marca no autorizada" }, { status: 403 })
+  }
 
   const { data: runRow, error: runInsertErr } = await sb
     .from("agent_runs")
@@ -412,13 +420,20 @@ Ejemplo INCORRECTO (Spanglish): "Tienes 4 appointments hoy. La primera es a las 
           continue
         }
 
+        // Solo admin (acceso global) puede consultar scope:"all" (todas las
+        // marcas). Para el resto forzamos la marca validada.
+        if (userRole !== "admin" && input.scope === "all") {
+          input.scope = "current"
+        }
+
         switch (block.name) {
           case "get_leads":
             result = await executeGetLeads(
               sb,
               user.id,
               brandId,
-              input as Parameters<typeof executeGetLeads>[3]
+              input as Parameters<typeof executeGetLeads>[3],
+              userRole,
             )
             break
           case "get_schedule_today":

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
+import { sanitizeOrSearch } from "@/lib/queries/search"
 import { BRAND_TIMEZONE } from "@/lib/datetime"
 
 /**
@@ -257,7 +258,8 @@ export async function executeListBrands(sb: DB) {
 }
 
 export async function executeGetLeads(
-  sb: DB, userId: string, brandId: string | null, input: GetLeadsInput
+  sb: DB, userId: string, brandId: string | null, input: GetLeadsInput,
+  role: string = "rep",
 ) {
   const limit = input.limit ?? 10
   let query = sb
@@ -265,6 +267,10 @@ export async function executeGetLeads(
     .select("id, first_name, last_name, phone, email, status, score, last_contacted_at, source, brand_id")
     .order("score", { ascending: false, nullsFirst: false })
     .limit(limit)
+
+  // rep/provider solo ven sus leads asignados; admin/manager ven todo el brand.
+  const repFilter = scopeRep(userId, role)
+  if (repFilter) query = query.eq("assigned_rep_id", repFilter)
 
   if (input.scope !== "all" && brandId) query = query.eq("brand_id", brandId)
   if (input.status) query = query.eq("status", input.status as Database["public"]["Enums"]["lead_status"])
@@ -279,19 +285,18 @@ export async function executeGetLeads(
   }
 
   if (input.query && input.query.trim().length > 0) {
-    // Escape commas and parens to keep PostgREST `or` filter safe.
-    const safe = input.query.trim().replace(/[(),]/g, " ")
+    // Escape commas, parens and `%` to keep the PostgREST `or` filter safe.
+    const safe = sanitizeOrSearch(input.query)
     // Split words and OR each against name/phone/email. Each word ANDed isn't
     // supported in a single .or() chain, so we use a token-aware OR string:
     // any word matching first_name/last_name/phone/email returns the lead.
     const tokens = safe.split(/\s+/).filter(Boolean)
     const parts: string[] = []
     for (const tok of tokens) {
-      const t = tok.replace(/%/g, "")
-      parts.push(`first_name.ilike.%${t}%`)
-      parts.push(`last_name.ilike.%${t}%`)
-      parts.push(`phone.ilike.%${t}%`)
-      parts.push(`email.ilike.%${t}%`)
+      parts.push(`first_name.ilike.%${tok}%`)
+      parts.push(`last_name.ilike.%${tok}%`)
+      parts.push(`phone.ilike.%${tok}%`)
+      parts.push(`email.ilike.%${tok}%`)
     }
     if (parts.length > 0) {
       query = query.or(parts.join(","))
