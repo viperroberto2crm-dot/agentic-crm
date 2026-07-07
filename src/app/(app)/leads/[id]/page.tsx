@@ -10,6 +10,11 @@ import { LeadActions } from "./_components/lead-actions"
 import { ActivityTimeline } from "./_components/activity-timeline"
 import { PaymentPlansSection } from "./_components/payment-plans-section"
 import { PracticeBetterCard, type PbAppt, type PbPayment } from "./_components/practice-better-card"
+import {
+  ExternalPaymentsCard,
+  type ExternalPayment,
+  type ExternalAppointment,
+} from "./_components/external-payments-card"
 import { JustCreatedBanner } from "./_components/just-created-banner"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
@@ -34,7 +39,7 @@ export default async function LeadDetailPage({
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("leads")
 
-  const [lead, profileRes, callsRes, apptsRes, salesRes, pbApptsRes, pbPayRes] = await Promise.all([
+  const [lead, profileRes, callsRes, apptsRes, salesRes, pbApptsRes, pbPayRes, extPayRes, extApptRes] = await Promise.all([
     fetchLeadById(sb, id),
     sb.from("users").select("role").eq("id", user.id).single(),
     sb.from("calls")
@@ -55,10 +60,21 @@ export default async function LeadDetailPage({
     (sb as any).from("pb_payments")
       .select("id, amount_cents, currency, status, paid_at, number")
       .eq("lead_id", id).order("paid_at", { ascending: false }).limit(20),
+    // external_payments / external_appointments no están en los tipos generados → cast
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb as any).from("external_payments")
+      .select("id, provider, amount_cents, currency, status, origin, items, reference, paid_at")
+      .eq("lead_id", id).order("paid_at", { ascending: false }).limit(20),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb as any).from("external_appointments")
+      .select("id, provider, status, service, staff, starts_at, ends_at")
+      .eq("lead_id", id).order("starts_at", { ascending: false }).limit(20),
   ])
 
   const pbAppointments = (pbApptsRes?.data ?? []) as PbAppt[]
   const pbPayments = (pbPayRes?.data ?? []) as PbPayment[]
+  const externalPayments = (extPayRes?.data ?? []) as ExternalPayment[]
+  const externalAppointments = (extApptRes?.data ?? []) as ExternalAppointment[]
 
   let clinicsForModal: {
     id: string
@@ -261,6 +277,18 @@ export default async function LeadDetailPage({
           </CardContent>
         </Card>
       )}
+
+      {role !== "provider" &&
+        (externalPayments.length > 0 || externalAppointments.length > 0) && (
+          <Card className="bg-white border-border/60">
+            <CardContent className="pt-5">
+              <ExternalPaymentsCard
+                payments={externalPayments}
+                appointments={externalAppointments}
+              />
+            </CardContent>
+          </Card>
+        )}
     </div>
   )
 }
