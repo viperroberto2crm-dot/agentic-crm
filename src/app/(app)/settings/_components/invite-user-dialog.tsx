@@ -51,7 +51,7 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
   function copyCredentials() {
     if (!done) return
     navigator.clipboard.writeText(
-      `CRM Agentic\nEmail: ${done.email}\n${t("tempPassword")}: ${done.password}`
+      `HORIZON\nEmail: ${done.email}\n${t("tempPassword")}: ${done.password}`
     )
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
