@@ -10,6 +10,8 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // No lintear salida generada ni deps (evita minutos de escaneo y errores espurios).
+  { ignores: [".next/**", "out/**", "build/**", "node_modules/**", "next-env.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 
