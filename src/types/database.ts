@@ -1562,6 +1562,448 @@ export type Database = {
           { foreignKeyName: "users_default_brand_id_fkey"; columns: ["default_brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] }
         ]
       }
+      external_payments: {
+        Row: {
+          id: string
+          provider: string
+          brand_id: string | null
+          lead_id: string | null
+          external_id: string
+          event_id: string | null
+          amount_cents: number
+          currency: string | null
+          status: string | null
+          origin: string | null
+          items: string | null
+          customer_name: string | null
+          customer_email: string | null
+          customer_phone: string | null
+          customer_address: string | null
+          reference: string | null
+          paid_at: string | null
+          raw: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          brand_id?: string | null
+          lead_id?: string | null
+          external_id: string
+          event_id?: string | null
+          amount_cents?: number
+          currency?: string | null
+          status?: string | null
+          origin?: string | null
+          items?: string | null
+          customer_name?: string | null
+          customer_email?: string | null
+          customer_phone?: string | null
+          customer_address?: string | null
+          reference?: string | null
+          paid_at?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          brand_id?: string | null
+          lead_id?: string | null
+          external_id?: string
+          event_id?: string | null
+          amount_cents?: number
+          currency?: string | null
+          status?: string | null
+          origin?: string | null
+          items?: string | null
+          customer_name?: string | null
+          customer_email?: string | null
+          customer_phone?: string | null
+          customer_address?: string | null
+          reference?: string | null
+          paid_at?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "external_payments_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "external_payments_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] }
+        ]
+      }
+      external_appointments: {
+        Row: {
+          id: string
+          provider: string
+          brand_id: string | null
+          lead_id: string | null
+          external_id: string
+          event_id: string | null
+          status: string | null
+          service: string | null
+          staff: string | null
+          starts_at: string | null
+          ends_at: string | null
+          customer_name: string | null
+          customer_email: string | null
+          customer_phone: string | null
+          customer_address: string | null
+          note: string | null
+          raw: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          brand_id?: string | null
+          lead_id?: string | null
+          external_id: string
+          event_id?: string | null
+          status?: string | null
+          service?: string | null
+          staff?: string | null
+          starts_at?: string | null
+          ends_at?: string | null
+          customer_name?: string | null
+          customer_email?: string | null
+          customer_phone?: string | null
+          customer_address?: string | null
+          note?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          brand_id?: string | null
+          lead_id?: string | null
+          external_id?: string
+          event_id?: string | null
+          status?: string | null
+          service?: string | null
+          staff?: string | null
+          starts_at?: string | null
+          ends_at?: string | null
+          customer_name?: string | null
+          customer_email?: string | null
+          customer_phone?: string | null
+          customer_address?: string | null
+          note?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "external_appointments_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "external_appointments_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] }
+        ]
+      }
+      pb_appointments: {
+        Row: {
+          id: string
+          brand_id: string | null
+          lead_id: string | null
+          pb_id: string
+          pb_record_id: string | null
+          name: string | null
+          status: string | null
+          scheduled_at: string | null
+          raw: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id?: string | null
+          lead_id?: string | null
+          pb_id: string
+          pb_record_id?: string | null
+          name?: string | null
+          status?: string | null
+          scheduled_at?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string | null
+          lead_id?: string | null
+          pb_id?: string
+          pb_record_id?: string | null
+          name?: string | null
+          status?: string | null
+          scheduled_at?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "pb_appointments_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "pb_appointments_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] }
+        ]
+      }
+      pb_payments: {
+        Row: {
+          id: string
+          brand_id: string | null
+          lead_id: string | null
+          pb_id: string
+          pb_record_id: string | null
+          amount_cents: number
+          currency: string | null
+          status: string | null
+          paid_at: string | null
+          number: string | null
+          raw: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id?: string | null
+          lead_id?: string | null
+          pb_id: string
+          pb_record_id?: string | null
+          amount_cents?: number
+          currency?: string | null
+          status?: string | null
+          paid_at?: string | null
+          number?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string | null
+          lead_id?: string | null
+          pb_id?: string
+          pb_record_id?: string | null
+          amount_cents?: number
+          currency?: string | null
+          status?: string | null
+          paid_at?: string | null
+          number?: string | null
+          raw?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "pb_payments_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "pb_payments_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] }
+        ]
+      }
+      tracking_numbers: {
+        Row: {
+          id: string
+          brand_id: string | null
+          phone_e164: string
+          label: string | null
+          campaign: string | null
+          provider: string
+          provider_metadata: Json | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id?: string | null
+          phone_e164: string
+          label?: string | null
+          campaign?: string | null
+          provider: string
+          provider_metadata?: Json | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string | null
+          phone_e164?: string
+          label?: string | null
+          campaign?: string | null
+          provider?: string
+          provider_metadata?: Json | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "tracking_numbers_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] }
+        ]
+      }
+      tracking_forms: {
+        Row: {
+          id: string
+          brand_id: string | null
+          provider: string
+          external_form_id: string
+          external_page_id: string | null
+          name: string
+          campaign: string | null
+          active: boolean
+          provider_metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id?: string | null
+          provider: string
+          external_form_id: string
+          external_page_id?: string | null
+          name: string
+          campaign?: string | null
+          active?: boolean
+          provider_metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string | null
+          provider?: string
+          external_form_id?: string
+          external_page_id?: string | null
+          name?: string
+          campaign?: string | null
+          active?: boolean
+          provider_metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "tracking_forms_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] }
+        ]
+      }
+      hermes_ticks: {
+        Row: {
+          id: string
+          triggered_by: string
+          status: string
+          checks_run: number | null
+          observations_count: number | null
+          resolutions_count: number | null
+          error_message: string | null
+          finished_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          triggered_by?: string
+          status?: string
+          checks_run?: number | null
+          observations_count?: number | null
+          resolutions_count?: number | null
+          error_message?: string | null
+          finished_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          triggered_by?: string
+          status?: string
+          checks_run?: number | null
+          observations_count?: number | null
+          resolutions_count?: number | null
+          error_message?: string | null
+          finished_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      hermes_observations: {
+        Row: {
+          id: string
+          tick_id: string
+          check_type: string
+          severity: string
+          summary: string
+          details: Json
+          brand_id: string | null
+          status: string
+          resolution_id: string | null
+          resolved_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tick_id: string
+          check_type: string
+          severity: string
+          summary: string
+          details?: Json
+          brand_id?: string | null
+          status?: string
+          resolution_id?: string | null
+          resolved_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tick_id?: string
+          check_type?: string
+          severity?: string
+          summary?: string
+          details?: Json
+          brand_id?: string | null
+          status?: string
+          resolution_id?: string | null
+          resolved_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "hermes_observations_tick_id_fkey"; columns: ["tick_id"]; referencedRelation: "hermes_ticks"; referencedColumns: ["id"] },
+          { foreignKeyName: "hermes_observations_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] },
+          { foreignKeyName: "hermes_observations_resolution_id_fkey"; columns: ["resolution_id"]; referencedRelation: "hermes_resolutions"; referencedColumns: ["id"] }
+        ]
+      }
+      hermes_resolutions: {
+        Row: {
+          id: string
+          observation_id: string
+          tool_name: string
+          tool_input: Json
+          tool_output: Json
+          status: string
+          approval_reason: string | null
+          triggered_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          observation_id: string
+          tool_name: string
+          tool_input?: Json
+          tool_output?: Json
+          status: string
+          approval_reason?: string | null
+          triggered_by?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          observation_id?: string
+          tool_name?: string
+          tool_input?: Json
+          tool_output?: Json
+          status?: string
+          approval_reason?: string | null
+          triggered_by?: string
+          created_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "hermes_resolutions_observation_id_fkey"; columns: ["observation_id"]; referencedRelation: "hermes_observations"; referencedColumns: ["id"] }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
