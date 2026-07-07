@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock,
   RotateCcw,
+  XCircle,
   Globe,
   Building2,
   FileText,
@@ -42,6 +43,22 @@ function fmtMoney(cents: number, currency: string | null): string {
     style: "currency",
     currency: currency && currency.length === 3 ? currency.toUpperCase() : "USD",
   })
+}
+
+// Clasifica el pago SOLO por su status (paid_at siempre viene seteado por los
+// webhooks como fecha del evento, NO como prueba de cobro). "settled" = dinero
+// realmente cobrado; failed/pending/unpaid NO cuentan como cobrado.
+type PayState = "settled" | "refunded" | "failed" | "pending"
+function classifyPayment(status: string | null): PayState {
+  const s = (status ?? "").toLowerCase()
+  if (s === "refunded") return "refunded"
+  if (s === "failed" || s === "canceled" || s === "cancelled") return "failed"
+  if (s === "completed" || s === "paid") return "settled"
+  return "pending" // pending, unpaid, approved, no_payment_required, unknown...
+}
+
+function normCurrency(c: string | null): string {
+  return c && c.length === 3 ? c.toUpperCase() : "USD"
 }
 
 function providerLabel(provider: string | null): string {
@@ -85,13 +102,18 @@ export function ExternalPaymentsCard({
   payments: ExternalPayment[]
   appointments: ExternalAppointment[]
 }) {
-  // No contamos reembolsos hacia el total. Cada fila se muestra tal como está
-  // almacenada (suscripción vs checkout no se combinan).
-  const totalPaidCents = payments.reduce(
-    (s, p) => s + (p.status?.toLowerCase() === "refunded" ? 0 : p.amount_cents ?? 0),
-    0,
-  )
-  const currency = payments[0]?.currency ?? "USD"
+  // Total cobrado NETO: suma settled y resta refunded, solo de la moneda
+  // principal (no se pueden sumar centavos de monedas distintas). failed y
+  // pending no cuentan. La fila de refund es aparte (${id}_refund) → se resta.
+  const currency = normCurrency(payments[0]?.currency ?? null)
+  const totalPaidCents = payments.reduce((s, p) => {
+    if (normCurrency(p.currency) !== currency) return s
+    const st = classifyPayment(p.status)
+    if (st === "settled") return s + (p.amount_cents ?? 0)
+    if (st === "refunded") return s - (p.amount_cents ?? 0)
+    return s
+  }, 0)
+  const mixedCurrency = payments.some((p) => normCurrency(p.currency) !== currency)
   const hasData = appointments.length > 0 || payments.length > 0
 
   return (
@@ -102,7 +124,8 @@ export function ExternalPaymentsCard({
         </p>
         {payments.length > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">
-            {fmtMoney(totalPaidCents, currency)} total
+            {fmtMoney(totalPaidCents, currency)}
+            {mixedCurrency ? ` ${currency}` : ""} cobrado
           </span>
         )}
       </div>
@@ -120,22 +143,17 @@ export function ExternalPaymentsCard({
             <DollarSign className="w-3.5 h-3.5" /> Pagos ({payments.length})
           </p>
           {payments.map((p) => {
-            const refunded = p.status?.toLowerCase() === "refunded"
-            const pending =
-              !refunded &&
-              !(
-                p.status?.toLowerCase().includes("paid") ||
-                p.status?.toLowerCase().includes("completed")
-              ) &&
-              !p.paid_at
+            const state = classifyPayment(p.status)
             return (
               <div
                 key={p.id}
                 className="flex items-center gap-2 py-1.5 border-b border-[#F2EFE9] last:border-0"
               >
-                {refunded ? (
+                {state === "refunded" ? (
                   <RotateCcw className="w-3.5 h-3.5 text-[#E07856] shrink-0" />
-                ) : pending ? (
+                ) : state === "failed" ? (
+                  <XCircle className="w-3.5 h-3.5 text-[#C4453B] shrink-0" />
+                ) : state === "pending" ? (
                   <Clock className="w-3.5 h-3.5 text-[#D9A441] shrink-0" />
                 ) : (
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#2E8B6F] shrink-0" />
@@ -145,10 +163,14 @@ export function ExternalPaymentsCard({
                 </span>
                 <span
                   className={`text-sm font-medium tabular-nums shrink-0 w-20 ${
-                    refunded ? "text-[#E07856]" : "text-gray-700"
+                    state === "refunded"
+                      ? "text-[#E07856]"
+                      : state === "failed"
+                        ? "text-[#C4453B] line-through"
+                        : "text-gray-700"
                   }`}
                 >
-                  {refunded ? "-" : ""}
+                  {state === "refunded" ? "-" : ""}
                   {fmtMoney(p.amount_cents, p.currency)}
                 </span>
                 <span className="flex items-center gap-1 flex-1 min-w-0">

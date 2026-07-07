@@ -60,13 +60,10 @@ export default async function LeadDetailPage({
     (sb as any).from("pb_payments")
       .select("id, amount_cents, currency, status, paid_at, number")
       .eq("lead_id", id).order("paid_at", { ascending: false }).limit(20),
-    // external_payments / external_appointments no están en los tipos generados → cast
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sb as any).from("external_payments")
+    sb.from("external_payments")
       .select("id, provider, amount_cents, currency, status, origin, items, reference, paid_at")
       .eq("lead_id", id).order("paid_at", { ascending: false }).limit(20),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sb as any).from("external_appointments")
+    sb.from("external_appointments")
       .select("id, provider, status, service, staff, starts_at, ends_at")
       .eq("lead_id", id).order("starts_at", { ascending: false }).limit(20),
   ])
