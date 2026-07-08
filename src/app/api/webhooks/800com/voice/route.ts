@@ -24,6 +24,7 @@
 
 import { NextResponse, after } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { createLeadFromCall } from "@/lib/integrations/800com"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 
@@ -272,7 +273,7 @@ async function handleCallEvent(
   }
 
   const callerE164 = call.caller ?? ""
-  const leadId = callerE164 ? await findLeadByPhone(sb, tracking.brand_id, callerE164) : null
+  let leadId = callerE164 ? await findLeadByPhone(sb, tracking.brand_id, callerE164) : null
 
   // Dirección: 800.com manda isInbound boolean. Default a inbound SOLO si no
   // viene ninguna señal; si isInbound===false es saliente (antes se marcaba
@@ -289,6 +290,16 @@ async function handleCallEvent(
       ? mapResultToOutcome(call.result)
       : null
   const recordingUrl = recordingUrlOf(call)
+
+  // Auto-crear lead para llamadas ENTRANTES de números desconocidos. Antes el
+  // webhook solo VINCULABA a leads existentes, y el poller diario salta las
+  // calls ya insertadas (dedup por external_id) → el cliente que llamaba nunca
+  // se volvía lead. Ahora se crea al instante (mismo criterio que el poller).
+  if (!leadId && direction === "inbound" && callerE164) {
+    leadId = await createLeadFromCall(
+      sb, tracking.brand_id, callerE164, call.number?.label ?? null, null, null, null,
+    )
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const insertPayload: any = {

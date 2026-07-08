@@ -445,7 +445,7 @@ async function findLeadByPhone(
  * Create a new lead from an unknown caller. Status='new', source labeled with
  * provider + campaign so the rep can see where it came from.
  */
-async function createLeadFromCall(
+export async function createLeadFromCall(
   sb: DB,
   brandId: string,
   callerE164: string,
