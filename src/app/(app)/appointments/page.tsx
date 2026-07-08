@@ -27,6 +27,12 @@ type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
 type ApptType = Database["public"]["Enums"]["appointment_type"]
 
+// Fallback dot colors by slug, mirrors leads-table-bulk's BRAND_COLORS.
+const FALLBACK_COLORS: Record<string, string> = {
+  "si-se-pierde": "#E11D48",
+  "sunny-slim": "#F59E0B",
+}
+
 function fmtDate(d: string) {
   return formatApptDateTime(d)
 }
@@ -68,7 +74,40 @@ export default async function AppointmentsPage({
 
   const role = (profileRes.data?.role ?? "rep") as string
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+  const allMode = brandSlug === "__all__"
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
+
+  // "All companies" mode: strictly limit to the user's AUTHORIZED brands.
+  // admin → every brand; non-admin → only their user_brands rows.
+  let authorizedBrandIds: string[] = []
+  const brandsById = new Map<
+    string,
+    { id: string; name: string; slug: string; brand_color: string | null }
+  >()
+  if (allMode) {
+    if (role === "admin") {
+      const { data: brandRows } = await sb.from("brands").select("id")
+      authorizedBrandIds = (brandRows ?? []).map((b) => b.id as string)
+    } else {
+      const { data: ubRows } = await sb
+        .from("user_brands")
+        .select("brand_id")
+        .eq("user_id", user.id)
+      authorizedBrandIds = (ubRows ?? []).map((r) => r.brand_id as string)
+    }
+    // Display labels/colors only (names + colors, not appointment data).
+    const { data: brandRows } = await sb
+      .from("brands")
+      .select("id, name, slug, brand_color")
+    for (const b of brandRows ?? []) {
+      brandsById.set(b.id as string, {
+        id: b.id as string,
+        name: b.name as string,
+        slug: b.slug as string,
+        brand_color: (b.brand_color as string | null) ?? null,
+      })
+    }
+  }
 
   const sp = params as Record<string, string | string[] | undefined>
   const statusFilter = typeof sp.status === "string" ? sp.status : null
@@ -78,19 +117,18 @@ export default async function AppointmentsPage({
   const range = dateOnlyRangeToUtc(active.from, active.to, timezone)
 
   let leadIdsFilter: string[] | null = null
-  if (searchTerm && brandId) {
+  if (searchTerm && (brandId || (allMode && authorizedBrandIds.length > 0))) {
     const tokens = searchTerm.replace(/[(),]/g, " ").split(/\s+/).filter(Boolean)
     const orParts: string[] = []
     for (const tok of tokens) {
       const t = tok.replace(/%/g, "")
       orParts.push(`first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `phone.ilike.%${t}%`)
     }
-    const { data: matchingLeads } = await sb
-      .from("leads")
-      .select("id")
-      .eq("brand_id", brandId)
-      .or(orParts.join(","))
-      .limit(500)
+    const base = sb.from("leads").select("id")
+    const scoped = allMode
+      ? base.in("brand_id", authorizedBrandIds)
+      : base.eq("brand_id", brandId!)
+    const { data: matchingLeads } = await scoped.or(orParts.join(",")).limit(500)
     leadIdsFilter = (matchingLeads ?? []).map((l) => l.id)
     if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
   }
@@ -100,7 +138,7 @@ export default async function AppointmentsPage({
     .from("appointments")
     .select(
       `id, scheduled_at, type, status, service, duration_minutes, notes,
-       clinic_id, telehealth_link, lead_id, provider_id,
+       clinic_id, telehealth_link, lead_id, provider_id, brand_id,
        provider_approved, provider_approved_at, provider_notes, shipped_at,
        lead:leads!appointments_lead_id_fkey(id, first_name, last_name),
        rep:users!appointments_rep_id_fkey(id, name),
@@ -112,7 +150,15 @@ export default async function AppointmentsPage({
 
   if (role === "rep") query = query.eq("rep_id", user.id)
   if (role === "provider") query = query.eq("provider_id", user.id)
-  if (brandId) query = query.eq("brand_id", brandId)
+  if (allMode) {
+    // "All companies" = ONLY authorized brands. Empty list → no rows.
+    query = query.in(
+      "brand_id",
+      authorizedBrandIds.length ? authorizedBrandIds : ["00000000-0000-0000-0000-000000000000"],
+    )
+  } else if (brandId) {
+    query = query.eq("brand_id", brandId)
+  }
   if (statusFilter) query = query.eq("status", statusFilter as ApptStatus)
   if (leadIdsFilter) query = query.in("lead_id", leadIdsFilter)
   query = query.gte("scheduled_at", range.start).lt("scheduled_at", range.end)
@@ -124,6 +170,7 @@ export default async function AppointmentsPage({
     service: string | null; duration_minutes: number; notes: string | null
     clinic_id: string | null; telehealth_link: string | null; lead_id: string | null
     provider_id: string | null
+    brand_id: string | null
     provider_approved: boolean | null
     provider_approved_at: string | null
     provider_notes: string | null
@@ -300,6 +347,9 @@ export default async function AppointmentsPage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDateTime")}</th>
+                {allMode && (
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                )}
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colLead")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colType")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
@@ -316,11 +366,27 @@ export default async function AppointmentsPage({
             <tbody>
               {appts.map((a) => {
                 const cfg = STATUS_CONFIG[a.status]
+                const brand = allMode && a.brand_id ? brandsById.get(a.brand_id) : null
                 return (
                   <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
                       <span className="text-gray-700 text-xs tabular-nums">{fmtDate(a.scheduled_at)}</span>
                     </td>
+                    {allMode && (
+                      <td className="py-3 pr-4">
+                        {brand ? (
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
+                            />
+                            <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="py-3 pr-4">
                       {a.lead ? (
                         <Link href={`/leads/${a.lead.id}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">

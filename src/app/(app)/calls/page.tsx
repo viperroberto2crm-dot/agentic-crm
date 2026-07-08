@@ -16,6 +16,12 @@ type TypedClient = SupabaseClient<Database>
 type CallOutcome = Database["public"]["Enums"]["call_outcome"]
 type CallDirection = Database["public"]["Enums"]["call_direction"]
 
+// Fallback dot colors by slug, mirrors leads-table-bulk's BRAND_COLORS.
+const FALLBACK_COLORS: Record<string, string> = {
+  "si-se-pierde": "#E11D48",
+  "sunny-slim": "#F59E0B",
+}
+
 function fmtDuration(s: number | null) {
   if (!s) return "—"
   const m = Math.floor(s / 60)
@@ -62,7 +68,40 @@ export default async function CallsPage({
   const role = (profileRes.data?.role ?? "rep") as string
   if (role === "provider") redirect("/appointments")
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+  const allMode = brandSlug === "__all__"
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
+
+  // "All companies" mode: strictly limit to the user's AUTHORIZED brands.
+  // admin → every brand; non-admin → only their user_brands rows.
+  let authorizedBrandIds: string[] = []
+  const brandsById = new Map<
+    string,
+    { id: string; name: string; slug: string; brand_color: string | null }
+  >()
+  if (allMode) {
+    if (role === "admin") {
+      const { data: brandRows } = await sb.from("brands").select("id")
+      authorizedBrandIds = (brandRows ?? []).map((b) => b.id as string)
+    } else {
+      const { data: ubRows } = await sb
+        .from("user_brands")
+        .select("brand_id")
+        .eq("user_id", user.id)
+      authorizedBrandIds = (ubRows ?? []).map((r) => r.brand_id as string)
+    }
+    // Display labels/colors only (names + colors, not call data).
+    const { data: brandRows } = await sb
+      .from("brands")
+      .select("id, name, slug, brand_color")
+    for (const b of brandRows ?? []) {
+      brandsById.set(b.id as string, {
+        id: b.id as string,
+        name: b.name as string,
+        slug: b.slug as string,
+        brand_color: (b.brand_color as string | null) ?? null,
+      })
+    }
+  }
 
   const sp = params as Record<string, string | string[] | undefined>
   const outcomeFilter = typeof sp.outcome === "string" ? sp.outcome : null
@@ -70,19 +109,18 @@ export default async function CallsPage({
   const searchTerm = typeof sp.search === "string" ? sp.search.trim() : null
 
   let leadIdsFilter: string[] | null = null
-  if (searchTerm && brandId) {
+  if (searchTerm && (brandId || (allMode && authorizedBrandIds.length > 0))) {
     const tokens = searchTerm.replace(/[(),]/g, " ").split(/\s+/).filter(Boolean)
     const orParts: string[] = []
     for (const tok of tokens) {
       const t = tok.replace(/%/g, "")
       orParts.push(`first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `phone.ilike.%${t}%`)
     }
-    const { data: matchingLeads } = await sb
-      .from("leads")
-      .select("id")
-      .eq("brand_id", brandId)
-      .or(orParts.join(","))
-      .limit(500)
+    const base = sb.from("leads").select("id")
+    const scoped = allMode
+      ? base.in("brand_id", authorizedBrandIds)
+      : base.eq("brand_id", brandId!)
+    const { data: matchingLeads } = await scoped.or(orParts.join(",")).limit(500)
     leadIdsFilter = (matchingLeads ?? []).map((l) => l.id)
     if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
   }
@@ -90,7 +128,7 @@ export default async function CallsPage({
   let query = sb
     .from("calls")
     .select(
-      `id, direction, outcome, duration_seconds, called_at, notes, caller_e164,
+      `id, direction, outcome, duration_seconds, called_at, notes, caller_e164, brand_id,
        lead:leads!calls_lead_id_fkey(id, first_name, last_name),
        rep:users!calls_rep_id_fkey(id, name)`,
       { count: "exact" }
@@ -99,7 +137,15 @@ export default async function CallsPage({
     .limit(100)
 
   if (role === "rep") query = query.eq("rep_id", user.id)
-  if (brandId) query = query.eq("brand_id", brandId)
+  if (allMode) {
+    // "All companies" = ONLY authorized brands. Empty list → no rows.
+    query = query.in(
+      "brand_id",
+      authorizedBrandIds.length ? authorizedBrandIds : ["00000000-0000-0000-0000-000000000000"],
+    )
+  } else if (brandId) {
+    query = query.eq("brand_id", brandId)
+  }
   if (outcomeFilter) query = query.eq("outcome", outcomeFilter as CallOutcome)
   if (dirFilter) query = query.eq("direction", dirFilter as CallDirection)
   if (leadIdsFilter) query = query.in("lead_id", leadIdsFilter)
@@ -110,6 +156,7 @@ export default async function CallsPage({
     id: string; direction: CallDirection; outcome: CallOutcome | null
     duration_seconds: number | null; called_at: string; notes: string | null
     caller_e164: string | null
+    brand_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
   }
@@ -198,6 +245,9 @@ export default async function CallsPage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDate")}</th>
+                {allMode && (
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                )}
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colLead")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colDir")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutcome")}</th>
@@ -210,6 +260,7 @@ export default async function CallsPage({
             <tbody>
               {calls.map((c) => {
                 const cfg = c.outcome ? OUTCOME_CONFIG[c.outcome] : null
+                const brand = allMode && c.brand_id ? brandsById.get(c.brand_id) : null
                 return (
                   <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer relative">
                     <td className="py-3 pr-4 relative">
@@ -220,6 +271,21 @@ export default async function CallsPage({
                       />
                       <span className="text-gray-400 text-xs tabular-nums relative z-0">{fmtDate(c.called_at)}</span>
                     </td>
+                    {allMode && (
+                      <td className="py-3 pr-4">
+                        {brand ? (
+                          <span className="flex items-center gap-1.5 min-w-0 relative z-10">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
+                            />
+                            <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="py-3 pr-4">
                       {c.lead ? (
                         <Link href={`/leads/${c.lead.id}`} className="relative z-10 text-gray-800 hover:text-gray-900 font-medium transition-colors">

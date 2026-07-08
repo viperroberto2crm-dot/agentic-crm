@@ -26,6 +26,12 @@ export const dynamic = "force-dynamic"
 
 type TypedClient = SupabaseClient<Database>
 
+// Fallback dot colors by slug, mirrors leads-table-bulk's BRAND_COLORS.
+const FALLBACK_COLORS: Record<string, string> = {
+  "si-se-pierde": "#E11D48",
+  "sunny-slim": "#F59E0B",
+}
+
 function fmtCents(cents: number) {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
 }
@@ -75,7 +81,40 @@ export default async function SalesPage({
   const role = (profileRes.data?.role ?? "rep") as string
   if (role === "provider") redirect("/appointments")
   const brandSlug = cookieStore.get("crm_brand_slug")?.value ?? null
+  const allMode = brandSlug === "__all__"
   const brandId = brandSlug ? await getBrandIdBySlug(brandSlug, sb) : null
+
+  // "All companies" mode: strictly limit to the user's AUTHORIZED brands.
+  // admin → every brand; non-admin → only their user_brands rows.
+  let authorizedBrandIds: string[] = []
+  const brandsById = new Map<
+    string,
+    { id: string; name: string; slug: string; brand_color: string | null }
+  >()
+  if (allMode) {
+    if (role === "admin") {
+      const { data: brandRows } = await sb.from("brands").select("id")
+      authorizedBrandIds = (brandRows ?? []).map((b) => b.id as string)
+    } else {
+      const { data: ubRows } = await sb
+        .from("user_brands")
+        .select("brand_id")
+        .eq("user_id", user.id)
+      authorizedBrandIds = (ubRows ?? []).map((r) => r.brand_id as string)
+    }
+    // Display labels/colors only (names + colors, not sales data).
+    const { data: brandRows } = await sb
+      .from("brands")
+      .select("id, name, slug, brand_color")
+    for (const b of brandRows ?? []) {
+      brandsById.set(b.id as string, {
+        id: b.id as string,
+        name: b.name as string,
+        slug: b.slug as string,
+        brand_color: (b.brand_color as string | null) ?? null,
+      })
+    }
+  }
 
   const sp = params as Record<string, string | string[] | undefined>
   const statusFilter = typeof sp.status === "string" ? sp.status : null
@@ -89,19 +128,18 @@ export default async function SalesPage({
 
   // Si hay búsqueda, primero saco los lead_ids que matchean
   let leadIdsFilter: string[] | null = null
-  if (searchTerm && brandId) {
+  if (searchTerm && (brandId || (allMode && authorizedBrandIds.length > 0))) {
     const tokens = searchTerm.replace(/[(),]/g, " ").split(/\s+/).filter(Boolean)
     const orParts: string[] = []
     for (const tok of tokens) {
       const t = tok.replace(/%/g, "")
       orParts.push(`first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `phone.ilike.%${t}%`)
     }
-    const { data: matchingLeads } = await sb
-      .from("leads")
-      .select("id")
-      .eq("brand_id", brandId)
-      .or(orParts.join(","))
-      .limit(500)
+    const base = sb.from("leads").select("id")
+    const scoped = allMode
+      ? base.in("brand_id", authorizedBrandIds)
+      : base.eq("brand_id", brandId!)
+    const { data: matchingLeads } = await scoped.or(orParts.join(",")).limit(500)
     leadIdsFilter = (matchingLeads ?? []).map((l) => l.id)
     if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
   }
@@ -115,7 +153,7 @@ export default async function SalesPage({
   // con planes registrados en rango aunque NO hubieran pagado nada — confuso
   // porque la suma de la tabla no cuadraba con el KPI Collected.
 
-  const selectFields = `id, amount_cents, payment_method, payment_status, paid_at, created_at, notes,
+  const selectFields = `id, amount_cents, payment_method, payment_status, paid_at, created_at, notes, brand_id,
        lead:leads!sales_lead_id_fkey(id, first_name, last_name),
        rep:users!sales_rep_id_fkey(id, name)`
 
@@ -127,6 +165,7 @@ export default async function SalesPage({
     paid_at: string | null
     created_at: string
     notes: string | null
+    brand_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
   }
@@ -142,7 +181,8 @@ export default async function SalesPage({
       .order("paid_at", { ascending: false })
       .limit(100)
     if (role === "rep") q = q.eq("rep_id", userId)
-    if (brandId) q = q.eq("brand_id", brandId)
+    if (allMode) q = q.in("brand_id", authorizedBrandIds.length ? authorizedBrandIds : ["00000000-0000-0000-0000-000000000000"])
+    else if (brandId) q = q.eq("brand_id", brandId)
     if (leadIdsFilter) q = q.in("lead_id", leadIdsFilter)
     const { data } = await q
     return (data ?? []) as SaleRow[]
@@ -180,7 +220,8 @@ export default async function SalesPage({
       .in("payment_status", ["partial", "pending"])
       .order("created_at", { ascending: false })
     if (role === "rep") q = q.eq("rep_id", userId)
-    if (brandId) q = q.eq("brand_id", brandId)
+    if (allMode) q = q.in("brand_id", authorizedBrandIds.length ? authorizedBrandIds : ["00000000-0000-0000-0000-000000000000"])
+    else if (brandId) q = q.eq("brand_id", brandId)
     if (leadIdsFilter) q = q.in("lead_id", leadIdsFilter)
     const { data } = await q
     return (data ?? []) as SaleRow[]
@@ -199,7 +240,8 @@ export default async function SalesPage({
       .order("created_at", { ascending: false })
       .limit(100)
     if (role === "rep") q = q.eq("rep_id", userId)
-    if (brandId) q = q.eq("brand_id", brandId)
+    if (allMode) q = q.in("brand_id", authorizedBrandIds.length ? authorizedBrandIds : ["00000000-0000-0000-0000-000000000000"])
+    else if (brandId) q = q.eq("brand_id", brandId)
     if (leadIdsFilter) q = q.in("lead_id", leadIdsFilter)
     const { data } = await q
     return (data ?? []) as SaleRow[]
@@ -259,6 +301,7 @@ export default async function SalesPage({
     paid_at: string | null
     created_at: string
     notes: string | null
+    brand_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
   }
@@ -329,6 +372,7 @@ export default async function SalesPage({
     leadId: string
     leadName: string
     repName: string | null
+    brandId: string | null
     salesCount: number
     paidCents: number
     pendingCents: number
@@ -367,6 +411,7 @@ export default async function SalesPage({
           leadId: id,
           leadName: name,
           repName: s.rep?.name ?? null,
+          brandId: s.brand_id,
           salesCount: 1,
           paidCents: saleCollected,
           pendingCents: saleOutstanding,
@@ -513,6 +558,9 @@ export default async function SalesPage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPatient")}</th>
+                {allMode && (
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                )}
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colCollected")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutstanding")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPayments")}</th>
@@ -523,7 +571,9 @@ export default async function SalesPage({
               </tr>
             </thead>
             <tbody>
-              {patientGroups.map((p) => (
+              {patientGroups.map((p) => {
+                const brand = allMode && p.brandId ? brandsById.get(p.brandId) : null
+                return (
                 <tr key={p.leadId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="py-3 pr-4">
                     <Link href={`/leads/${p.leadId}`} className="text-gray-800 hover:text-gray-900 transition-colors font-medium">
@@ -535,6 +585,21 @@ export default async function SalesPage({
                       </Badge>
                     )}
                   </td>
+                  {allMode && (
+                    <td className="py-3 pr-4">
+                      {brand ? (
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
+                          />
+                          <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="py-3 pr-4">
                     <span className="text-emerald-600 font-medium tabular-nums">{fmtCents(p.paidCents)}</span>
                   </td>
@@ -557,7 +622,8 @@ export default async function SalesPage({
                     <span className="text-xs text-gray-400">{fmtDate(p.lastDate)}</span>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         ) : (
@@ -565,6 +631,9 @@ export default async function SalesPage({
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colLead")}</th>
+                {allMode && (
+                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                )}
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colAmount")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
                 <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colMethod")}</th>
@@ -577,6 +646,7 @@ export default async function SalesPage({
             <tbody>
               {sales.map((sale) => {
                 const cfg = STATUS_CONFIG[sale.payment_status] ?? STATUS_CONFIG.pending
+                const brand = allMode && sale.brand_id ? brandsById.get(sale.brand_id) : null
                 return (
                   <tr key={sale.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4">
@@ -588,6 +658,21 @@ export default async function SalesPage({
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
+                    {allMode && (
+                      <td className="py-3 pr-4">
+                        {brand ? (
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
+                            />
+                            <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="py-3 pr-4">
                       <span className="text-gray-900 font-medium tabular-nums">{fmtCents(sale.amount_cents)}</span>
                     </td>

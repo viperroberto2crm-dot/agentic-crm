@@ -66,7 +66,8 @@
     "clear": "Limpiar",
     "colLead": "Lead",
     "colRep": "Rep",
-    "colProvider": "Proveedor"
+    "colProvider": "Proveedor",
+    "colCompany": "Compañía"
   },
   "auth": {
     "title": "HORIZON",
