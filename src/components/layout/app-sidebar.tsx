@@ -18,6 +18,7 @@ import {
   Sparkles,
   Package,
   Sunrise,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -61,6 +62,7 @@ const ADMIN_MANAGER_ONLY_HREFS = new Set<string>(["/shipping"])
 const NAV_HREFS = [
   { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
   { key: "leads", href: "/leads", icon: Users, hasBadge: true },
+  { key: "intake", href: "/intake", icon: ClipboardList },
   { key: "calls", href: "/calls", icon: Phone },
   { key: "appointments", href: "/appointments", icon: CalendarDays },
   { key: "shipping", href: "/shipping", icon: Package, hasBadge: true },

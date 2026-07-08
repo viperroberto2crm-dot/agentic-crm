@@ -16,6 +16,7 @@ import {
   type ExternalAppointment,
 } from "./_components/external-payments-card"
 import { JustCreatedBanner } from "./_components/just-created-banner"
+import { IntakeCard, extractIntakeData } from "./_components/intake-card"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
 
@@ -103,6 +104,8 @@ export default async function LeadDetailPage({
   const readyToShip = ((readyToShipCount as number | null) ?? 0) > 0
 
   if (!lead) notFound()
+
+  const intakeData = extractIntakeData(lead.custom_fields)
 
   const role = (profileRes.data?.role ?? "rep") as string
 
@@ -249,6 +252,14 @@ export default async function LeadDetailPage({
           </Card>
         </div>
       </div>
+
+      {intakeData && (
+        <Card className="bg-white border-border/60">
+          <CardContent className="pt-5">
+            <IntakeCard data={intakeData} />
+          </CardContent>
+        </Card>
+      )}
 
       {lead.brand_id && role !== "provider" && (
         <Card className="bg-white border-border/60">
