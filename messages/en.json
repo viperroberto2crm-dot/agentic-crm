@@ -43,7 +43,12 @@
     "preferredLanguage": "Preferred language",
     "langEs": "Spanish",
     "langEn": "English",
-    "intakeDate": "Intake date"
+    "intakeDate": "Intake date",
+    "linksTitle": "Intake links (tablet / QR)",
+    "linksSubtitle": "Open or print a form per clinic for the front desk / waiting room.",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "openForm": "Open form"
   },
   "common": {
     "save": "Save",

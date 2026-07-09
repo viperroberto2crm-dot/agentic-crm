@@ -43,7 +43,12 @@
     "preferredLanguage": "Idioma preferido",
     "langEs": "Español",
     "langEn": "Inglés",
-    "intakeDate": "Fecha de admisión"
+    "intakeDate": "Fecha de admisión",
+    "linksTitle": "Enlaces de intake (tablet / QR)",
+    "linksSubtitle": "Abre o imprime una forma por clínica para recepción / sala de espera.",
+    "copyLink": "Copiar enlace",
+    "copied": "Copiado",
+    "openForm": "Abrir forma"
   },
   "common": {
     "save": "Guardar",
