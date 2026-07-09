@@ -60,21 +60,32 @@ export default async function StaffIntakePage() {
   const h = await headers()
   const host = h.get("host") ?? ""
   const proto = h.get("x-forwarded-proto") ?? "https"
-  const linkItems: IntakeLinkItem[] = host
-    ? await Promise.all(
-        eligible.map(async (b): Promise<IntakeLinkItem> => {
-          const url = `${proto}://${host}/intake/${b.slug}`
-          const qrDataUrl = await QRCode.toDataURL(url, { width: 176, margin: 1 })
-          return {
-            slug: b.slug,
-            name: b.name,
-            color: colorBySlug.get(b.slug) ?? FALLBACK_COLORS[b.slug] ?? "#0E5F4C",
-            url,
-            qrDataUrl,
-          }
-        }),
-      )
-    : []
+  let linkItems: IntakeLinkItem[] = []
+  if (host) {
+    // Landing selector (/admision): un QR que abre la pantalla para elegir clínica.
+    const hubUrl = `${proto}://${host}/admision`
+    const hub: IntakeLinkItem = {
+      slug: "__selector__",
+      name: t("selectorAll"),
+      color: "#0E5F4C",
+      url: hubUrl,
+      qrDataUrl: await QRCode.toDataURL(hubUrl, { width: 176, margin: 1 }),
+    }
+    const perClinic = await Promise.all(
+      eligible.map(async (b): Promise<IntakeLinkItem> => {
+        const url = `${proto}://${host}/intake/${b.slug}`
+        const qrDataUrl = await QRCode.toDataURL(url, { width: 176, margin: 1 })
+        return {
+          slug: b.slug,
+          name: b.name,
+          color: colorBySlug.get(b.slug) ?? FALLBACK_COLORS[b.slug] ?? "#0E5F4C",
+          url,
+          qrDataUrl,
+        }
+      }),
+    )
+    linkItems = [hub, ...perClinic]
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-4">

@@ -48,7 +48,8 @@
     "linksSubtitle": "Abre o imprime una forma por clínica para recepción / sala de espera.",
     "copyLink": "Copiar enlace",
     "copied": "Copiado",
-    "openForm": "Abrir forma"
+    "openForm": "Abrir forma",
+    "selectorAll": "Selector - todas las clínicas"
   },
   "common": {
     "save": "Guardar",
