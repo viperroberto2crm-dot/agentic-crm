@@ -100,6 +100,26 @@ export default async function AppLayout({
     shippingPendingCount = (count as number | null) ?? 0
   }
 
+  // Externos sin vincular (pagos + citas de Square/Stripe con lead_id null).
+  // SOLO admin (la lista tiene PII cross-brand). Mismo patrón head:true.
+  let unlinkedCount = 0
+  if (profile.role === "admin") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sbAny = supabase as any
+    const [{ count: payCount }, { count: apptCount }] = await Promise.all([
+      sbAny
+        .from("external_payments")
+        .select("id", { count: "exact", head: true })
+        .is("lead_id", null),
+      sbAny
+        .from("external_appointments")
+        .select("id", { count: "exact", head: true })
+        .is("lead_id", null),
+    ])
+    unlinkedCount =
+      ((payCount as number | null) ?? 0) + ((apptCount as number | null) ?? 0)
+  }
+
   // Pending agent-actions count (solo admin/manager ven la bandeja)
   let pendingCount = 0
   if (profile.role === "admin" || profile.role === "manager") {
@@ -140,6 +160,7 @@ export default async function AppLayout({
       leadCount={leadCount ?? 0}
       taskCount={taskCount}
       shippingPendingCount={shippingPendingCount}
+      unlinkedCount={unlinkedCount}
       urgentTasks={urgentTasks}
       unreadCount={unreadCount ?? 0}
       pendingCount={pendingCount}

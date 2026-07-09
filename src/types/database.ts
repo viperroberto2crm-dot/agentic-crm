@@ -1703,6 +1703,44 @@ export type Database = {
           { foreignKeyName: "external_appointments_lead_id_fkey"; columns: ["lead_id"]; referencedRelation: "leads"; referencedColumns: ["id"] }
         ]
       }
+      offer_brand_map: {
+        Row: {
+          id: string
+          provider: string
+          offer_key: string
+          offer_label: string | null
+          brand_id: string
+          active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          offer_key: string
+          offer_label?: string | null
+          brand_id: string
+          active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          offer_key?: string
+          offer_label?: string | null
+          brand_id?: string
+          active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "offer_brand_map_brand_id_fkey"; columns: ["brand_id"]; referencedRelation: "brands"; referencedColumns: ["id"] }
+        ]
+      }
       pb_appointments: {
         Row: {
           id: string

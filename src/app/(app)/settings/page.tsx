@@ -17,6 +17,10 @@ import {
   type TrackingNumberRow,
   type BrandOption,
 } from "./_components/tracking-numbers-tab"
+import {
+  OfferBrandMapTab,
+  type OfferMapRow,
+} from "./_components/offer-brand-map-tab"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -55,6 +59,7 @@ export default async function SettingsPage({
   if (role !== "admin" && tab === "clinicas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "marcas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "tracking") redirect("/settings?tab=perfil")
+  if (role !== "admin" && tab === "ofertas") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -144,6 +149,28 @@ export default async function SettingsPage({
     }
   }
 
+  // ── Offer → brand map (admin) ───────────────────────────────────────────────
+  let offerMaps: OfferMapRow[] = []
+  let offerBrands: BrandOption[] = []
+  if (role === "admin") {
+    try {
+      const admin = createAdminClient()
+      const { data: omData, error: omErr } = await admin
+        .from("offer_brand_map")
+        .select("*")
+        .order("active", { ascending: false })
+        .order("created_at", { ascending: false })
+      if (omErr) console.error("[settings] offer_brand_map query error:", omErr.message)
+      offerMaps = (omData ?? []) as OfferMapRow[]
+      // Solo marcas activas para asignar ofertas nuevas.
+      offerBrands = (allBrands ?? [])
+        .filter((b) => b.active !== false)
+        .map((b) => ({ id: b.id, name: b.name }))
+    } catch (e) {
+      console.error("[settings] offer_brand_map fetch threw:", e)
+    }
+  }
+
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
     try {
@@ -176,6 +203,7 @@ export default async function SettingsPage({
         { value: "clinicas", label: t("tabClinicas") },
         { value: "marcas", label: t("tabMarcas") },
         { value: "tracking", label: t("tabTracking") },
+        { value: "ofertas", label: t("tabOfertas") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -245,6 +273,13 @@ export default async function SettingsPage({
           <TrackingNumbersTab
             trackingNumbers={trackingNumbers}
             brands={trackingBrands}
+            defaultBrandId={brandId}
+          />
+        )}
+        {tab === "ofertas" && role === "admin" && (
+          <OfferBrandMapTab
+            offerMaps={offerMaps}
+            brands={offerBrands}
             defaultBrandId={brandId}
           />
         )}

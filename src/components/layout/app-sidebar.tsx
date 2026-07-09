@@ -19,6 +19,7 @@ import {
   Package,
   Sunrise,
   ClipboardList,
+  Inbox,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -48,6 +49,7 @@ export type AppSidebarProps = {
   leadCount: number
   taskCount: number
   shippingPendingCount: number
+  unlinkedCount: number
   urgentTasks: boolean
   userRole: UserRole
   onOpenCommand: () => void
@@ -56,8 +58,17 @@ export type AppSidebarProps = {
 // Providers tienen una vista restringida: solo Appointments y Leads.
 const PROVIDER_ALLOWED_HREFS = new Set<string>(["/appointments", "/leads"])
 
-// Shipping solo lo ven admin y manager (no rep, no provider).
-const ADMIN_MANAGER_ONLY_HREFS = new Set<string>(["/shipping"])
+// Shipping lo ven admin y manager (no rep, no provider).
+const ADMIN_MANAGER_ONLY_HREFS = new Set<string>([
+  "/shipping",
+])
+
+// Externos sin vincular: SOLO admin. Contiene PII (nombre/tel/email) de pagos y
+// citas de TODAS las clínicas sin marca resuelta, así que un manager (de una sola
+// clínica) NO debe verlos — evita fuga de datos entre clínicas.
+const ADMIN_ONLY_HREFS = new Set<string>([
+  "/admin/external-unlinked",
+])
 
 const NAV_HREFS = [
   { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -66,6 +77,7 @@ const NAV_HREFS = [
   { key: "calls", href: "/calls", icon: Phone },
   { key: "appointments", href: "/appointments", icon: CalendarDays },
   { key: "shipping", href: "/shipping", icon: Package, hasBadge: true },
+  { key: "externalUnlinked", href: "/admin/external-unlinked", icon: Inbox, hasBadge: true },
   { key: "sales", href: "/sales", icon: DollarSign },
   { key: "paymentsDue", href: "/payments-due", icon: CalendarClock },
   { key: "tasks", href: "/tasks", icon: CheckSquare, hasBadge: true },
@@ -169,6 +181,7 @@ function SidebarContent({
   leadCount,
   taskCount,
   shippingPendingCount,
+  unlinkedCount,
   urgentTasks,
   userRole,
   onOpenCommand,
@@ -190,16 +203,22 @@ function SidebarContent({
         ? taskCount
         : item.href === "/shipping" && shippingPendingCount > 0
         ? shippingPendingCount
+        : item.href === "/admin/external-unlinked" && unlinkedCount > 0
+        ? unlinkedCount
         : undefined,
     urgent:
       item.href === "/tasks"
         ? urgentTasks
         : item.href === "/shipping"
         ? shippingPendingCount > 0
+        : item.href === "/admin/external-unlinked"
+        ? unlinkedCount > 0
         : undefined,
     badgeTooltip: undefined,
   })).filter((item) => {
     if (isProvider) return PROVIDER_ALLOWED_HREFS.has(item.href)
+    // Externos sin vincular: SOLO admin (PII cross-brand)
+    if (ADMIN_ONLY_HREFS.has(item.href) && userRole !== "admin") return false
     // Shipping solo para admin/manager
     if (ADMIN_MANAGER_ONLY_HREFS.has(item.href) && !isAdminOrManager) return false
     return true
