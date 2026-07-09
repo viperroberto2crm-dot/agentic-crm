@@ -2,40 +2,12 @@
 
 import { useTranslations } from "next-intl"
 import { ClipboardList } from "lucide-react"
+import type { IntakeData } from "./intake-data"
 
 // Card de solo lectura: muestra los datos demográficos capturados en la
 // admisión en clínica (leads.custom_fields). NO muestra datos médicos/PHI.
-
-export type IntakeData = {
-  dob?: string | null
-  gender?: string | null
-  identifies_as?: string | null
-  occupation?: string | null
-  marital_status?: string | null
-  preferred_language?: string | null
-}
-
-/** Extrae los campos de intake de un custom_fields (jsonb) desconocido. */
-export function extractIntakeData(customFields: unknown): IntakeData | null {
-  if (!customFields || typeof customFields !== "object" || Array.isArray(customFields)) {
-    return null
-  }
-  const cf = customFields as Record<string, unknown>
-  const pick = (k: string): string | null => {
-    const v = cf[k]
-    return typeof v === "string" && v.trim().length > 0 ? v : null
-  }
-  const data: IntakeData = {
-    dob: pick("dob"),
-    gender: pick("gender"),
-    identifies_as: pick("identifies_as"),
-    occupation: pick("occupation"),
-    marital_status: pick("marital_status"),
-    preferred_language: pick("preferred_language"),
-  }
-  const hasAny = Object.values(data).some((v) => v)
-  return hasAny ? data : null
-}
+// El tipo IntakeData y el extractor extractIntakeData viven en ./intake-data
+// (archivo NO-cliente) porque el server component los usa.
 
 export function IntakeCard({ data }: { data: IntakeData }) {
   const t = useTranslations("intake")
