@@ -136,6 +136,69 @@ const EMPTY: FormState = {
   preferred_language: "",
 }
 
+// IMPORTANTE: Field y Segmented viven a NIVEL DE MÓDULO (no dentro de IntakeForm).
+// Si se definen dentro del componente, React los re-crea en cada render (cada
+// tecla) y remonta los <input> → el campo pierde el foco tras la primera letra.
+function Field({
+  label,
+  required,
+  labelClassName,
+  children,
+}: {
+  label: string
+  required?: boolean
+  labelClassName: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className={labelClassName}>
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+function Segmented({
+  options,
+  value,
+  onChange,
+  isPublic,
+  accent,
+}: {
+  options: { value: string; label: string }[]
+  value: string
+  onChange: (v: string) => void
+  isPublic: boolean
+  accent: string
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const active = value === o.value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(active ? "" : o.value)}
+            aria-pressed={active}
+            className={[
+              "rounded-xl border transition-colors",
+              isPublic ? "h-12 px-5 text-base" : "h-9 px-3.5 text-sm",
+              active ? "text-white border-transparent" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
+            ].join(" ")}
+            style={active ? { backgroundColor: accent } : undefined}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function IntakeForm({
   action,
   mode,
@@ -264,58 +327,6 @@ export function IntakeForm({
 
   const ringStyle = { ["--tw-ring-color" as string]: accent } as React.CSSProperties
 
-  function Field({
-    label,
-    required,
-    children,
-  }: {
-    label: string
-    required?: boolean
-    children: React.ReactNode
-  }) {
-    return (
-      <div className="space-y-1.5">
-        <label className={labelCls}>
-          {label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
-        {children}
-      </div>
-    )
-  }
-
-  const Segmented = ({
-    options,
-    value,
-    onChange,
-  }: {
-    options: { value: string; label: string }[]
-    value: string
-    onChange: (v: string) => void
-  }) => (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => {
-        const active = value === o.value
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(active ? "" : o.value)}
-            aria-pressed={active}
-            className={[
-              "rounded-xl border transition-colors",
-              isPublic ? "h-12 px-5 text-base" : "h-9 px-3.5 text-sm",
-              active ? "text-white border-transparent" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
-            ].join(" ")}
-            style={active ? { backgroundColor: accent } : undefined}
-          >
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-
   const genderOpts = [
     { value: "F", label: t.genderF },
     { value: "M", label: t.genderM },
@@ -373,7 +384,7 @@ export function IntakeForm({
 
       {/* Brand selector (internal only, when >1 option) */}
       {!brandSlug && brands && (
-        <Field label={t.clinic} required>
+        <Field label={t.clinic} required labelClassName={labelCls}>
           <select
             value={selectedBrand}
             onChange={(e) => setSelectedBrand(e.target.value)}
@@ -391,7 +402,7 @@ export function IntakeForm({
       )}
 
       <div className={isPublic ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}>
-        <Field label={t.firstName} required>
+        <Field label={t.firstName} required labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -400,7 +411,7 @@ export function IntakeForm({
             autoComplete="given-name"
           />
         </Field>
-        <Field label={t.lastName}>
+        <Field label={t.lastName} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -409,7 +420,7 @@ export function IntakeForm({
             autoComplete="family-name"
           />
         </Field>
-        <Field label={t.phone} required>
+        <Field label={t.phone} required labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -420,7 +431,7 @@ export function IntakeForm({
             autoComplete="tel"
           />
         </Field>
-        <Field label={t.email}>
+        <Field label={t.email} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -431,7 +442,7 @@ export function IntakeForm({
             autoComplete="email"
           />
         </Field>
-        <Field label={t.dob}>
+        <Field label={t.dob} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -440,7 +451,7 @@ export function IntakeForm({
             onChange={(e) => set("dob", e.target.value)}
           />
         </Field>
-        <Field label={t.occupation}>
+        <Field label={t.occupation} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -450,11 +461,11 @@ export function IntakeForm({
         </Field>
       </div>
 
-      <Field label={t.gender}>
-        <Segmented options={genderOpts} value={form.gender} onChange={(v) => set("gender", v as GenderVal | "")} />
+      <Field label={t.gender} labelClassName={labelCls}>
+        <Segmented options={genderOpts} value={form.gender} onChange={(v) => set("gender", v as GenderVal | "")} isPublic={isPublic} accent={accent} />
       </Field>
 
-      <Field label={t.identifiesAs}>
+      <Field label={t.identifiesAs} labelClassName={labelCls}>
         <input
           className={inputCls}
           style={ringStyle}
@@ -463,15 +474,17 @@ export function IntakeForm({
         />
       </Field>
 
-      <Field label={t.maritalStatus}>
+      <Field label={t.maritalStatus} labelClassName={labelCls}>
         <Segmented
           options={maritalOpts}
           value={form.marital_status}
           onChange={(v) => set("marital_status", v as MaritalVal | "")}
+          isPublic={isPublic}
+          accent={accent}
         />
       </Field>
 
-      <Field label={t.address}>
+      <Field label={t.address} labelClassName={labelCls}>
         <input
           className={inputCls}
           style={ringStyle}
@@ -482,7 +495,7 @@ export function IntakeForm({
       </Field>
 
       <div className={isPublic ? "grid grid-cols-1 sm:grid-cols-3 gap-4" : "grid grid-cols-1 sm:grid-cols-3 gap-3"}>
-        <Field label={t.city}>
+        <Field label={t.city} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -491,7 +504,7 @@ export function IntakeForm({
             autoComplete="address-level2"
           />
         </Field>
-        <Field label={t.state}>
+        <Field label={t.state} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -500,7 +513,7 @@ export function IntakeForm({
             autoComplete="address-level1"
           />
         </Field>
-        <Field label={t.zip}>
+        <Field label={t.zip} labelClassName={labelCls}>
           <input
             className={inputCls}
             style={ringStyle}
@@ -512,11 +525,13 @@ export function IntakeForm({
         </Field>
       </div>
 
-      <Field label={t.preferredLanguage}>
+      <Field label={t.preferredLanguage} labelClassName={labelCls}>
         <Segmented
           options={langOpts}
           value={form.preferred_language}
           onChange={(v) => set("preferred_language", v as Lang | "")}
+          isPublic={isPublic}
+          accent={accent}
         />
       </Field>
 
