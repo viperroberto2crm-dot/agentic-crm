@@ -20,6 +20,7 @@ import {
   Sunrise,
   ClipboardList,
   Inbox,
+  Receipt,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -68,6 +69,7 @@ const ADMIN_MANAGER_ONLY_HREFS = new Set<string>([
 // clínica) NO debe verlos — evita fuga de datos entre clínicas.
 const ADMIN_ONLY_HREFS = new Set<string>([
   "/admin/external-unlinked",
+  "/admin/external-activity",
 ])
 
 const NAV_HREFS = [
@@ -78,6 +80,7 @@ const NAV_HREFS = [
   { key: "appointments", href: "/appointments", icon: CalendarDays },
   { key: "shipping", href: "/shipping", icon: Package, hasBadge: true },
   { key: "externalUnlinked", href: "/admin/external-unlinked", icon: Inbox, hasBadge: true },
+  { key: "externalActivity", href: "/admin/external-activity", icon: Receipt, hasBadge: false },
   { key: "sales", href: "/sales", icon: DollarSign },
   { key: "paymentsDue", href: "/payments-due", icon: CalendarClock },
   { key: "tasks", href: "/tasks", icon: CheckSquare, hasBadge: true },
