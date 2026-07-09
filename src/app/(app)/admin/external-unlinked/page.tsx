@@ -13,6 +13,7 @@ import {
   type UnlinkedAppointmentRow,
 } from "./_components/unlinked-appointments-table"
 import type { BrandOption } from "./_components/link-lead-dialog"
+import { ImportSquareBookingsButton } from "./_components/import-square-bookings-button"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -104,6 +105,7 @@ export default async function ExternalUnlinkedPage() {
         <h2 className="text-sm font-semibold text-foreground">
           {t("appointmentsHeading", { count: appointments.length })}
         </h2>
+        <ImportSquareBookingsButton />
         <UnlinkedAppointmentsTable
           appointments={appointments}
           brands={brands}
