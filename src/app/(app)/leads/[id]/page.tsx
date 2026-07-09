@@ -22,7 +22,32 @@ import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
 
-export default async function LeadDetailPage({
+// DIAGNÓSTICO TEMPORAL: envuelve el render para mostrar el error REAL en pantalla
+// (Vercel no expone los logs por MCP). Quitar cuando se identifique el bug.
+export default async function LeadDetailPage(props: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ created?: string }>
+}) {
+  try {
+    return await renderLeadDetail(props)
+  } catch (e) {
+    const digest = (e as { digest?: string })?.digest
+    // Re-lanzar el control de flujo de Next (redirect / notFound), no es un bug.
+    if (typeof digest === "string" && (digest.startsWith("NEXT_REDIRECT") || digest === "NEXT_NOT_FOUND")) {
+      throw e
+    }
+    const err = e as Error
+    return (
+      <pre style={{ whiteSpace: "pre-wrap", padding: 16, fontSize: 12, color: "#b91c1c", fontFamily: "monospace" }}>
+        {"DIAGNÓSTICO (temporal) — error real al renderizar la ficha:\n\n"}
+        {(err?.message ?? String(e)) + "\n\n"}
+        {err?.stack ?? ""}
+      </pre>
+    )
+  }
+}
+
+async function renderLeadDetail({
   params,
   searchParams,
 }: {
