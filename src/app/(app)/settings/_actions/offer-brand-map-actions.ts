@@ -248,3 +248,113 @@ export async function pullSquareServices(): Promise<
     return { ok: true, services: [] }
   }
 }
+
+// ── Jalar precios de Stripe (REST API) ───────────────────────────────────────
+
+export type StripePriceOption = { priceId: string; name: string }
+
+// Tipo parcial y tolerante a campos extra del objeto Price de Stripe.
+type StripePriceProduct = {
+  id?: string
+  name?: string
+  [k: string]: unknown
+}
+type StripePriceObject = {
+  id?: string
+  nickname?: string | null
+  unit_amount?: number | null
+  currency?: string
+  recurring?: { interval?: string; interval_count?: number } | null
+  // `product` viene expandido (objeto) o como string (id) si no se expande.
+  product?: StripePriceProduct | string
+  [k: string]: unknown
+}
+type StripePriceListResponse = {
+  data?: StripePriceObject[]
+  has_more?: boolean
+  [k: string]: unknown
+}
+
+// Formatea el monto de un price (centavos → "$X.XX"), tolerante a moneda.
+function formatStripeAmount(unitAmount: number | null | undefined, currency: string | undefined): string {
+  if (typeof unitAmount !== "number" || !isFinite(unitAmount)) return ""
+  const amount = (unitAmount / 100).toFixed(2)
+  const cur = (currency ?? "usd").toUpperCase()
+  const symbol = cur === "USD" ? "$" : ""
+  return symbol ? `${symbol}${amount}` : `${amount} ${cur}`
+}
+
+// Arma un label legible: "<producto> — $X.XX/month" (o sin intervalo si es one-time).
+function buildStripeLabel(price: StripePriceObject): string {
+  let productName: string | null = null
+  if (price.product && typeof price.product === "object") {
+    productName = price.product.name ?? null
+  }
+  const base = productName || price.nickname || price.id || "Precio"
+  const amount = formatStripeAmount(price.unit_amount, price.currency)
+  const interval = price.recurring?.interval
+  if (amount && interval) return `${base} — ${amount}/${interval}`
+  if (amount) return `${base} — ${amount}`
+  return base
+}
+
+/**
+ * Lista los precios ACTIVOS de Stripe (Prices API) con su producto expandido,
+ * devolviendo una fila por price (id + label legible).
+ * Si no hay STRIPE_SECRET_KEY o la llamada falla, devuelve [] — NO bloquea.
+ * Endpoint verificado (context7 /stripe/stripe-node):
+ *   GET https://api.stripe.com/v1/prices?limit=100&active=true&expand[]=data.product
+ *   Paginación por cursor: starting_after=<último id> mientras has_more sea true.
+ */
+export async function pullStripePrices(): Promise<
+  { ok: true; prices: StripePriceOption[] } | { ok: false; error: string }
+> {
+  const guard = await assertAdmin()
+  if (!guard.ok) return guard
+
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) return { ok: true, prices: [] }
+
+  try {
+    const prices: StripePriceOption[] = []
+    let startingAfter: string | undefined = undefined
+    // Tope defensivo de 20 páginas (20 × 100 = 2000 precios).
+    for (let page = 0; page < 20; page++) {
+      const params = new URLSearchParams({ limit: "100", active: "true" })
+      params.append("expand[]", "data.product")
+      if (startingAfter) params.set("starting_after", startingAfter)
+
+      const res: Response = await fetch(
+        `https://api.stripe.com/v1/prices?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            Accept: "application/json",
+          },
+        },
+      )
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        console.error("[pullStripePrices] Stripe", res.status, text.slice(0, 200))
+        break
+      }
+      const json = (await res.json()) as StripePriceListResponse
+      const data = json.data ?? []
+      for (const price of data) {
+        if (!price.id) continue
+        prices.push({ priceId: price.id, name: buildStripeLabel(price) })
+      }
+      if (!json.has_more || data.length === 0) break
+      startingAfter = data[data.length - 1]?.id
+      if (!startingAfter) break
+    }
+    return { ok: true, prices }
+  } catch (e) {
+    console.error(
+      "[pullStripePrices] threw:",
+      e instanceof Error ? e.message : String(e),
+    )
+    return { ok: true, prices: [] }
+  }
+}

@@ -865,9 +865,12 @@
       "deactivating": "Deactivating…",
       "unknownError": "Unknown error",
       "pullSquare": "Pull Square services",
+      "pullStripe": "Pull Stripe prices",
       "pulling": "Pulling…",
       "squareServicesTitle": "{count, plural, one {# Square service} other {# Square services}}",
       "squareServicesEmpty": "No appointment services found in Square (or no token configured).",
+      "stripePricesTitle": "{count, plural, one {# Stripe price} other {# Stripe prices}}",
+      "stripePricesEmpty": "No active prices found in Stripe (or no key configured).",
       "alreadyMapped": "Mapped"
     }
   },

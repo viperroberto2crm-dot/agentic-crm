@@ -865,9 +865,12 @@
       "deactivating": "Desactivando…",
       "unknownError": "Error desconocido",
       "pullSquare": "Jalar servicios de Square",
+      "pullStripe": "Jalar precios de Stripe",
       "pulling": "Jalando…",
       "squareServicesTitle": "{count, plural, one {# servicio de Square} other {# servicios de Square}}",
       "squareServicesEmpty": "No se encontraron servicios de citas en Square (o no hay token configurado).",
+      "stripePricesTitle": "{count, plural, one {# precio de Stripe} other {# precios de Stripe}}",
+      "stripePricesEmpty": "No se encontraron precios activos en Stripe (o no hay llave configurada).",
       "alreadyMapped": "Mapeado"
     }
   },

@@ -16,8 +16,10 @@ import { OfferBrandMapDialog } from "./offer-brand-map-dialog"
 import {
   toggleOfferMapActive,
   pullSquareServices,
+  pullStripePrices,
   createOfferMap,
   type SquareServiceOption,
+  type StripePriceOption,
 } from "../_actions/offer-brand-map-actions"
 
 export type OfferMapRow = {
@@ -59,6 +61,12 @@ export function OfferBrandMapTab({ offerMaps, brands, defaultBrandId }: Props) {
   const [pullError, setPullError] = useState<string | null>(null)
   const [serviceBrand, setServiceBrand] = useState<Record<string, string>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
+
+  // Stripe pull
+  const [pullingStripe, setPullingStripe] = useState(false)
+  const [stripePrices, setStripePrices] = useState<StripePriceOption[] | null>(null)
+  const [priceBrand, setPriceBrand] = useState<Record<string, string>>({})
+  const [savingPriceKey, setSavingPriceKey] = useState<string | null>(null)
 
   const brandMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -129,6 +137,44 @@ export function OfferBrandMapTab({ offerMaps, brands, defaultBrandId }: Props) {
     }
   }
 
+  async function handlePullStripe() {
+    setPullingStripe(true)
+    setPullError(null)
+    try {
+      const res = await pullStripePrices()
+      if (!res.ok) {
+        setPullError(res.error)
+        setStripePrices([])
+        return
+      }
+      setStripePrices(res.prices)
+    } finally {
+      setPullingStripe(false)
+    }
+  }
+
+  async function handleAssignPrice(price: StripePriceOption) {
+    const brandId = priceBrand[price.priceId]
+    if (!brandId) return
+    setSavingPriceKey(price.priceId)
+    try {
+      const res = await createOfferMap({
+        provider: "stripe",
+        offer_key: price.priceId,
+        offer_label: price.name,
+        brand_id: brandId,
+        active: true,
+      })
+      if (!res.ok) {
+        setPullError(res.error)
+        return
+      }
+      startTransition(() => router.refresh())
+    } finally {
+      setSavingPriceKey(null)
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -173,6 +219,16 @@ export function OfferBrandMapTab({ offerMaps, brands, defaultBrandId }: Props) {
           >
             <Download className="w-3.5 h-3.5" />
             {pulling ? t("pulling") : t("pullSquare")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handlePullStripe}
+            disabled={pullingStripe}
+            className="gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {pullingStripe ? t("pulling") : t("pullStripe")}
           </Button>
           <Button
             size="sm"
@@ -246,6 +302,75 @@ export function OfferBrandMapTab({ offerMaps, brands, defaultBrandId }: Props) {
                           onClick={() => handleAssignService(svc)}
                         >
                           {savingKey === svc.variationId ? tc("saving") : tc("save")}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Panel de precios de Stripe jalados */}
+      {stripePrices !== null && (
+        <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
+          <p className="text-xs font-semibold text-foreground">
+            {t("stripePricesTitle", { count: stripePrices.length })}
+          </p>
+          {stripePrices.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t("stripePricesEmpty")}</p>
+          ) : (
+            <div className="space-y-1.5">
+              {stripePrices.map((price) => {
+                const already = mappedKeys.has(`stripe:${price.priceId}`)
+                return (
+                  <div
+                    key={price.priceId}
+                    className="flex items-center gap-2 py-1.5 border-b border-border last:border-0"
+                  >
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm text-foreground truncate">
+                        {price.name}
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground font-mono truncate">
+                        {price.priceId}
+                      </span>
+                    </span>
+                    {already ? (
+                      <span className="text-xs text-emerald-600 shrink-0">
+                        {t("alreadyMapped")}
+                      </span>
+                    ) : (
+                      <>
+                        <Select
+                          value={priceBrand[price.priceId] ?? ""}
+                          onValueChange={(v) =>
+                            setPriceBrand((s) => ({ ...s, [price.priceId]: v }))
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-40 bg-white border-border text-foreground text-xs shrink-0">
+                            <SelectValue placeholder={t("brandPlaceholder")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {brands.map((b) => (
+                              <SelectItem key={b.id} value={b.id}>
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          className="h-8 px-2 text-xs shrink-0"
+                          disabled={
+                            !priceBrand[price.priceId] ||
+                            savingPriceKey === price.priceId
+                          }
+                          onClick={() => handleAssignPrice(price)}
+                        >
+                          {savingPriceKey === price.priceId ? tc("saving") : tc("save")}
                         </Button>
                       </>
                     )}
