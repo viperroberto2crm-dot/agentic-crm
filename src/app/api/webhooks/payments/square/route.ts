@@ -104,6 +104,28 @@ async function contactFor(directEmail: string | null, customerId: string | undef
   return { email, phone, name, address, customer }
 }
 
+/**
+ * Vínculo ya establecido en el registro externo — para NO pisarlo cuando llega
+ * un payment.updated/booking.updated (Fable #1). Si el registro ya tiene
+ * lead_id, se conserva (no se re-rutea ni se borra). null si no existe o está
+ * sin vincular.
+ */
+async function existingLink(
+  sb: DB,
+  table: "external_payments" | "external_appointments",
+  externalId: string,
+): Promise<{ leadId: string; brandId: string | null } | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb as any)
+    .from(table)
+    .select("lead_id, brand_id")
+    .eq("provider", "square")
+    .eq("external_id", externalId)
+    .maybeSingle()
+  const r = data as { lead_id: string | null; brand_id: string | null } | null
+  return r?.lead_id ? { leadId: r.lead_id, brandId: r.brand_id } : null
+}
+
 export async function POST(request: Request) {
   // 1) Cuerpo CRUDO (necesario para verificar la firma)
   const rawBody = await request.text()
@@ -138,6 +160,9 @@ export async function POST(request: Request) {
       if (!payment?.id) return NextResponse.json({ ok: true, ignored: "no payment" })
 
       const c = await contactFor(payment.buyer_email_address ?? null, payment.customer_id)
+      // Fable #1: si el pago YA tiene lead (manual/previo), se conserva; un
+      // payment.updated NO debe re-rutear ni borrar el vínculo.
+      const prev = await existingLink(sb, "external_payments", payment.id)
       let match = await resolveLead(sb, c.email, c.phone)
       const p = payment as SquarePayment
 
@@ -154,7 +179,7 @@ export async function POST(request: Request) {
 
       // Ruteo automático: SOLO si no matcheó un lead existente. Con flags OFF,
       // routeAndCreateLead devuelve null → comportamiento idéntico al de hoy.
-      if (!match) {
+      if (!match && !prev) {
         const routed = await routeAndCreateLead(sb, {
           provider: "square",
           candidateKeys: itemCatalogIds,
@@ -168,8 +193,8 @@ export async function POST(request: Request) {
 
       const row = {
         provider: "square",
-        brand_id: match?.brandId ?? null,
-        lead_id: match?.leadId ?? null,
+        brand_id: prev ? prev.brandId : (match?.brandId ?? null),
+        lead_id: prev ? prev.leadId : (match?.leadId ?? null),
         external_id: payment.id,
         event_id: event.event_id ?? null,
         amount_cents: typeof p.amount_money?.amount === "number" ? p.amount_money.amount : 0,
@@ -203,12 +228,14 @@ export async function POST(request: Request) {
       if (!booking?.id) return NextResponse.json({ ok: true, ignored: "no booking" })
 
       const c = await contactFor(null, booking.customer_id)
+      // Fable #1: conservar el vínculo ya establecido; booking.updated no re-rutea.
+      const prev = await existingLink(sb, "external_appointments", booking.id)
       let match = await resolveLead(sb, c.email, c.phone)
       const b = booking as SquareBooking
       const seg = b.appointment_segments?.[0]
 
       // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
-      if (!match) {
+      if (!match && !prev) {
         const routed = await routeAndCreateLead(sb, {
           provider: "square",
           candidateKeys: [seg?.service_variation_id].filter(
@@ -222,8 +249,8 @@ export async function POST(request: Request) {
 
       const row = {
         provider: "square",
-        brand_id: match?.brandId ?? null,
-        lead_id: match?.leadId ?? null,
+        brand_id: prev ? prev.brandId : (match?.brandId ?? null),
+        lead_id: prev ? prev.leadId : (match?.leadId ?? null),
         external_id: booking.id,
         event_id: event.event_id ?? null,
         status: normalizeBookingStatus(b.status),

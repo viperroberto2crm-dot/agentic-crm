@@ -81,6 +81,25 @@ async function upsertPayment(
   return { error: error?.message }
 }
 
+/**
+ * Vínculo ya establecido en external_payments — para NO pisarlo cuando llega un
+ * evento *.updated / renovación (Fable #1). Si ya tiene lead_id, se conserva.
+ */
+async function existingLink(
+  sb: DB,
+  externalId: string,
+): Promise<{ leadId: string; brandId: string | null } | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb as any)
+    .from("external_payments")
+    .select("lead_id, brand_id")
+    .eq("provider", "stripe")
+    .eq("external_id", externalId)
+    .maybeSingle()
+  const r = data as { lead_id: string | null; brand_id: string | null } | null
+  return r?.lead_id ? { leadId: r.lead_id, brandId: r.brand_id } : null
+}
+
 export async function POST(request: Request) {
   const rawBody = await request.text()
 
@@ -118,10 +137,11 @@ export async function POST(request: Request) {
 
       const email = s.customer_details?.email?.trim().toLowerCase() ?? null
       const phone = s.customer_details?.phone ? normalizeToE164(s.customer_details.phone) || null : null
+      const prev = await existingLink(sb, s.id)
       let match = await resolveLead(sb, email, phone)
 
       // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
-      if (!match) {
+      if (!match && !prev) {
         const routed = await routeAndCreateLead(sb, {
           provider: "stripe",
           candidateKeys: [s.payment_link].filter((v): v is string => Boolean(v)),
@@ -139,8 +159,8 @@ export async function POST(request: Request) {
 
       const row = {
         provider: "stripe",
-        brand_id: match?.brandId ?? null,
-        lead_id: match?.leadId ?? null,
+        brand_id: prev ? prev.brandId : (match?.brandId ?? null),
+        lead_id: prev ? prev.leadId : (match?.leadId ?? null),
         external_id: s.id,
         event_id: event.id ?? null,
         amount_cents: typeof s.amount_total === "number" ? s.amount_total : 0,
@@ -169,6 +189,7 @@ export async function POST(request: Request) {
       if (!inv.id) return NextResponse.json({ ok: true, ignored: "no invoice id" })
 
       const email = inv.customer_email?.trim().toLowerCase() ?? null
+      const prev = await existingLink(sb, inv.id)
       let match = await resolveLead(sb, email, null)
 
       // Atribución de PÁGINA: la página de oferta aplica un cupón → el invoice
@@ -178,7 +199,7 @@ export async function POST(request: Request) {
       const pagina = Array.isArray(tda) && tda.length > 0 ? "Oferta (cupón)" : "Original"
 
       // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
-      if (!match) {
+      if (!match && !prev) {
         const routed = await routeAndCreateLead(sb, {
           provider: "stripe",
           candidateKeys: [
@@ -201,8 +222,8 @@ export async function POST(request: Request) {
 
       const row = {
         provider: "stripe",
-        brand_id: match?.brandId ?? null,
-        lead_id: match?.leadId ?? null,
+        brand_id: prev ? prev.brandId : (match?.brandId ?? null),
+        lead_id: prev ? prev.leadId : (match?.leadId ?? null),
         external_id: inv.id,
         event_id: event.id ?? null,
         amount_cents: typeof inv.amount_paid === "number" ? inv.amount_paid : 0,
