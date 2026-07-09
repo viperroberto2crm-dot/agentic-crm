@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import QRCode from "qrcode"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getTranslations } from "next-intl/server"
@@ -62,28 +61,20 @@ export default async function StaffIntakePage() {
   const proto = h.get("x-forwarded-proto") ?? "https"
   let linkItems: IntakeLinkItem[] = []
   if (host) {
-    // Landing selector (/admision): un QR que abre la pantalla para elegir clínica.
+    // Landing selector (/admision): abre la pantalla para elegir clínica.
     const hubUrl = `${proto}://${host}/admision`
     const hub: IntakeLinkItem = {
       slug: "__selector__",
       name: t("selectorAll"),
       color: "#0E5F4C",
       url: hubUrl,
-      qrDataUrl: await QRCode.toDataURL(hubUrl, { width: 176, margin: 1 }),
     }
-    const perClinic = await Promise.all(
-      eligible.map(async (b): Promise<IntakeLinkItem> => {
-        const url = `${proto}://${host}/intake/${b.slug}`
-        const qrDataUrl = await QRCode.toDataURL(url, { width: 176, margin: 1 })
-        return {
-          slug: b.slug,
-          name: b.name,
-          color: colorBySlug.get(b.slug) ?? FALLBACK_COLORS[b.slug] ?? "#0E5F4C",
-          url,
-          qrDataUrl,
-        }
-      }),
-    )
+    const perClinic = eligible.map((b): IntakeLinkItem => ({
+      slug: b.slug,
+      name: b.name,
+      color: colorBySlug.get(b.slug) ?? FALLBACK_COLORS[b.slug] ?? "#0E5F4C",
+      url: `${proto}://${host}/intake/${b.slug}`,
+    }))
     linkItems = [hub, ...perClinic]
   }
 

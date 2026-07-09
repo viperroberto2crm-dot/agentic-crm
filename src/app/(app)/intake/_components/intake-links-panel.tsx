@@ -12,7 +12,6 @@ export type IntakeLinkItem = {
   name: string
   color: string
   url: string
-  qrDataUrl: string
 }
 
 type Labels = {
@@ -76,14 +75,6 @@ export function IntakeLinksPanel({
             key={it.slug}
             className="flex items-center gap-4 border border-[#F2EFE9] rounded-xl p-3"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={it.qrDataUrl}
-              alt={`QR ${it.name}`}
-              width={88}
-              height={88}
-              className="shrink-0 rounded-md border border-[#F2EFE9]"
-            />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span
