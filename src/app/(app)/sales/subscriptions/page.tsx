@@ -8,6 +8,7 @@ import { getBrandIdBySlug } from "@/lib/queries/dashboard"
 import { Badge } from "@/components/ui/badge"
 import { CancelSubscriptionButton } from "./_components/cancel-button"
 import { getTranslations } from "next-intl/server"
+import { parseDbDate } from "@/lib/datetime"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -16,7 +17,9 @@ function fmtCents(cents: number) {
 }
 
 function fmtDate(d: string) {
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(d))
+  const parsed = parseDbDate(d)
+  if (!parsed) return "—"
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
 }
 
 function daysUntil(d: string) {

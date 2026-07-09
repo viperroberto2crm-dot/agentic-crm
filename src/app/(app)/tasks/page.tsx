@@ -10,6 +10,7 @@ import { NewTaskButton } from "./_components/new-task-button"
 import { TaskStatusToggle } from "./_components/task-status-toggle"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { getTranslations } from "next-intl/server"
+import { parseDbDate } from "@/lib/datetime"
 
 type TypedClient = SupabaseClient<Database>
 type TaskPriority = Database["public"]["Enums"]["task_priority"]
@@ -17,7 +18,8 @@ type TaskStatus = Database["public"]["Enums"]["task_status"]
 
 function fmtDue(d: string | null) {
   if (!d) return null
-  const date = new Date(d)
+  const date = parseDbDate(d)
+  if (!date) return { label: "—", overdue: false, soon: false }
   const now = new Date()
   const diff = date.getTime() - now.getTime()
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24))

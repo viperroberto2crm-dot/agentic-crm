@@ -20,7 +20,7 @@ const DEFAULT_LOCALE = "en-US"
  * microsegundos→milisegundos, offset "+00"→"+00:00") y reintenta. Si aún falla,
  * devuelve null y el caller muestra un fallback — NUNCA lanza.
  */
-function parseDbDate(iso: string | null | undefined): Date | null {
+export function parseDbDate(iso: string | null | undefined): Date | null {
   if (iso === null || iso === undefined || iso === "") return null
   const direct = new Date(iso)
   if (!Number.isNaN(direct.getTime())) return direct

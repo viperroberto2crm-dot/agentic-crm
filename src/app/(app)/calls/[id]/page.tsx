@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { getTranslations, getLocale } from "next-intl/server"
-import { BRAND_TIMEZONE } from "@/lib/datetime"
+import { BRAND_TIMEZONE, parseDbDate } from "@/lib/datetime"
 
 
 type TypedClient = SupabaseClient<Database>
@@ -142,11 +142,14 @@ export default async function CallDetailPage({
 
   const outcomeCfg = call.outcome ? OUTCOME_CONFIG[call.outcome] : null
 
-  const dateLabel = new Intl.DateTimeFormat(locale, {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: BRAND_TIMEZONE,
-  }).format(new Date(call.called_at))
+  const calledAt = parseDbDate(call.called_at)
+  const dateLabel = calledAt
+    ? new Intl.DateTimeFormat(locale, {
+        dateStyle: "long",
+        timeStyle: "short",
+        timeZone: BRAND_TIMEZONE,
+      }).format(calledAt)
+    : "—"
 
   const leadFullName = call.lead
     ? `${call.lead.first_name} ${call.lead.last_name ?? ""}`.trim()

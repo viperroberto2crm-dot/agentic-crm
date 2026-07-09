@@ -1,7 +1,7 @@
 import { Phone, Calendar, DollarSign, StickyNote } from "lucide-react"
 import { getTranslations } from "next-intl/server"
 import type { Database } from "@/types/database"
-import { BRAND_TIMEZONE } from "@/lib/datetime"
+import { BRAND_TIMEZONE, parseDbDate } from "@/lib/datetime"
 import { SaleActions } from "./sale-actions"
 
 type CallRow = {
@@ -37,13 +37,15 @@ type Activity =
   | { kind: "sale"; date: string; data: SaleRow }
 
 function formatDate(d: string) {
+  const parsed = parseDbDate(d)
+  if (!parsed) return "—"
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: BRAND_TIMEZONE,
-  }).format(new Date(d))
+  }).format(parsed)
 }
 
 function formatDuration(seconds: number | null) {

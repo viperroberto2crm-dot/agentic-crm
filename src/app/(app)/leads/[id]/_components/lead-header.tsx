@@ -3,6 +3,7 @@ import { ArrowLeft, Phone, Mail, MapPin, Calendar, Package } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { Database } from "@/types/database"
 import { getTranslations, getLocale } from "next-intl/server"
+import { parseDbDate } from "@/lib/datetime"
 
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
 
@@ -44,9 +45,12 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
   const locale = await getLocale()
   const label = ts(lead.status)
   const className = STATUS_CLASS[lead.status] ?? "border-[#E8E4DC] text-[#5C6F68]"
-  const createdLabel = new Intl.DateTimeFormat(locale, {
-    dateStyle: "long",
-  }).format(new Date(lead.created_at))
+  const createdAt = parseDbDate(lead.created_at)
+  const createdLabel = createdAt
+    ? new Intl.DateTimeFormat(locale, {
+        dateStyle: "long",
+      }).format(createdAt)
+    : "—"
 
   return (
     <div className="space-y-4">

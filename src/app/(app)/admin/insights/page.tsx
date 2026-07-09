@@ -8,20 +8,22 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { runReflectionNowAction } from "./actions"
-import { BRAND_TIMEZONE } from "@/lib/datetime"
+import { BRAND_TIMEZONE, parseDbDate } from "@/lib/datetime"
 
 type SB = SupabaseClient<Database>
 
 export const dynamic = "force-dynamic"
 
 function fmtDate(d: string) {
+  const parsed = parseDbDate(d)
+  if (!parsed) return "—"
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: BRAND_TIMEZONE,
-  }).format(new Date(d))
+  }).format(parsed)
 }
 
 export default async function AgentInsightsPage() {

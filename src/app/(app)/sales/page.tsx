@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { getLocale, getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 import { ReportExportButton } from "@/components/exports/report-export-button"
-import { BRAND_TIMEZONE } from "@/lib/datetime"
+import { BRAND_TIMEZONE, parseDbDate } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { PatientSearchInput } from "@/components/ui/patient-search-input"
 import {
@@ -37,13 +37,15 @@ function fmtCents(cents: number) {
 }
 
 function fmtDate(d: string) {
+  const parsed = parseDbDate(d)
+  if (!parsed) return "—"
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: BRAND_TIMEZONE,
-  }).format(new Date(d))
+  }).format(parsed)
 }
 
 export default async function SalesPage({
