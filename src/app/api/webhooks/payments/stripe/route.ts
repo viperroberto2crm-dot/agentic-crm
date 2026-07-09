@@ -175,9 +175,11 @@ export async function POST(request: Request) {
       if (!match) {
         const routed = await routeAndCreateLead(sb, {
           provider: "stripe",
-          candidateKeys: [inv.lines?.data?.[0]?.price?.id].filter(
-            (v): v is string => Boolean(v),
-          ),
+          candidateKeys: [
+            // API nueva (2025+): pricing.price_details.price; fallback a price.id (vieja).
+            inv.lines?.data?.[0]?.pricing?.price_details?.price ??
+              inv.lines?.data?.[0]?.price?.id,
+          ].filter((v): v is string => Boolean(v)),
           origin: "invoice",
           externalCustomerId: inv.customer ?? null,
           contact: {

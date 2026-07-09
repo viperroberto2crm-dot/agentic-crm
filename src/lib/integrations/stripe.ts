@@ -91,7 +91,16 @@ export type StripeInvoice = {
   status_transitions?: { paid_at?: number }
   billing_reason?: string
   subscription?: string
-  lines?: { data?: Array<{ description?: string; quantity?: number; price?: { id?: string } }> }
+  lines?: {
+    data?: Array<{
+      description?: string
+      quantity?: number
+      // API vieja: line.price.id. API nueva (2025+, confirmada en prod):
+      // line.pricing.price_details.price.
+      price?: { id?: string }
+      pricing?: { price_details?: { price?: string } }
+    }>
+  }
   [k: string]: unknown
 }
 
