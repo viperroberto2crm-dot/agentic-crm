@@ -228,7 +228,8 @@ export async function routeAndCreateLead(
   if (dryRun) {
     console.log(
       `[offer-routing] DRY-RUN ${provider}: crearía lead en brand=${targetBrandId} ` +
-        `mapeado=${Boolean(mapMatch)} contacto=${JSON.stringify({ name: contact.name ?? null, email, phone })}`,
+        `mapeado=${Boolean(mapMatch)} keys=${JSON.stringify(candidateKeys)} ` +
+        `contacto=${JSON.stringify({ name: contact.name ?? null, email, phone })}`,
     )
     return null
   }
