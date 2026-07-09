@@ -171,6 +171,12 @@ export async function POST(request: Request) {
       const email = inv.customer_email?.trim().toLowerCase() ?? null
       let match = await resolveLead(sb, email, null)
 
+      // Atribución de PÁGINA: la página de oferta aplica un cupón → el invoice
+      // llega CON descuento (total_discount_amounts poblado). Con descuento =
+      // "Oferta"; sin descuento = "Original". Se etiqueta en las notas del lead.
+      const tda = (inv as { total_discount_amounts?: unknown[] }).total_discount_amounts
+      const pagina = Array.isArray(tda) && tda.length > 0 ? "Oferta (cupón)" : "Original"
+
       // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
       if (!match) {
         const routed = await routeAndCreateLead(sb, {
@@ -188,6 +194,7 @@ export async function POST(request: Request) {
             name: inv.customer_name ?? null,
             address: null,
           },
+          noteSuffix: `Página: ${pagina}`,
         })
         if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
       }
