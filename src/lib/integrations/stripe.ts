@@ -72,6 +72,8 @@ export type StripeCheckoutSession = {
   currency?: string
   payment_status?: string
   created?: number // epoch seconds
+  customer?: string // id del customer en Stripe (ruteo/dedup)
+  payment_link?: string // id del Payment Link (llave de ruteo por oferta)
   customer_details?: { email?: string; phone?: string; name?: string; address?: StripeAddress }
   [k: string]: unknown
 }
@@ -80,6 +82,7 @@ export type StripeInvoice = {
   id?: string
   amount_paid?: number
   currency?: string
+  customer?: string // id del customer en Stripe (ruteo/dedup)
   customer_email?: string
   customer_name?: string
   status?: string
@@ -88,7 +91,7 @@ export type StripeInvoice = {
   status_transitions?: { paid_at?: number }
   billing_reason?: string
   subscription?: string
-  lines?: { data?: Array<{ description?: string; quantity?: number }> }
+  lines?: { data?: Array<{ description?: string; quantity?: number; price?: { id?: string } }> }
   [k: string]: unknown
 }
 
@@ -98,6 +101,7 @@ export type StripeCharge = {
   amount_refunded?: number
   currency?: string
   created?: number
+  customer?: string // id del customer en Stripe (ruteo/dedup)
   billing_details?: { email?: string; name?: string; phone?: string; address?: StripeAddress }
   [k: string]: unknown
 }

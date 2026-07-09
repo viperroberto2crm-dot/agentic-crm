@@ -15,6 +15,7 @@ import {
   type SquarePayment,
   type SquareBooking,
 } from "@/lib/integrations/square"
+import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -137,16 +138,32 @@ export async function POST(request: Request) {
       if (!payment?.id) return NextResponse.json({ ok: true, ignored: "no payment" })
 
       const c = await contactFor(payment.buyer_email_address ?? null, payment.customer_id)
-      const match = await resolveLead(sb, c.email, c.phone)
+      let match = await resolveLead(sb, c.email, c.phone)
       const p = payment as SquarePayment
 
       // Productos comprados (membresía/GLP/etc) viven en el order
       let items: string | null = null
       let orderRaw: unknown = null
+      let itemCatalogIds: string[] = []
       if (p.order_id) {
         const ord = await retrieveSquareOrder(p.order_id)
         items = ord.items
         orderRaw = ord.order
+        itemCatalogIds = ord.itemCatalogIds
+      }
+
+      // Ruteo automático: SOLO si no matcheó un lead existente. Con flags OFF,
+      // routeAndCreateLead devuelve null → comportamiento idéntico al de hoy.
+      if (!match) {
+        const routed = await routeAndCreateLead(sb, {
+          provider: "square",
+          candidateKeys: itemCatalogIds,
+          origin: squareOrigin(p),
+          externalCustomerId: payment.customer_id ?? null,
+          contact: { email: c.email, phone: c.phone, name: c.name, address: c.address },
+          noteSuffix: items ? `Productos: ${items}` : null,
+        })
+        if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
       }
 
       const row = {
@@ -186,9 +203,22 @@ export async function POST(request: Request) {
       if (!booking?.id) return NextResponse.json({ ok: true, ignored: "no booking" })
 
       const c = await contactFor(null, booking.customer_id)
-      const match = await resolveLead(sb, c.email, c.phone)
+      let match = await resolveLead(sb, c.email, c.phone)
       const b = booking as SquareBooking
       const seg = b.appointment_segments?.[0]
+
+      // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
+      if (!match) {
+        const routed = await routeAndCreateLead(sb, {
+          provider: "square",
+          candidateKeys: [seg?.service_variation_id].filter(
+            (v): v is string => Boolean(v),
+          ),
+          externalCustomerId: booking.customer_id ?? null,
+          contact: { email: c.email, phone: c.phone, name: c.name, address: c.address },
+        })
+        if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
+      }
 
       const row = {
         provider: "square",

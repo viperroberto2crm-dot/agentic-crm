@@ -1,14 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
-import { Link2, UserPlus } from "lucide-react"
+import { Link2, UserPlus, RefreshCw } from "lucide-react"
 import { formatDate } from "@/lib/datetime"
 import {
   LinkLeadDialog,
   type BrandOption,
 } from "./link-lead-dialog"
+import { enrichUnlinkedSquarePayments } from "../_actions/external-unlinked-actions"
 
 export type UnlinkedPaymentRow = {
   id: string
@@ -46,6 +48,46 @@ function providerLabel(provider: string | null): string {
 
 type OpenState = { id: string; tab: "search" | "create" } | null
 
+/**
+ * Botón admin para re-jalar datos de cliente (nombre/tel/dirección/email) de
+ * pagos viejos de Square vía API. Enriquece hasta 100 por click. Solo admin.
+ */
+function EnrichSquareButton() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2 text-xs gap-1"
+        disabled={loading}
+        onClick={async () => {
+          setLoading(true)
+          setMsg(null)
+          try {
+            const res = await enrichUnlinkedSquarePayments()
+            if (res.ok) {
+              setMsg(`${res.updated} pago(s) enriquecido(s)`)
+              router.refresh()
+            } else {
+              setMsg(res.error)
+            }
+          } finally {
+            setLoading(false)
+          }
+        }}
+      >
+        <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+        Re-jalar datos de Square
+      </Button>
+    </div>
+  )
+}
+
 export function UnlinkedPaymentsTable({ payments, brands, defaultBrandId }: Props) {
   const t = useTranslations("externalUnlinked")
   const [open, setOpen] = useState<OpenState>(null)
@@ -54,14 +96,18 @@ export function UnlinkedPaymentsTable({ payments, brands, defaultBrandId }: Prop
 
   if (payments.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border py-8 text-center">
-        <p className="text-sm text-muted-foreground">{t("noPayments")}</p>
+      <div className="space-y-3">
+        <EnrichSquareButton />
+        <div className="rounded-lg border border-dashed border-border py-8 text-center">
+          <p className="text-sm text-muted-foreground">{t("noPayments")}</p>
+        </div>
       </div>
     )
   }
 
   return (
     <>
+      <EnrichSquareButton />
       <div className="rounded-lg border border-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

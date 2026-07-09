@@ -8,6 +8,8 @@ import type { Database } from "@/types/database"
 import { z } from "zod"
 import { sanitizeOrSearch } from "@/lib/queries/search"
 import { createPbRecord } from "@/lib/integrations/practice-better"
+import { retrieveSquareCustomer } from "@/lib/integrations/square"
+import { normalizeToE164 } from "@/lib/integrations/800com"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -337,6 +339,92 @@ export async function createLeadFromExternalPayment(
     }
     const msg = e instanceof Error ? e.message : String(e)
     console.error("[createLeadFromExternalPayment] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+// ── Backfill: enriquecer pagos viejos de Square sin datos de cliente ─────────
+
+/**
+ * Re-jala datos del cliente (nombre/teléfono/dirección/email) para pagos de
+ * Square SIN lead y con datos incompletos. Para cada pago:
+ *   - Si raw->payment->customer_id existe → retrieveSquareCustomer y rellena
+ *     los campos vacíos (customer_name/email/phone/address).
+ *   - Si no hay customer_id pero raw->payment->buyer_email_address existe →
+ *     al menos setea customer_email (si estaba vacío).
+ * Solo admin. Devuelve cuántos pagos enriqueció.
+ */
+export async function enrichUnlinkedSquarePayments(): Promise<
+  { ok: true; updated: number } | { ok: false; error: string }
+> {
+  try {
+    const guard = await assertAdmin()
+    if (!guard.ok) return guard
+
+    const admin = createAdminClient() as unknown as TypedClient
+    const { data, error } = await admin
+      .from("external_payments")
+      .select("id, customer_name, customer_email, customer_phone, customer_address, raw")
+      .eq("provider", "square")
+      .is("lead_id", null)
+      .or("customer_name.is.null,customer_email.is.null")
+      .limit(100)
+    if (error) {
+      console.error("[enrichUnlinkedSquarePayments]", error.message)
+      return { ok: false, error: error.message }
+    }
+
+    type PayRow = {
+      id: string
+      customer_name: string | null
+      customer_email: string | null
+      customer_phone: string | null
+      customer_address: string | null
+      raw: unknown
+    }
+
+    let updated = 0
+    for (const row of (data ?? []) as PayRow[]) {
+      const raw = (row.raw ?? {}) as {
+        payment?: { customer_id?: string; buyer_email_address?: string }
+      }
+      const payment = raw.payment ?? {}
+      const customerId = payment.customer_id ?? null
+
+      const patch: Database["public"]["Tables"]["external_payments"]["Update"] = {}
+
+      if (customerId) {
+        const cust = await retrieveSquareCustomer(customerId)
+        if (cust.name && !row.customer_name) patch.customer_name = cust.name
+        if (cust.email && !row.customer_email) {
+          patch.customer_email = cust.email.trim().toLowerCase()
+        }
+        if (cust.phone && !row.customer_phone) {
+          patch.customer_phone = normalizeToE164(cust.phone) || cust.phone
+        }
+        if (cust.address && !row.customer_address) patch.customer_address = cust.address
+      } else if (payment.buyer_email_address && !row.customer_email) {
+        patch.customer_email = payment.buyer_email_address.trim().toLowerCase()
+      }
+
+      if (Object.keys(patch).length > 0) {
+        const { error: updErr } = await admin
+          .from("external_payments")
+          .update(patch)
+          .eq("id", row.id)
+        if (updErr) {
+          console.warn("[enrichUnlinkedSquarePayments] update:", updErr.message)
+        } else {
+          updated++
+        }
+      }
+    }
+
+    revalidatePath("/admin/external-unlinked")
+    return { ok: true, updated }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[enrichUnlinkedSquarePayments] threw:", msg)
     return { ok: false, error: msg }
   }
 }

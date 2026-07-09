@@ -13,6 +13,7 @@ import {
   type StripeInvoice,
   type StripeCharge,
 } from "@/lib/integrations/stripe"
+import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -117,7 +118,24 @@ export async function POST(request: Request) {
 
       const email = s.customer_details?.email?.trim().toLowerCase() ?? null
       const phone = s.customer_details?.phone ? normalizeToE164(s.customer_details.phone) || null : null
-      const match = await resolveLead(sb, email, phone)
+      let match = await resolveLead(sb, email, phone)
+
+      // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
+      if (!match) {
+        const routed = await routeAndCreateLead(sb, {
+          provider: "stripe",
+          candidateKeys: [s.payment_link].filter((v): v is string => Boolean(v)),
+          origin: "web",
+          externalCustomerId: s.customer ?? null,
+          contact: {
+            email,
+            phone,
+            name: s.customer_details?.name ?? null,
+            address: stripeAddress(s.customer_details?.address),
+          },
+        })
+        if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
+      }
 
       const row = {
         provider: "stripe",
@@ -151,7 +169,26 @@ export async function POST(request: Request) {
       if (!inv.id) return NextResponse.json({ ok: true, ignored: "no invoice id" })
 
       const email = inv.customer_email?.trim().toLowerCase() ?? null
-      const match = await resolveLead(sb, email, null)
+      let match = await resolveLead(sb, email, null)
+
+      // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
+      if (!match) {
+        const routed = await routeAndCreateLead(sb, {
+          provider: "stripe",
+          candidateKeys: [inv.lines?.data?.[0]?.price?.id].filter(
+            (v): v is string => Boolean(v),
+          ),
+          origin: "invoice",
+          externalCustomerId: inv.customer ?? null,
+          contact: {
+            email,
+            phone: null,
+            name: inv.customer_name ?? null,
+            address: null,
+          },
+        })
+        if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
+      }
 
       const row = {
         provider: "stripe",

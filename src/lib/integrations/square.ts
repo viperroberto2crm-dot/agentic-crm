@@ -121,9 +121,9 @@ export type SquareWebhookEvent = {
 // Devuelve un resumen legible + el order crudo. Defensivo: nulls si falla.
 export async function retrieveSquareOrder(
   orderId: string,
-): Promise<{ items: string | null; itemList: string[]; order: unknown | null }> {
+): Promise<{ items: string | null; itemList: string[]; itemCatalogIds: string[]; order: unknown | null }> {
   const token = process.env.SQUARE_ACCESS_TOKEN
-  if (!token) return { items: null, itemList: [], order: null }
+  if (!token) return { items: null, itemList: [], itemCatalogIds: [], order: null }
   try {
     const res = await fetch(`${SQUARE_API_BASE}/v2/orders/${orderId}`, {
       headers: {
@@ -132,10 +132,15 @@ export async function retrieveSquareOrder(
         "Square-Version": "2025-01-23",
       },
     })
-    if (!res.ok) return { items: null, itemList: [], order: null }
+    if (!res.ok) return { items: null, itemList: [], itemCatalogIds: [], order: null }
     const json = (await res.json()) as {
       order?: {
-        line_items?: Array<{ name?: string; quantity?: string; variation_name?: string }>
+        line_items?: Array<{
+          name?: string
+          quantity?: string
+          variation_name?: string
+          catalog_object_id?: string
+        }>
       }
     }
     const lines = json.order?.line_items ?? []
@@ -146,13 +151,23 @@ export async function retrieveSquareOrder(
         return `${qty}${li.name ?? "Producto"}${variation}`.trim()
       })
       .filter(Boolean)
+    // IDs de catálogo (variación del producto) → llaves de ruteo por oferta.
+    // Dedup, sin undefined. Match SOLO por ID exacto (nunca por nombre).
+    const itemCatalogIds = Array.from(
+      new Set(
+        lines
+          .map((li) => li.catalog_object_id)
+          .filter((v): v is string => Boolean(v)),
+      ),
+    )
     return {
       items: itemList.length ? itemList.join(", ") : null,
       itemList,
+      itemCatalogIds,
       order: json.order ?? null,
     }
   } catch {
-    return { items: null, itemList: [], order: null }
+    return { items: null, itemList: [], itemCatalogIds: [], order: null }
   }
 }
 
