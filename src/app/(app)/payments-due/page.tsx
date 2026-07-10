@@ -231,11 +231,13 @@ export default async function PaymentsDuePage({
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-        <p className="text-xs text-gray-400">
-          {filteredRows.length} {tc("records")}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
+          <p className="text-[13px] text-[#93A39D] mt-1">
+            {filteredRows.length} {tc("records")}
+          </p>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -246,14 +248,14 @@ export default async function PaymentsDuePage({
             <Link
               key={tab.label}
               href={href}
-              className={`px-3 py-1 rounded text-xs transition-colors ${
+              className={`inline-flex items-center h-8 px-3.5 rounded-full text-[13px] font-medium border transition-colors whitespace-nowrap ${
                 isActive
-                  ? "bg-gray-200 text-gray-900"
-                  : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                  ? "bg-[#20342C] text-white border-[#20342C]"
+                  : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5] hover:text-[#20342C]"
               }`}
             >
               {tab.label}
-              <span className="ml-1.5 tabular-nums text-[10px] opacity-70">
+              <span className="ml-1.5 tabular-nums text-[11px] opacity-70">
                 {tab.count}
               </span>
             </Link>

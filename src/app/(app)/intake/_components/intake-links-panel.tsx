@@ -61,19 +61,19 @@ export function IntakeLinksPanel({
 }) {
   if (items.length === 0) return null
   return (
-    <div className="bg-white border border-border/60 rounded-2xl p-5 md:p-6 space-y-4">
+    <div className="bg-card border border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)] p-5 md:p-6 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-[#1A2E28] uppercase tracking-widest">
+        <h2 className="text-[10px] font-semibold text-[#93A39D] uppercase tracking-widest">
           {labels.title}
         </h2>
-        <p className="text-xs text-muted-foreground mt-0.5">{labels.subtitle}</p>
+        <p className="text-[13px] text-[#93A39D] mt-1">{labels.subtitle}</p>
       </div>
 
       <div className="space-y-3">
         {items.map((it) => (
           <div
             key={it.slug}
-            className="flex items-center gap-4 border border-[#F2EFE9] rounded-xl p-3"
+            className="flex items-center gap-4 border border-[#F1EADD] rounded-xl p-3 hover:bg-[#FBF6EC] transition-colors"
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -81,9 +81,9 @@ export function IntakeLinksPanel({
                   className="w-2 h-2 rounded-full shrink-0"
                   style={{ backgroundColor: it.color }}
                 />
-                <span className="font-medium text-[#1A2E28] truncate">{it.name}</span>
+                <span className="font-semibold text-[15px] text-[#20342C] truncate">{it.name}</span>
               </div>
-              <p className="text-xs text-muted-foreground font-mono truncate mt-1">{it.url}</p>
+              <p className="text-xs text-[#93A39D] font-mono truncate mt-1">{it.url}</p>
               <div className="flex items-center gap-2 mt-2">
                 <CopyButton url={it.url} labels={labels} />
                 <a

@@ -33,7 +33,7 @@ export default async function PublicIntakePage({
     >
       <div className="w-full max-w-2xl">
         <div
-          className="bg-white rounded-3xl shadow-xl border border-black/5 p-6 sm:p-10"
+          className="bg-white rounded-3xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_24px_60px_-24px_rgba(26,46,40,0.28)] border border-[#ECE3D3] p-6 sm:p-10"
           style={{ borderTop: `4px solid ${accent}` }}
         >
           <IntakeForm

@@ -2,10 +2,10 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import Link from "next/link"
+import { CalendarDays } from "lucide-react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
-import { Badge } from "@/components/ui/badge"
 import { NewAppointmentButton } from "./_components/new-appointment-button"
 import { AppointmentStatusActions } from "./_components/appointment-status-actions"
 import { EditAppointmentButton } from "./_components/edit-appointment-button"
@@ -37,6 +37,25 @@ function fmtDate(d: string) {
   return formatApptDateTime(d)
 }
 
+// Avatares cálidos por paciente (gradientes deterministas por nombre).
+const GRADS = [
+  "linear-gradient(150deg,#EF7B5C,#E2653F)",
+  "linear-gradient(150deg,#3FA278,#2C6B57)",
+  "linear-gradient(150deg,#5F8CE6,#3E63B8)",
+  "linear-gradient(150deg,#E0A64E,#C88A2E)",
+  "linear-gradient(150deg,#8E7CC3,#6E5AA6)",
+  "linear-gradient(150deg,#D5807E,#B85D5B)",
+]
+function grad(s: string) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return GRADS[h % GRADS.length]
+}
+function initials(n: string) {
+  const p = (n || "?").trim().split(/\s+/)
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "") || "?").toUpperCase()
+}
+
 export default async function AppointmentsPage({
   searchParams,
 }: {
@@ -50,13 +69,13 @@ export default async function AppointmentsPage({
   const t = await getTranslations("appointments")
   const tc = await getTranslations("common")
 
-  const STATUS_CONFIG: Record<ApptStatus, { label: string; cls: string }> = {
-    scheduled:   { label: t("appointmentStatuses.scheduled"),   cls: "border-blue-500/40 text-blue-400" },
-    confirmed:   { label: t("appointmentStatuses.confirmed"),   cls: "border-emerald-500/40 text-emerald-400" },
-    completed:   { label: t("appointmentStatuses.completed"),   cls: "border-zinc-500/40 text-gray-500" },
-    cancelled:   { label: t("appointmentStatuses.cancelled"),   cls: "border-red-500/40 text-red-400" },
-    no_show:     { label: t("appointmentStatuses.no_show"),     cls: "border-amber-500/40 text-amber-400" },
-    rescheduled: { label: t("appointmentStatuses.rescheduled"), cls: "border-violet-500/40 text-violet-400" },
+  const STATUS_CONFIG: Record<ApptStatus, { label: string; bg: string; text: string; dot: string }> = {
+    scheduled:   { label: t("appointmentStatuses.scheduled"),   bg: "#E4F2EE", text: "#2E8B6F", dot: "#3FA278" },
+    confirmed:   { label: t("appointmentStatuses.confirmed"),   bg: "#E4F2EE", text: "#2E8B6F", dot: "#3FA278" },
+    completed:   { label: t("appointmentStatuses.completed"),   bg: "#E6F3EC", text: "#2E7E5B", dot: "#3FA278" },
+    cancelled:   { label: t("appointmentStatuses.cancelled"),   bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+    no_show:     { label: t("appointmentStatuses.no_show"),     bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+    rescheduled: { label: t("appointmentStatuses.rescheduled"), bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
   }
 
   const TYPE_LABEL: Record<ApptType, string> = {
@@ -286,13 +305,13 @@ export default async function AppointmentsPage({
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-          <p className="text-[11px] text-gray-400 mt-1 leading-snug">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
+          <p className="text-[13px] text-[#93A39D] mt-1 leading-snug">
             {active.from === active.to ? fromLabel : `${fromLabel} – ${toLabel}`}
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-gray-400">{count ?? appts.length} total</span>
+          <span className="text-[13px] text-[#93A39D] tabular-nums">{count ?? appts.length} total</span>
           <DateRangeFilter
             preset={active.preset}
             from={active.from}
@@ -329,8 +348,10 @@ export default async function AppointmentsPage({
             <Link
               key={tab.label}
               href={href}
-              className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              className={`h-8 px-3.5 inline-flex items-center rounded-full text-[13px] font-medium border transition-colors ${
+                isActive
+                  ? "bg-[#20342C] text-white border-[#20342C]"
+                  : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5]"
               }`}
             >
               {tab.label}
@@ -339,38 +360,53 @@ export default async function AppointmentsPage({
         })}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+      <div className="bg-card border border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)] px-4 py-2">
         {appts.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">{t("noApptsFilter")}</p>
+          <p className="text-sm text-[#93A39D] py-10 text-center">{t("noApptsFilter")}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDateTime")}</th>
+              <tr className="border-b border-[#ECE3D3]">
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4">{t("colDateTime")}</th>
                 {allMode && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4">{tc("colCompany")}</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colLead")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colType")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colService")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4">{tc("colLead")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4 hidden md:table-cell">{t("colType")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4">{t("colStatus")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4 hidden sm:table-cell">{t("colService")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colRep")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4 hidden lg:table-cell">{tc("colRep")}</th>
                 )}
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colProvider")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1 pr-4 hidden lg:table-cell">{tc("colProvider")}</th>
                 )}
-                <th className="text-right text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2">{t("colActions")}</th>
+                <th className="text-right text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2.5 pt-1">{t("colActions")}</th>
               </tr>
             </thead>
             <tbody>
               {appts.map((a) => {
                 const cfg = STATUS_CONFIG[a.status]
                 const brand = allMode && a.brand_id ? brandsById.get(a.brand_id) : null
+                const leadName = a.lead ? `${a.lead.first_name} ${a.lead.last_name ?? ""}`.trim() : ""
                 return (
-                  <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={a.id} className="border-b border-[#F1EADD] hover:bg-[#FBF6EC] transition-colors">
                     <td className="py-3 pr-4">
-                      <span className="text-gray-700 text-xs tabular-nums">{fmtDate(a.scheduled_at)}</span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        {leadName ? (
+                          <span
+                            className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[14px] shadow-[0_2px_6px_rgba(18,60,48,0.14)]"
+                            style={{ background: grad(leadName) }}
+                          >
+                            {initials(leadName)}
+                          </span>
+                        ) : (
+                          <span className="w-10 h-10 rounded-xl grid place-items-center shrink-0 bg-[#E4F2EE]">
+                            <CalendarDays className="w-5 h-5" style={{ color: "#2E8B6F" }} />
+                          </span>
+                        )}
+                        <span className="font-semibold text-[13.5px] text-[#20342C] tabular-nums whitespace-nowrap">{fmtDate(a.scheduled_at)}</span>
+                      </div>
                     </td>
                     {allMode && (
                       <td className="py-3 pr-4">
@@ -380,32 +416,36 @@ export default async function AppointmentsPage({
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
                             />
-                            <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                            <span className="text-[13px] text-[#5C6F68] truncate max-w-[140px]">{brand.name}</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-300">—</span>
+                          <span className="text-[13px] text-[#B7AE9C]">—</span>
                         )}
                       </td>
                     )}
                     <td className="py-3 pr-4">
                       {a.lead ? (
-                        <Link href={`/leads/${a.lead.id}`} className="text-gray-800 hover:text-gray-900 font-medium transition-colors">
+                        <Link href={`/leads/${a.lead.id}`} className="font-semibold text-[15px] text-[#20342C] hover:text-[#2E8B6F] transition-colors">
                           {a.lead.first_name} {a.lead.last_name ?? ""}
                         </Link>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-[#B7AE9C]">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-gray-400">{TYPE_LABEL[a.type]}</span>
+                      <span className="text-[13px] text-[#93A39D]">{TYPE_LABEL[a.type]}</span>
                     </td>
                     <td className="py-3 pr-4">
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg.cls}`}>
+                      <span
+                        className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap"
+                        style={{ backgroundColor: cfg.bg, color: cfg.text }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.dot }} />
                         {cfg.label}
-                      </Badge>
+                      </span>
                     </td>
                     <td className="py-3 pr-4 hidden sm:table-cell">
-                      <span className="text-xs text-gray-400">{a.service ?? "—"}</span>
+                      <span className="text-[13px] text-[#5C6F68]">{a.service ?? "—"}</span>
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 pr-4 hidden lg:table-cell">

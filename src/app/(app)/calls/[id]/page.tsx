@@ -5,7 +5,6 @@ import { ArrowLeft, Phone, Download, Calendar } from "lucide-react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { getTranslations, getLocale } from "next-intl/server"
 import { BRAND_TIMEZONE, parseDbDate } from "@/lib/datetime"
@@ -130,14 +129,14 @@ export default async function CallDetailPage({
     tracking = (trk ?? null) as TrackingNumberRow | null
   }
 
-  const OUTCOME_CONFIG: Record<CallOutcome, { label: string; cls: string }> = {
-    connected:           { label: t("outcomes.connected"),          cls: "border-emerald-500/40 text-emerald-400" },
-    appointment_set:     { label: t("outcomes.appointment_set"),    cls: "border-blue-500/40 text-blue-400" },
-    callback_requested:  { label: t("outcomes.callback_requested"), cls: "border-violet-500/40 text-violet-400" },
-    voicemail:           { label: t("outcomes.voicemail"),          cls: "border-amber-500/40 text-amber-400" },
-    no_answer:           { label: t("outcomes.no_answer"),          cls: "border-zinc-600 text-gray-400" },
-    not_interested:      { label: t("outcomes.not_interested"),     cls: "border-red-500/40 text-red-400" },
-    wrong_number:        { label: t("outcomes.wrong_number"),       cls: "border-zinc-600 text-gray-400" },
+  const OUTCOME_CONFIG: Record<CallOutcome, { label: string; bg: string; text: string; dot: string }> = {
+    connected:           { label: t("outcomes.connected"),          bg: "#E6F3EC", text: "#2E7E5B", dot: "#3FA278" },
+    appointment_set:     { label: t("outcomes.appointment_set"),    bg: "#E4F2EE", text: "#2E8B6F", dot: "#3FA278" },
+    callback_requested:  { label: t("outcomes.callback_requested"), bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+    voicemail:           { label: t("outcomes.voicemail"),          bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+    no_answer:           { label: t("outcomes.no_answer"),          bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
+    not_interested:      { label: t("outcomes.not_interested"),     bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+    wrong_number:        { label: t("outcomes.wrong_number"),       bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
   }
 
   const outcomeCfg = call.outcome ? OUTCOME_CONFIG[call.outcome] : null
@@ -163,36 +162,42 @@ export default async function CallDetailPage({
       <div className="space-y-3">
         <Link
           href="/calls"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-[#93A39D] hover:text-[#5C6F68] transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           {t("detail.backToCalls")}
         </Link>
 
-        <nav className="text-xs text-gray-400 flex items-center gap-1.5 flex-wrap">
-          <Link href="/calls" className="hover:text-gray-700 transition-colors">
+        <nav className="text-xs text-[#93A39D] flex items-center gap-1.5 flex-wrap">
+          <Link href="/calls" className="hover:text-[#20342C] transition-colors">
             {t("detail.breadcrumbCalls")}
           </Link>
-          <span className="text-gray-300">/</span>
+          <span className="text-[#D8CDB5]">/</span>
           {call.lead ? (
             <Link
               href={`/leads/${call.lead.id}`}
-              className="hover:text-gray-700 transition-colors"
+              className="hover:text-[#20342C] transition-colors"
             >
               {leadFullName}
             </Link>
           ) : (
             <span>{leadFullName}</span>
           )}
-          <span className="text-gray-300">/</span>
-          <span className="text-gray-700">{t("detail.breadcrumbDetail")}</span>
+          <span className="text-[#D8CDB5]">/</span>
+          <span className="text-[#20342C]">{t("detail.breadcrumbDetail")}</span>
         </nav>
       </div>
 
+      {/* Título */}
+      <div className="min-w-0">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{leadFullName}</h1>
+        <p className="text-[13px] text-[#93A39D] mt-1">{dateLabel}</p>
+      </div>
+
       {/* Section 1 — Summary */}
-      <Card className="bg-white border-border/60">
+      <Card className="bg-card border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+          <CardTitle className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold">
             {t("detail.summaryTitle")}
           </CardTitle>
         </CardHeader>
@@ -202,12 +207,12 @@ export default async function CallDetailPage({
               {call.lead ? (
                 <Link
                   href={`/leads/${call.lead.id}`}
-                  className="text-gray-900 hover:underline font-medium"
+                  className="text-[#20342C] hover:text-[#12483B] hover:underline font-semibold"
                 >
                   {leadFullName}
                 </Link>
               ) : (
-                <span className="text-gray-400">{t("detail.noLead")}</span>
+                <span className="text-[#93A39D]">{t("detail.noLead")}</span>
               )}
             </Row>
 
@@ -215,34 +220,34 @@ export default async function CallDetailPage({
               {call.caller_e164 ? (
                 <a
                   href={`tel:${call.caller_e164}`}
-                  className="font-mono text-gray-700 hover:text-gray-900"
+                  className="font-mono tabular-nums text-[#5C6F68] hover:text-[#20342C]"
                 >
                   {call.caller_e164}
                 </a>
               ) : (
-                <span className="text-gray-400">—</span>
+                <span className="text-[#93A39D]">—</span>
               )}
             </Row>
 
             <Row label={t("detail.dialed")}>
               {call.dialed_e164 ? (
                 <span className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-gray-700">
+                  <span className="font-mono tabular-nums text-[#5C6F68]">
                     {call.dialed_e164}
                   </span>
                   {tracking?.label && (
-                    <span className="text-[10px] text-gray-500">
+                    <span className="text-[10px] text-[#93A39D]">
                       {t("detail.dialedVia", { label: tracking.label })}
                     </span>
                   )}
                 </span>
               ) : (
-                <span className="text-gray-400">—</span>
+                <span className="text-[#93A39D]">—</span>
               )}
             </Row>
 
             <Row label={t("detail.direction")}>
-              <span className="text-xs text-gray-700">
+              <span className="text-xs text-[#5C6F68]">
                 {call.direction === "outbound"
                   ? t("outboundRow")
                   : t("inboundRow")}
@@ -251,26 +256,27 @@ export default async function CallDetailPage({
 
             <Row label={t("detail.outcome")}>
               {outcomeCfg ? (
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] px-1.5 py-0 font-normal ${outcomeCfg.cls}`}
+                <span
+                  className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[12px] font-semibold whitespace-nowrap"
+                  style={{ backgroundColor: outcomeCfg.bg, color: outcomeCfg.text }}
                 >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: outcomeCfg.dot }} />
                   {outcomeCfg.label}
-                </Badge>
+                </span>
               ) : (
-                <span className="text-gray-400">—</span>
+                <span className="text-[#93A39D]">—</span>
               )}
             </Row>
 
             <Row label={t("detail.duration")}>
-              <span className="tabular-nums text-gray-700">
+              <span className="tabular-nums text-[#5C6F68]">
                 {fmtDuration(call.duration_seconds)}
               </span>
             </Row>
 
             <Row label={t("detail.dateTime")}>
-              <span className="text-gray-700 inline-flex items-center gap-1.5">
-                <Calendar className="w-3 h-3 text-gray-400" />
+              <span className="text-[#5C6F68] tabular-nums inline-flex items-center gap-1.5">
+                <Calendar className="w-3 h-3 text-[#93A39D]" />
                 {dateLabel}
               </span>
             </Row>
@@ -280,15 +286,15 @@ export default async function CallDetailPage({
 
       {/* Section 2 — Audio Player (only if recording_url) */}
       {call.recording_url && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-card border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
           <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+            <CardTitle className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold">
               {t("detail.recordingTitle")}
             </CardTitle>
             <a
               href={call.recording_url}
               download
-              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-[#93A39D] hover:text-[#20342C] transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
               {t("detail.downloadRecording")}
@@ -309,37 +315,37 @@ export default async function CallDetailPage({
 
       {/* Section 3 — Transcript (only if recording_url exists) */}
       {call.recording_url && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-card border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+            <CardTitle className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold">
               {t("detail.transcriptTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {transcriptionStatus === "done" && call.transcript_text ? (
-              <div className="max-h-96 overflow-y-auto rounded-md border border-gray-100 bg-gray-50/50 p-3">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              <div className="max-h-96 overflow-y-auto rounded-xl border border-[#ECE3D3] bg-[#FBF6EC] p-3">
+                <p className="text-sm text-[#20342C] whitespace-pre-wrap leading-relaxed">
                   {call.transcript_text}
                 </p>
               </div>
             ) : transcriptionStatus === "pending" ? (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-[#93A39D]">
                 {t("detail.transcriptPending")}
               </p>
             ) : transcriptionStatus === "processing" ? (
-              <p className="text-xs text-amber-600">
+              <p className="text-xs text-[#B67C22]">
                 {t("detail.transcriptProcessing")}
               </p>
             ) : transcriptionStatus === "failed" ? (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-[#B85D5B]">
                 {t("detail.transcriptFailed")}
               </p>
             ) : transcriptionStatus === "skipped" ? (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-[#93A39D]">
                 {t("detail.transcriptSkipped")}
               </p>
             ) : (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-[#93A39D]">
                 {t("detail.transcriptEmpty")}
               </p>
             )}
@@ -349,14 +355,14 @@ export default async function CallDetailPage({
 
       {/* Section 4 — AI Summary (only if exists) */}
       {call.ai_summary && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-card border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+            <CardTitle className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold">
               {t("detail.summaryAiTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            <p className="text-sm text-[#20342C] whitespace-pre-wrap leading-relaxed">
               {call.ai_summary}
             </p>
           </CardContent>
@@ -365,9 +371,9 @@ export default async function CallDetailPage({
 
       {/* Section 5 — Tracking / Attribution (only if tracking_number) */}
       {tracking && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-card border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+            <CardTitle className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold">
               {t("detail.trackingTitle")}
             </CardTitle>
           </CardHeader>
@@ -375,27 +381,27 @@ export default async function CallDetailPage({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
               {tracking.campaign && (
                 <Row label={t("detail.campaign")}>
-                  <span className="text-gray-700">{tracking.campaign}</span>
+                  <span className="text-[#5C6F68]">{tracking.campaign}</span>
                 </Row>
               )}
               {(tracking.provider || call.source) && (
                 <Row label={t("detail.sourceLabel")}>
-                  <span className="text-gray-700">
+                  <span className="text-[#5C6F68]">
                     {tracking.provider ?? call.source}
                   </span>
                 </Row>
               )}
               {tracking.phone_e164 && (
                 <Row label={t("detail.number")}>
-                  <span className="font-mono text-gray-700 inline-flex items-center gap-1.5">
-                    <Phone className="w-3 h-3 text-gray-400" />
+                  <span className="font-mono tabular-nums text-[#5C6F68] inline-flex items-center gap-1.5">
+                    <Phone className="w-3 h-3 text-[#93A39D]" />
                     {tracking.phone_e164}
                   </span>
                 </Row>
               )}
               {call.brand && (
                 <Row label={t("detail.brand")}>
-                  <span className="flex items-center gap-1.5 text-gray-700">
+                  <span className="flex items-center gap-1.5 text-[#5C6F68]">
                     <span
                       className="w-1.5 h-1.5 rounded-full"
                       style={{
@@ -413,14 +419,14 @@ export default async function CallDetailPage({
 
       {/* Notes */}
       {call.notes && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-card border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+            <CardTitle className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold">
               {t("detail.notesTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            <p className="text-sm text-[#20342C] whitespace-pre-wrap leading-relaxed">
               {call.notes}
             </p>
           </CardContent>
@@ -441,7 +447,7 @@ function Row({
 }) {
   return (
     <div>
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
+      <p className="text-[10px] text-[#93A39D] uppercase tracking-wider mb-0.5">
         {label}
       </p>
       <div className="text-sm">{children}</div>

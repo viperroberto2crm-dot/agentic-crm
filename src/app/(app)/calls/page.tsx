@@ -5,7 +5,7 @@ import Link from "next/link"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
-import { Badge } from "@/components/ui/badge"
+import { Phone } from "lucide-react"
 import { NewCallButton } from "./_components/new-call-button"
 import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
@@ -20,6 +20,49 @@ type CallDirection = Database["public"]["Enums"]["call_direction"]
 const FALLBACK_COLORS: Record<string, string> = {
   "si-se-pierde": "#E11D48",
   "sunny-slim": "#F59E0B",
+}
+
+// Degradados cálidos para avatar de paciente; se eligen de forma estable por el nombre.
+const GRADS = [
+  "linear-gradient(150deg,#EF7B5C,#E2653F)",
+  "linear-gradient(150deg,#3FA278,#2C6B57)",
+  "linear-gradient(150deg,#5F8CE6,#3E63B8)",
+  "linear-gradient(150deg,#E0A64E,#C88A2E)",
+  "linear-gradient(150deg,#8E7CC3,#6E5AA6)",
+  "linear-gradient(150deg,#D5807E,#B85D5B)",
+]
+function grad(s: string): string {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return GRADS[h % GRADS.length]
+}
+function initials(n: string): string {
+  const p = (n || "?").trim().split(/\s+/)
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "") || "?").toUpperCase()
+}
+
+function CallAvatar({ name }: { name: string }) {
+  return (
+    <span
+      aria-hidden
+      className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[14px] shadow-[0_2px_6px_rgba(18,60,48,0.14)] select-none"
+      style={{ background: grad(name) }}
+    >
+      {initials(name)}
+    </span>
+  )
+}
+
+function PhoneSquare() {
+  return (
+    <span
+      aria-hidden
+      className="w-10 h-10 rounded-xl shrink-0 grid place-items-center"
+      style={{ background: "#EFEAF9" }}
+    >
+      <Phone className="w-[18px] h-[18px]" style={{ stroke: "#8E7CC3" }} />
+    </span>
+  )
 }
 
 function fmtDuration(s: number | null) {
@@ -51,14 +94,14 @@ export default async function CallsPage({
   const t = await getTranslations("calls")
   const tc = await getTranslations("common")
 
-  const OUTCOME_CONFIG: Record<CallOutcome, { label: string; cls: string }> = {
-    connected:           { label: t("outcomes.connected"),          cls: "border-emerald-500/40 text-emerald-400" },
-    appointment_set:     { label: t("outcomes.appointment_set"),    cls: "border-blue-500/40 text-blue-400" },
-    callback_requested:  { label: t("outcomes.callback_requested"), cls: "border-violet-500/40 text-violet-400" },
-    voicemail:           { label: t("outcomes.voicemail"),          cls: "border-amber-500/40 text-amber-400" },
-    no_answer:           { label: t("outcomes.no_answer"),          cls: "border-zinc-600 text-gray-400" },
-    not_interested:      { label: t("outcomes.not_interested"),     cls: "border-red-500/40 text-red-400" },
-    wrong_number:        { label: t("outcomes.wrong_number"),       cls: "border-zinc-600 text-gray-400" },
+  const OUTCOME_CONFIG: Record<CallOutcome, { label: string; bg: string; text: string; dot: string }> = {
+    connected:           { label: t("outcomes.connected"),          bg: "#E6F3EC", text: "#2E7E5B", dot: "#3FA278" },
+    appointment_set:     { label: t("outcomes.appointment_set"),    bg: "#E4F2EE", text: "#2E8B6F", dot: "#3FA278" },
+    callback_requested:  { label: t("outcomes.callback_requested"), bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+    voicemail:           { label: t("outcomes.voicemail"),          bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+    no_answer:           { label: t("outcomes.no_answer"),          bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
+    not_interested:      { label: t("outcomes.not_interested"),     bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+    wrong_number:        { label: t("outcomes.wrong_number"),       bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
   }
 
   const [profileRes, cookieStore, params] = await Promise.all([
@@ -190,10 +233,12 @@ export default async function CallsPage({
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">{count ?? calls.length} total</span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
+          <p className="text-[13px] text-[#93A39D] mt-1">{count ?? calls.length} total</p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
           <ExportButton
             entity="calls"
             extraParams={{ outcome: outcomeFilter, direction: dirFilter }}
@@ -204,22 +249,24 @@ export default async function CallsPage({
 
       <PatientSearchInput placeholder={tc("searchPatientPlaceholder")} />
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         {outcomeTabs.map((tab) => {
           const isActive = outcomeFilter === tab.value
           return (
             <Link
               key={tab.label}
               href={tab.value ? `/calls?outcome=${tab.value}` : "/calls"}
-              className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              className={`h-8 px-3.5 inline-flex items-center rounded-full text-[13px] font-medium border transition-colors ${
+                isActive
+                  ? "bg-[#20342C] text-white border-[#20342C]"
+                  : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5]"
               }`}
             >
               {tab.label}
             </Link>
           )
         })}
-        <span className="text-gray-300">|</span>
+        <span className="text-[#D8CDB5] px-1">|</span>
         {dirTabs.map((tab) => {
           const isActive = dirFilter === tab.value
           return (
@@ -229,8 +276,10 @@ export default async function CallsPage({
                 ? (outcomeFilter ? `/calls?outcome=${outcomeFilter}&direction=${tab.value}` : `/calls?direction=${tab.value}`)
                 : (outcomeFilter ? `/calls?outcome=${outcomeFilter}` : "/calls")
               }
-              className={`px-3 py-1 rounded text-xs transition-colors ${
-                isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              className={`h-8 px-3.5 inline-flex items-center rounded-full text-[13px] font-medium border transition-colors ${
+                isActive
+                  ? "bg-[#20342C] text-white border-[#20342C]"
+                  : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5]"
               }`}
             >
               {tab.label}
@@ -239,23 +288,24 @@ export default async function CallsPage({
         })}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+      <div className="bg-card border border-[#ECE3D3] rounded-2xl px-4 py-1 shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
         {calls.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">{t("noCallsFilter")}</p>
+          <p className="text-sm text-[#93A39D] py-16 text-center">{t("noCallsFilter")}</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDate")}</th>
+              <tr className="border-b border-[#ECE3D3]">
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colDate")}</th>
                 {allMode && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colLead")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colDir")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutcome")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colDuration")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">{tc("colLead")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colDir")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutcome")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colDuration")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">{t("colRep")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">{t("colRep")}</th>
                 )}
               </tr>
             </thead>
@@ -264,14 +314,14 @@ export default async function CallsPage({
                 const cfg = c.outcome ? OUTCOME_CONFIG[c.outcome] : null
                 const brand = allMode && c.brand_id ? brandsById.get(c.brand_id) : null
                 return (
-                  <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                  <tr key={c.id} className="border-b border-[#F1EADD] hover:bg-[#FBF6EC] transition-colors cursor-pointer relative">
                     <td className="py-3 pr-4 relative">
                       <Link
                         href={`/calls/${c.id}`}
                         className="absolute inset-0 z-0"
                         aria-label={`Open call ${c.id}`}
                       />
-                      <span className="text-gray-400 text-xs tabular-nums relative z-0">{fmtDate(c.called_at)}</span>
+                      <span className="text-[#93A39D] text-xs tabular-nums relative z-0">{fmtDate(c.called_at)}</span>
                     </td>
                     {allMode && (
                       <td className="py-3 pr-4">
@@ -281,44 +331,57 @@ export default async function CallsPage({
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
                             />
-                            <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                            <span className="text-[13px] text-[#5C6F68] truncate max-w-[140px]">{brand.name}</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-300">—</span>
+                          <span className="text-xs text-[#C9C0AF]">—</span>
                         )}
                       </td>
                     )}
                     <td className="py-3 pr-4">
-                      {c.lead ? (
-                        <Link href={`/leads/${c.lead.id}`} className="relative z-10 text-gray-800 hover:text-gray-900 font-medium transition-colors">
-                          {c.lead.first_name} {c.lead.last_name ?? ""}
-                        </Link>
-                      ) : c.caller_e164 ? (
-                        <span className="relative z-10 text-gray-600 tabular-nums">{c.caller_e164}</span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {c.lead ? (
+                          <CallAvatar name={`${c.lead.first_name} ${c.lead.last_name ?? ""}`} />
+                        ) : (
+                          <PhoneSquare />
+                        )}
+                        <div className="min-w-0">
+                          {c.lead ? (
+                            <Link href={`/leads/${c.lead.id}`} className="relative z-10 font-semibold text-[15px] text-[#20342C] hover:text-[#12483B] transition-colors block leading-tight truncate">
+                              {c.lead.first_name} {c.lead.last_name ?? ""}
+                            </Link>
+                          ) : c.caller_e164 ? (
+                            <span className="relative z-10 text-[13px] text-[#5C6F68] tabular-nums">{c.caller_e164}</span>
+                          ) : (
+                            <span className="text-[#93A39D]">—</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 pr-4 hidden sm:table-cell">
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-[#93A39D]">
                         {c.direction === "outbound" ? t("outboundRow") : t("inboundRow")}
                       </span>
                     </td>
                     <td className="py-3 pr-4">
                       {cfg ? (
-                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg.cls}`}>
+                        <span
+                          className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[12px] font-semibold whitespace-nowrap relative z-10"
+                          style={{ backgroundColor: cfg.bg, color: cfg.text }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.dot }} />
                           {cfg.label}
-                        </Badge>
+                        </span>
                       ) : (
-                        <span className="text-gray-300 text-xs">—</span>
+                        <span className="text-[#C9C0AF] text-xs">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-gray-400 tabular-nums">{fmtDuration(c.duration_seconds)}</span>
+                      <span className="text-xs text-[#5C6F68] tabular-nums">{fmtDuration(c.duration_seconds)}</span>
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 hidden lg:table-cell">
-                        <span className="text-xs text-gray-400">{c.rep?.name ?? "—"}</span>
+                        <span className="text-xs text-[#93A39D]">{c.rep?.name ?? "—"}</span>
                       </td>
                     )}
                   </tr>
@@ -326,6 +389,7 @@ export default async function CallsPage({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

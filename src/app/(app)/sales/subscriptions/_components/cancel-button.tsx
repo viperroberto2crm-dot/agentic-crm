@@ -27,7 +27,7 @@ export function CancelSubscriptionButton({ id, leadName }: { id: string; leadNam
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs text-gray-400 hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer"
+        className="text-[13px] text-[#93A39D] hover:text-[#B85D5B] transition-colors inline-flex items-center gap-1 cursor-pointer"
       >
         <XCircle className="w-3.5 h-3.5" />
         Cancelar

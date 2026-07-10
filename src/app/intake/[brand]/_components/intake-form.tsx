@@ -187,7 +187,7 @@ function Segmented({
             className={[
               "rounded-xl border transition-colors",
               isPublic ? "h-12 px-5 text-base" : "h-9 px-3.5 text-sm",
-              active ? "text-white border-transparent" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
+              active ? "text-white border-transparent" : "bg-white text-[#5C6F68] border-[#ECE3D3] hover:bg-[#FBF6EC]",
             ].join(" ")}
             style={active ? { backgroundColor: accent } : undefined}
           >
@@ -302,8 +302,8 @@ export function IntakeForm({
           </svg>
         </div>
         <div>
-          <h2 className="text-3xl font-semibold text-gray-900">{t.thankYou}</h2>
-          <p className="mt-2 text-gray-500 text-lg">{t.thankYouSub}</p>
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t.thankYou}</h2>
+          <p className="mt-2 text-[#5C6F68] text-lg">{t.thankYouSub}</p>
         </div>
         <button
           type="button"
@@ -318,12 +318,12 @@ export function IntakeForm({
   }
 
   const inputCls = isPublic
-    ? "w-full h-14 rounded-xl border border-gray-200 bg-white px-4 text-lg text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2"
-    : "w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2"
+    ? "w-full h-14 rounded-xl border border-[#ECE3D3] bg-white px-4 text-lg text-[#20342C] placeholder:text-[#B7AE9C] focus:outline-none focus:ring-2"
+    : "w-full h-10 rounded-lg border border-[#ECE3D3] bg-white px-3 text-sm text-[#20342C] placeholder:text-[#B7AE9C] focus:outline-none focus:ring-2"
 
   const labelCls = isPublic
-    ? "text-sm font-medium text-gray-600"
-    : "text-xs font-medium text-gray-500"
+    ? "text-sm font-medium text-[#5C6F68]"
+    : "text-xs font-medium text-[#93A39D]"
 
   const ringStyle = { ["--tw-ring-color" as string]: accent } as React.CSSProperties
 
@@ -354,12 +354,12 @@ export function IntakeForm({
               {brandName}
             </p>
           )}
-          <h1 className={isPublic ? "text-3xl font-semibold text-gray-900 mt-1" : "text-xl font-semibold text-gray-900"}>
+          <h1 className={isPublic ? "font-display text-3xl font-semibold tracking-tight text-[#20342C] mt-1" : "font-display text-xl font-semibold tracking-tight text-[#20342C]"}>
             {t.heading}
           </h1>
-          <p className="text-gray-500 mt-1">{t.sub}</p>
+          <p className="text-[#93A39D] mt-1">{t.sub}</p>
         </div>
-        <div className="flex rounded-xl border border-gray-200 overflow-hidden shrink-0">
+        <div className="flex rounded-xl border border-[#ECE3D3] overflow-hidden shrink-0">
           {(["es", "en"] as Lang[]).map((l) => {
             const active = lang === l
             return (
@@ -371,7 +371,7 @@ export function IntakeForm({
                 className={[
                   "px-4 font-semibold transition-colors",
                   isPublic ? "h-11 text-base" : "h-9 text-sm",
-                  active ? "text-white" : "bg-white text-gray-600 hover:bg-gray-50",
+                  active ? "text-white" : "bg-white text-[#5C6F68] hover:bg-[#FBF6EC]",
                 ].join(" ")}
                 style={active ? { backgroundColor: accent } : undefined}
               >

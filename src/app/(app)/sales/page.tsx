@@ -6,8 +6,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
 import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { getLocale, getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 import { ReportExportButton } from "@/components/exports/report-export-button"
@@ -48,6 +46,39 @@ function fmtDate(d: string) {
   }).format(parsed)
 }
 
+// Degradados para el avatar de paciente; se elige de forma estable por seed.
+const AVATAR_GRADS = [
+  "linear-gradient(150deg,#EF7B5C,#E2653F)",
+  "linear-gradient(150deg,#3FA278,#2C6B57)",
+  "linear-gradient(150deg,#5F8CE6,#3E63B8)",
+  "linear-gradient(150deg,#E0A64E,#C88A2E)",
+  "linear-gradient(150deg,#8E7CC3,#6E5AA6)",
+  "linear-gradient(150deg,#D5807E,#B85D5B)",
+]
+
+function avatarGrad(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_GRADS[h % AVATAR_GRADS.length]
+}
+
+function initials(name: string): string {
+  const p = (name || "?").trim().split(/\s+/)
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "") || "?").toUpperCase()
+}
+
+function PatientAvatar({ name, seed }: { name: string; seed: string }) {
+  return (
+    <span
+      aria-hidden
+      className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[14px] shadow-[0_2px_6px_rgba(18,60,48,0.14)] select-none"
+      style={{ background: avatarGrad(seed) }}
+    >
+      {initials(name)}
+    </span>
+  )
+}
+
 export default async function SalesPage({
   searchParams,
 }: {
@@ -67,11 +98,11 @@ export default async function SalesPage({
   const locale = await getLocale()
 
   const STATUS_CONFIG = {
-    paid:     { label: t("paid"),     className: "border-[#2E8B6F]/40 text-[#2E8B6F]" },
-    pending:  { label: t("pending"),  className: "border-[#D9A441]/40 text-[#D9A441]" },
-    failed:   { label: t("failed"),   className: "border-[#E07856]/40 text-[#E07856]" },
-    refunded: { label: t("refunded"), className: "border-[#E8E4DC] text-[#93A39D]" },
-    partial:  { label: t("partial"),  className: "border-blue-500/30 text-blue-600" },
+    paid:     { label: t("paid"),     bg: "#E6F3EC", text: "#2E7E5B", dot: "#3FA278" },
+    pending:  { label: t("pending"),  bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+    failed:   { label: t("failed"),   bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+    refunded: { label: t("refunded"), bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
+    partial:  { label: t("partial"),  bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
   } as const
 
   const [profileRes, cookieStore, params] = await Promise.all([
@@ -447,24 +478,24 @@ export default async function SalesPage({
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-4 flex-wrap">
-          <h1 className="text-xl font-semibold text-gray-900">{t("title")}</h1>
-          <span className="text-[11px] text-gray-400">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
+          <p className="text-[13px] text-[#93A39D] mt-1">
             {tFilters("showing", {
               from: formatYmdForDisplay(active.from, locale),
               to: formatYmdForDisplay(active.to, locale),
             })}
-          </span>
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <DateRangeFilter
             preset={active.preset}
             from={active.from}
             to={active.to}
             timezone={timezone}
           />
-          <p className="text-xs text-gray-400">{count ?? sales.length} {tc("records")}</p>
+          <p className="text-[13px] text-[#93A39D] tabular-nums">{count ?? sales.length} {tc("records")}</p>
           <ReportExportButton defaultBrand={brandSlug ?? ""} />
           <ExportButton entity="sales" extraParams={{ status: statusFilter }} />
         </div>
@@ -483,19 +514,19 @@ export default async function SalesPage({
           label={t("kpiToCollect")}
           value={fmtCents(totalPendingCents)}
           sub={`${pendingCount} ${pendingCount !== 1 ? t("pendingPlural") : t("pendingSingular")}`}
-          accent="#F59E0B"
+          accent="#D79A3E"
         />
         <KpiCard
           label={t("kpiTotal")}
           value={fmtCents(totalPaidCents + totalPendingCents)}
           sub={`${sales.length} ${tc("total")}`}
-          accent="#6B7280"
+          accent="#20342C"
         />
         <KpiCard
           label={t("kpiAvgTicket")}
           value={paidCount > 0 ? fmtCents(Math.round(totalPaidCents / paidCount)) : "$0"}
           sub={t("kpiCollected")}
-          accent="#6B7280"
+          accent="#20342C"
         />
       </div>
 
@@ -516,8 +547,10 @@ export default async function SalesPage({
               <Link
                 key={tab.label}
                 href={href}
-                className={`px-3 py-1 rounded text-xs transition-colors ${
-                  isActive ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                className={`h-8 px-3.5 inline-flex items-center rounded-full text-[13px] font-medium border transition-colors ${
+                  isActive
+                    ? "bg-[#20342C] text-white border-[#20342C]"
+                    : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5]"
                 }`}
               >
                 {tab.label}
@@ -525,7 +558,7 @@ export default async function SalesPage({
             )
           })}
         </div>
-        <div className="inline-flex border border-gray-200 rounded-md overflow-hidden text-xs">
+        <div className="flex gap-2 flex-wrap">
           {([
             { value: "sale", label: t("viewBySale") },
             { value: "patient", label: t("viewByPatient") },
@@ -539,8 +572,10 @@ export default async function SalesPage({
               <Link
                 key={v.value}
                 href={href}
-                className={`px-3 py-1 transition-colors ${
-                  isActive ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                className={`h-8 px-3.5 inline-flex items-center rounded-full text-[13px] font-medium border transition-colors ${
+                  isActive
+                    ? "bg-[#20342C] text-white border-[#20342C]"
+                    : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5]"
                 }`}
               >
                 {v.label}
@@ -550,42 +585,52 @@ export default async function SalesPage({
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+      <div className="bg-card border border-[#ECE3D3] rounded-2xl px-4 py-1 shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
         {sales.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">
+          <p className="text-sm text-[#93A39D] py-8 text-center">
             {t("noSalesFilter")}
           </p>
         ) : groupBy === "patient" ? (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPatient")}</th>
+              <tr className="border-b border-[#ECE3D3]">
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">{t("colPatient")}</th>
                 {allMode && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colCollected")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutstanding")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPayments")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colCollected")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colOutstanding")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colPayments")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colRep")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">{tc("colRep")}</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">{t("colLastActivity")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">{t("colLastActivity")}</th>
               </tr>
             </thead>
             <tbody>
               {patientGroups.map((p) => {
                 const brand = allMode && p.brandId ? brandsById.get(p.brandId) : null
                 return (
-                <tr key={p.leadId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <tr key={p.leadId} className="border-b border-[#F1EADD] hover:bg-[#FBF6EC] transition-colors">
                   <td className="py-3 pr-4">
-                    <Link href={`/leads/${p.leadId}`} className="text-gray-800 hover:text-gray-900 transition-colors font-medium">
-                      {p.leadName}
-                    </Link>
-                    {p.hasPlan && (
-                      <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 font-normal border-blue-500/40 text-blue-500">
-                        Plan
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <PatientAvatar name={p.leadName} seed={p.leadId} />
+                      <div className="min-w-0 flex items-center flex-wrap gap-2">
+                        <Link href={`/leads/${p.leadId}`} className="font-semibold text-[15px] text-[#20342C] hover:text-[#12483B] transition-colors truncate">
+                          {p.leadName}
+                        </Link>
+                        {p.hasPlan && (
+                          <span
+                            className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[12px] font-semibold"
+                            style={{ backgroundColor: "#EAF0FD", color: "#4E79D6" }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#5F8CE6" }} />
+                            Plan
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   {allMode && (
                     <td className="py-3 pr-4">
@@ -595,69 +640,75 @@ export default async function SalesPage({
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
                           />
-                          <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                          <span className="text-[13px] text-[#5C6F68] truncate max-w-[140px]">{brand.name}</span>
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-300">—</span>
+                        <span className="text-xs text-[#C9C0AF]">—</span>
                       )}
                     </td>
                   )}
                   <td className="py-3 pr-4">
-                    <span className="text-emerald-600 font-medium tabular-nums">{fmtCents(p.paidCents)}</span>
+                    <span className="text-[#2E7E5B] font-semibold tabular-nums">{fmtCents(p.paidCents)}</span>
                   </td>
                   <td className="py-3 pr-4">
                     {p.pendingCents > 0 ? (
-                      <span className="text-amber-600 tabular-nums">{fmtCents(p.pendingCents)}</span>
+                      <span className="text-[#B67C22] tabular-nums">{fmtCents(p.pendingCents)}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-[#C9C0AF]">—</span>
                     )}
                   </td>
                   <td className="py-3 pr-4">
-                    <span className="text-xs text-gray-500 tabular-nums">{p.salesCount}</span>
+                    <span className="text-[13px] text-[#5C6F68] tabular-nums">{p.salesCount}</span>
                   </td>
                   {role !== "rep" && (
                     <td className="py-3 pr-4 hidden lg:table-cell">
-                      <span className="text-xs text-gray-400">{p.repName ?? "—"}</span>
+                      <span className="text-[13px] text-[#93A39D]">{p.repName ?? "—"}</span>
                     </td>
                   )}
                   <td className="py-3 hidden sm:table-cell">
-                    <span className="text-xs text-gray-400">{fmtDate(p.lastDate)}</span>
+                    <span className="text-[13px] text-[#93A39D] tabular-nums">{fmtDate(p.lastDate)}</span>
                   </td>
                 </tr>
                 )
               })}
             </tbody>
           </table>
+          </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colLead")}</th>
+              <tr className="border-b border-[#ECE3D3]">
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">{t("colLead")}</th>
                 {allMode && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colAmount")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colMethod")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colAmount")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colMethod")}</th>
                 {role !== "rep" && (
-                  <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
+                  <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden lg:table-cell">Rep</th>
                 )}
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">{t("colDate")}</th>
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 hidden sm:table-cell">{t("colDate")}</th>
               </tr>
             </thead>
             <tbody>
               {sales.map((sale) => {
                 const cfg = STATUS_CONFIG[sale.payment_status] ?? STATUS_CONFIG.pending
                 const brand = allMode && sale.brand_id ? brandsById.get(sale.brand_id) : null
+                const leadName = sale.lead ? `${sale.lead.first_name} ${sale.lead.last_name ?? ""}`.trim() : ""
                 return (
-                  <tr key={sale.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={sale.id} className="border-b border-[#F1EADD] hover:bg-[#FBF6EC] transition-colors">
                     <td className="py-3 pr-4">
                       {sale.lead ? (
-                        <Link href={`/leads/${sale.lead.id}`} className="text-gray-800 hover:text-gray-900 transition-colors font-medium">
-                          {sale.lead.first_name} {sale.lead.last_name ?? ""}
-                        </Link>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <PatientAvatar name={leadName} seed={sale.lead.id} />
+                          <Link href={`/leads/${sale.lead.id}`} className="font-semibold text-[15px] text-[#20342C] hover:text-[#12483B] transition-colors truncate">
+                            {sale.lead.first_name} {sale.lead.last_name ?? ""}
+                          </Link>
+                        </div>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-[#C9C0AF]">—</span>
                       )}
                     </td>
                     {allMode && (
@@ -668,23 +719,27 @@ export default async function SalesPage({
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: brand.brand_color ?? FALLBACK_COLORS[brand.slug] ?? "#3B82F6" }}
                             />
-                            <span className="text-xs text-gray-500 truncate max-w-[140px]">{brand.name}</span>
+                            <span className="text-[13px] text-[#5C6F68] truncate max-w-[140px]">{brand.name}</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-300">—</span>
+                          <span className="text-xs text-[#C9C0AF]">—</span>
                         )}
                       </td>
                     )}
                     <td className="py-3 pr-4">
-                      <span className="text-gray-900 font-medium tabular-nums">{fmtCents(sale.amount_cents)}</span>
+                      <span className="text-[#20342C] font-semibold tabular-nums">{fmtCents(sale.amount_cents)}</span>
                     </td>
                     <td className="py-3 pr-4">
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg.className}`}>
+                      <span
+                        className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[12px] font-semibold whitespace-nowrap"
+                        style={{ backgroundColor: cfg.bg, color: cfg.text }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.dot }} />
                         {cfg.label}
-                      </Badge>
+                      </span>
                     </td>
                     <td className="py-3 pr-4 hidden md:table-cell">
-                      <span className="text-xs text-gray-400 capitalize">{sale.payment_method}</span>
+                      <span className="text-[13px] text-[#93A39D] capitalize">{sale.payment_method}</span>
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 pr-4 hidden lg:table-cell">
@@ -699,13 +754,14 @@ export default async function SalesPage({
                       </td>
                     )}
                     <td className="py-3 hidden sm:table-cell">
-                      <span className="text-xs text-gray-400">{fmtDate(sale.paid_at ?? sale.created_at)}</span>
+                      <span className="text-[13px] text-[#93A39D] tabular-nums">{fmtDate(sale.paid_at ?? sale.created_at)}</span>
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -715,12 +771,10 @@ export default async function SalesPage({
 
 function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
   return (
-    <Card className="bg-white border-gray-200">
-      <CardContent className="p-4">
-        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-2">{label}</p>
-        <p className="text-xl font-semibold tabular-nums leading-none" style={{ color: accent }}>{value}</p>
-        <p className="text-[11px] text-gray-400 mt-1.5">{sub}</p>
-      </CardContent>
-    </Card>
+    <div className="bg-card border border-[#ECE3D3] rounded-2xl p-4 shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
+      <p className="text-[10px] text-[#93A39D] uppercase tracking-widest font-semibold mb-2">{label}</p>
+      <p className="font-display text-2xl font-semibold tabular-nums leading-none" style={{ color: accent }}>{value}</p>
+      <p className="text-[11px] text-[#93A39D] mt-1.5">{sub}</p>
+    </div>
   )
 }

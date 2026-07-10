@@ -81,8 +81,8 @@ export default async function StaffIntakePage() {
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">{t("pageTitle")}</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{t("pageSubtitle")}</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("pageTitle")}</h1>
+        <p className="text-[13px] text-[#93A39D] mt-1">{t("pageSubtitle")}</p>
       </div>
 
       <IntakeLinksPanel
@@ -97,11 +97,11 @@ export default async function StaffIntakePage() {
       />
 
       {brands.length === 0 ? (
-        <div className="bg-white border border-border/60 rounded-2xl p-6 text-sm text-muted-foreground">
+        <div className="bg-card border border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)] p-6 text-sm text-[#93A39D]">
           {t("noBrands")}
         </div>
       ) : (
-        <div className="bg-white border border-border/60 rounded-2xl p-5 md:p-6">
+        <div className="bg-card border border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)] p-5 md:p-6">
           <IntakeForm action={submitStaffIntake} mode="internal" brands={brands} defaultLang="es" />
         </div>
       )}
