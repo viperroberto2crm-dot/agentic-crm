@@ -258,8 +258,13 @@ function SidebarContent({
               <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0 shadow-[0_6px_16px_-5px_rgba(239,123,92,0.55)]">
                 <Sunrise className="w-4 h-4 text-white" />
               </span>
-              <span className="font-display text-[15px] font-semibold tracking-[0.14em] text-white">
-                HORIZON
+              <span className="flex flex-col leading-none">
+                <span className="font-display text-[15px] font-semibold tracking-[0.14em] text-white">
+                  HORIZON
+                </span>
+                <span className="text-[9px] tracking-[0.18em] uppercase text-white/45 mt-1">
+                  CRM
+                </span>
               </span>
             </span>
           )}
@@ -267,6 +272,11 @@ function SidebarContent({
 
         {/* Nav */}
         <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
+          {!collapsed && (
+            <p className="px-3 pt-1 pb-1.5 text-[10px] uppercase tracking-[0.14em] text-white/40 font-semibold select-none">
+              Panel
+            </p>
+          )}
           <ul
             className={cn(
               "space-y-0.5",
@@ -275,6 +285,11 @@ function SidebarContent({
           >
             {navWithCounts.map((item) => (
               <li key={item.href}>
+                {!collapsed && item.href === "/sales" && (
+                  <p className="px-1.5 pt-3 pb-1.5 text-[10px] uppercase tracking-[0.14em] text-white/40 font-semibold select-none">
+                    Ingresos
+                  </p>
+                )}
                 <NavLink
                   item={item}
                   collapsed={collapsed}
