@@ -37,7 +37,7 @@ export function TopBar({ user, unreadCount, pendingCount, onOpenMobile, onOpenCo
   }
 
   return (
-    <header className="h-[52px] flex items-center gap-2 px-3 md:px-4 bg-white/90 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-30 shrink-0">
+    <header className="h-[52px] flex items-center gap-2 px-3 md:px-4 bg-background/70 backdrop-blur-md border-b border-[#E8E4DC]/60 sticky top-0 z-30 shrink-0">
       {/* Mobile hamburger */}
       <button
         onClick={onOpenMobile}

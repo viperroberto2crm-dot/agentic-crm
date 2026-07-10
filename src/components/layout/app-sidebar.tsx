@@ -361,7 +361,8 @@ export function AppSidebar({
       <aside
         style={{ background: SIDEBAR_BG }}
         className={cn(
-          "hidden md:flex flex-col h-screen border-r border-white/10",
+          "hidden md:flex flex-col h-full rounded-[22px] border border-white/5",
+          "shadow-[0_20px_44px_-22px_rgba(12,59,49,0.65)]",
           "transition-[width] duration-300 ease-in-out shrink-0 relative",
           collapsed ? "w-14" : "w-60"
         )}
