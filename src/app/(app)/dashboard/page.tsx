@@ -30,7 +30,9 @@ import { DateRangeFilter } from "./_components/date-range-filter"
 
 // Cast to bypass @supabase/ssr↔@supabase/supabase-js@2.46 type param mismatch
 type TypedClient = SupabaseClient<Database>
+import { fetchDashboardAnalytics } from "@/lib/queries/dashboard-analytics"
 import { CallsKpiCard, ApptsKpiCard, SalesKpiCard, PendingKpiCard } from "./_components/kpi-cards"
+import { AnalyticsPanel } from "./_components/analytics-panel"
 import { TodayApptList } from "./_components/appt-list"
 import { UrgentLeadList } from "./_components/urgent-list"
 import { AgentSummaryCard } from "./_components/agent-summary"
@@ -188,6 +190,7 @@ export default async function DashboardPage({
     clinicsForModal,
     providersForModal,
     kpiTrends,
+    analytics,
   ] = await Promise.all([
     fetchCallsKpi(sb, user.id, brandId, range, role),
     fetchApptsKpi(sb, user.id, brandId, range, role),
@@ -201,6 +204,7 @@ export default async function DashboardPage({
     clinicsForModalPromise,
     providersForModalPromise,
     fetchKpiTrends(sb, user.id, brandId, role, timezone),
+    fetchDashboardAnalytics(sb, user.id, role, { brandId, timezone }),
   ])
 
   const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
@@ -259,6 +263,9 @@ export default async function DashboardPage({
         <SalesKpiCard data={kpiSales} label={salesLabel} trend={kpiTrends.sales} />
         <PendingKpiCard data={kpiPending} />
       </div>
+
+      {/* Panel Analítica (estilo dashboard moderno) — data real, últimas 8 semanas */}
+      <AnalyticsPanel data={analytics} />
 
       {/* PHASE B plug-in: Daily Insights (leads sin contactar) */}
       <DailyInsightsPanel leads={staleLeadsForPanel} />
