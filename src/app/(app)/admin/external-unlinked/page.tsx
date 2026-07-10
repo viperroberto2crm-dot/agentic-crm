@@ -14,6 +14,11 @@ import {
 } from "./_components/unlinked-appointments-table"
 import type { BrandOption } from "./_components/link-lead-dialog"
 import { ImportSquareBookingsButton } from "./_components/import-square-bookings-button"
+import {
+  UnassignedLeadsTable,
+} from "./_components/unassigned-leads-table"
+import type { UnassignedLead } from "./_actions/external-unlinked-actions"
+import { getUnassignedBrandId } from "@/lib/integrations/offer-brand-map"
 
 type TypedClient = SupabaseClient<Database>
 
@@ -83,6 +88,21 @@ export default async function ExternalUnlinkedPage() {
   const brands = (brandsRes.data ?? []) as BrandOption[]
   const defaultBrandId = brands[0]?.id ?? null
 
+  // Leads que quedaron en la marca centinela 'unassigned' (bug #3). El dropdown
+  // de reasignación usa `brands` (active=true), que ya excluye a 'unassigned'.
+  const unassignedBrandId = await getUnassignedBrandId(admin)
+  let unassignedLeads: UnassignedLead[] = []
+  if (unassignedBrandId) {
+    const { data: ulRes, error: ulErr } = await admin
+      .from("leads")
+      .select("id, first_name, last_name, email, phone, source, notes, created_at")
+      .eq("brand_id", unassignedBrandId)
+      .order("created_at", { ascending: false })
+      .limit(200)
+    if (ulErr) console.error("[external-unlinked] unassigned leads:", ulErr.message)
+    unassignedLeads = (ulRes ?? []) as UnassignedLead[]
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-8">
       <div>
@@ -108,6 +128,21 @@ export default async function ExternalUnlinkedPage() {
         <ImportSquareBookingsButton />
         <UnlinkedAppointmentsTable
           appointments={appointments}
+          brands={brands}
+          defaultBrandId={defaultBrandId}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">
+          Leads sin marca ({unassignedLeads.length})
+        </h2>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Leads creados por un pago/cita de una oferta no mapeada. Reasígnalos a
+          la clínica correcta; si la persona ya existe ahí, ofrece fusionar.
+        </p>
+        <UnassignedLeadsTable
+          leads={unassignedLeads}
           brands={brands}
           defaultBrandId={defaultBrandId}
         />

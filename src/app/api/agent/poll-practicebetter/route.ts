@@ -142,6 +142,15 @@ async function handle(req: NextRequest) {
     summary.records = records.length
     const recordToLead = new Map<string, Cand>()
     const toLink: Array<{ leadId: string; recId: string }> = []
+    // Espejo local email→pb_record_id para el anti-duplicados (bug #2). Se
+    // alimenta aquí porque ya tenemos TODOS los records listados; el hot path
+    // del webhook lo consulta local en vez de listar PB en vivo.
+    const indexRows: Array<{
+      pb_record_id: string
+      email_lower: string | null
+      is_active: boolean | null
+      updated_at: string
+    }> = []
 
     for (const rec of records as PbRecord[]) {
       const recId = pbId(rec)
@@ -151,6 +160,13 @@ async function handle(req: NextRequest) {
       // en el perfil de PB → matcheamos por email.
       const email =
         firstString(rec.profile?.emailAddress, rec.client?.emailAddress)?.toLowerCase() ?? null
+
+      indexRows.push({
+        pb_record_id: recId,
+        email_lower: email,
+        is_active: typeof rec.isActive === "boolean" ? rec.isActive : null,
+        updated_at: new Date().toISOString(),
+      })
 
       // pb_record_id es único y seguro; email pasa por resolveUnique que
       // descarta coincidencias ambiguas entre clínicas.
@@ -176,6 +192,20 @@ async function handle(req: NextRequest) {
         .from("leads")
         .update({ pb_record_id: recId, pb_synced_at: new Date().toISOString() })
         .eq("id", leadId)
+    }
+
+    // Refrescar el espejo local pb_records_index (anti-duplicados, bug #2). En
+    // lotes para no exceder límites. Degrada con gracia si la tabla no existe.
+    for (let i = 0; i < indexRows.length; i += 500) {
+      const batch = indexRows.slice(i, i + 500)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (sb as any)
+        .from("pb_records_index")
+        .upsert(batch, { onConflict: "pb_record_id" })
+      if (error) {
+        console.warn("[poll-pb] pb_records_index upsert (no bloqueante):", error.message)
+        break // tabla ausente / RLS: no reintentar el resto
+      }
     }
 
     // ── 3) Invoices (pagos) → pb_payments ───────────────────────────────────

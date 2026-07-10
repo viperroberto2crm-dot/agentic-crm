@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database, Json } from "@/types/database"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { escapeIlike } from "@/lib/queries/search"
-import { createPbRecord } from "@/lib/integrations/practice-better"
+import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
 type SB = SupabaseClient<Database>
 
@@ -229,21 +229,17 @@ export async function submitIntake(params: {
   }
 
   // ── Practice Better push (no bloqueante, solo slugs habilitados) ─────────────
+  // findOrCreatePbRecord busca por email antes de crear (anti-duplicados, bug #2).
   if (pbEnabledSlugs().has(brandSlug) && !leadHasPbRecord) {
     try {
-      const rec = await createPbRecord({
+      await findOrCreatePbRecord(sb, {
+        leadId,
+        brandId,
         firstName,
-        lastName: lastName ?? undefined,
-        email: email ?? undefined,
-        phone: phone ?? undefined,
+        lastName,
+        email,
+        phone,
       })
-      const pbId = rec?.id ?? null
-      if (pbId) {
-        await sb
-          .from("leads")
-          .update({ pb_record_id: pbId, pb_synced_at: new Date().toISOString() })
-          .eq("id", leadId)
-      }
     } catch (e) {
       // Un fallo de PB NUNCA hace fallar el intake.
       console.warn(

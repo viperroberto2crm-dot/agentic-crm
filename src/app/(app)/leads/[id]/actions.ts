@@ -7,7 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
-import { createPbRecord, pbId, MissingPbCredentialsError } from "@/lib/integrations/practice-better"
+import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
+import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -1018,7 +1019,7 @@ export async function sendLeadToPracticeBetter(
   const sb = supabase as any
   const { data: lead } = await sb
     .from("leads")
-    .select("id, first_name, last_name, email, pb_record_id, assigned_rep_id")
+    .select("id, brand_id, first_name, last_name, email, pb_record_id, assigned_rep_id")
     .eq("id", leadId)
     .maybeSingle()
   if (!lead) return { ok: false, error: "Lead no encontrado" }
@@ -1050,33 +1051,46 @@ export async function sendLeadToPracticeBetter(
   if (!lastName) lastName = "—"
 
   try {
-    const rec = await createPbRecord({
+    // Busca por email antes de crear (anti-duplicados, bug #2). Hace el vínculo
+    // condicional internamente; devuelve el estado para mapear el mensaje.
+    const result = await findOrCreatePbRecord(sb, {
+      leadId,
+      brandId: lead.brand_id,
       firstName,
       lastName,
       email: leadEmail,
     })
-    const recId = pbId(rec)
-    if (!recId) {
-      // Paciente quizá creado en PB pero sin id parseable: NO reintentar a ciegas
-      console.error("[sendLeadToPB] PB no devolvió id parseable para lead", leadId, JSON.stringify(rec).slice(0, 300))
-      return { ok: false, error: "Practice Better no devolvió un id. No reintentes; el polling lo vinculará por email." }
+
+    if (result.linked) {
+      revalidatePath(`/leads/${leadId}`)
+      return { ok: true }
     }
 
-    const { error } = await sb
-      .from("leads")
-      .update({ pb_record_id: recId, pb_synced_at: new Date().toISOString() })
-      .eq("id", leadId)
-    if (error) {
-      // El paciente YA se creó en PB; si reintentas crearías un duplicado.
-      console.error("[sendLeadToPB] paciente creado en PB", recId, "pero falló el vínculo en DB:", error.message)
-      return {
-        ok: false,
-        error: "Paciente creado en Practice Better, pero no se pudo vincular. NO reintentes — el polling lo vinculará solo.",
-      }
+    switch (result.skipped) {
+      case "lost_race":
+        // Otro proceso vinculó el record en paralelo: el lead ya quedó ligado.
+        revalidatePath(`/leads/${leadId}`)
+        return { ok: true }
+      case "already_linked":
+        return {
+          ok: false,
+          error:
+            "Ya existe un paciente con ese email en Practice Better, vinculado a otro lead de esta clínica. No se creó un duplicado.",
+        }
+      case "cross_brand":
+        return {
+          ok: false,
+          error:
+            "Ya existe un paciente con ese email en Practice Better bajo otra clínica. Revísalo antes de duplicar.",
+        }
+      case "no_id":
+        return {
+          ok: false,
+          error: "Practice Better no devolvió un id. No reintentes; el polling lo vinculará por email.",
+        }
+      default:
+        return { ok: false, error: "No se pudo crear el paciente en Practice Better." }
     }
-
-    revalidatePath(`/leads/${leadId}`)
-    return { ok: true }
   } catch (e) {
     if (e instanceof MissingPbCredentialsError) {
       return { ok: false, error: "Practice Better no está configurado" }

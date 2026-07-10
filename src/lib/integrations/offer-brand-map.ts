@@ -24,7 +24,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { escapeIlike } from "@/lib/queries/search"
-import { createPbRecord } from "@/lib/integrations/practice-better"
+import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
 type DB = SupabaseClient<Database>
 
@@ -326,6 +326,7 @@ export async function routeAndCreateLead(
   if (!leadId) return null
 
   // ── Push a Practice Better: SOLO si se creó Y la oferta era marca REAL ───────
+  // findOrCreatePbRecord busca por email antes de crear (anti-duplicados, bug #2).
   if (created && mapMatch) {
     try {
       const { data: brandRow } = await sb
@@ -335,18 +336,13 @@ export async function routeAndCreateLead(
         .maybeSingle()
       const brandSlug = (brandRow as { slug: string } | null)?.slug ?? null
       if (brandSlug && pbEnabledSlugs().has(brandSlug)) {
-        const rec = await createPbRecord({
+        await findOrCreatePbRecord(sb, {
+          leadId,
+          brandId: targetBrandId,
           firstName,
-          email: email ?? undefined,
-          phone: phone ?? undefined,
+          email,
+          phone,
         })
-        const pbId = rec?.id ?? null
-        if (pbId) {
-          await sb
-            .from("leads")
-            .update({ pb_record_id: pbId, pb_synced_at: new Date().toISOString() })
-            .eq("id", leadId)
-        }
       }
     } catch (e) {
       // Un fallo de PB NUNCA hace fallar el ruteo.
