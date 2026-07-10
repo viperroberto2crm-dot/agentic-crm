@@ -277,6 +277,84 @@ export async function fetchPendingKpi(
   }
 }
 
+// ─── Fetch: mini-series de 7 días para sparklines de las KPI cards ───────────
+// Conteos por día (no montos) para evitar replicar la lógica de planes/abonos:
+// llamadas registradas, citas agendadas y ventas cerradas. Solo lectura, mismo
+// scope de rol/marca que las KPI. Bucketea por día LOCAL (timezone del usuario).
+
+export type KpiTrends = { calls: number[]; appts: number[]; sales: number[] }
+
+export async function fetchKpiTrends(
+  supabase: SB,
+  userId: string,
+  brandId: string | null,
+  role: string,
+  timezone: string,
+): Promise<KpiTrends> {
+  const days = 7
+  const repFilter = scopeRep(userId, role)
+  const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString()
+  const tz = timezone || "America/Los_Angeles"
+  // en-CA da formato YYYY-MM-DD, estable para usar como llave de día.
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const keys: string[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    keys.push(fmt.format(new Date(Date.now() - i * 86_400_000)))
+  }
+  const idx = new Map(keys.map((k, i) => [k, i]))
+  const zero = () => new Array(days).fill(0) as number[]
+
+  let callsQ = supabase
+    .from("calls")
+    .select("called_at")
+    .not("outcome", "is", null)
+    .gte("called_at", sinceIso)
+  if (repFilter) callsQ = callsQ.eq("rep_id", repFilter)
+  if (brandId) callsQ = callsQ.eq("brand_id", brandId)
+
+  let apptsQ = supabase
+    .from("appointments")
+    .select("scheduled_at")
+    .neq("status", "cancelled")
+    .gte("scheduled_at", sinceIso)
+  if (repFilter) apptsQ = apptsQ.eq("rep_id", repFilter)
+  if (brandId) apptsQ = apptsQ.eq("brand_id", brandId)
+
+  let salesQ = supabase
+    .from("sales")
+    .select("paid_at")
+    .eq("payment_status", "paid")
+    .not("paid_at", "is", null)
+    .gte("paid_at", sinceIso)
+  if (repFilter) salesQ = salesQ.eq("rep_id", repFilter)
+  if (brandId) salesQ = salesQ.eq("brand_id", brandId)
+
+  const [c, a, s] = await Promise.all([callsQ, apptsQ, salesQ])
+
+  const calls = zero()
+  const appts = zero()
+  const sales = zero()
+  for (const r of (c.data ?? []) as { called_at: string }[]) {
+    const i = idx.get(fmt.format(new Date(r.called_at)))
+    if (i !== undefined) calls[i]++
+  }
+  for (const r of (a.data ?? []) as { scheduled_at: string }[]) {
+    const i = idx.get(fmt.format(new Date(r.scheduled_at)))
+    if (i !== undefined) appts[i]++
+  }
+  for (const r of (s.data ?? []) as { paid_at: string | null }[]) {
+    if (!r.paid_at) continue
+    const i = idx.get(fmt.format(new Date(r.paid_at)))
+    if (i !== undefined) sales[i]++
+  }
+  return { calls, appts, sales }
+}
+
 // ─── Fetch: today's appointments (list) ─────────────────────────────────────
 
 export async function fetchTodayAppts(

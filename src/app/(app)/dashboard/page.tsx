@@ -15,6 +15,7 @@ import {
   fetchUrgentLeads,
   fetchAgentSummary,
   fetchPivotStats,
+  fetchKpiTrends,
   formatCurrency as fmtCurrency,
 } from "@/lib/queries/dashboard"
 import { getLocale, getTranslations } from "next-intl/server"
@@ -186,6 +187,7 @@ export default async function DashboardPage({
     staleLeadsRaw,
     clinicsForModal,
     providersForModal,
+    kpiTrends,
   ] = await Promise.all([
     fetchCallsKpi(sb, user.id, brandId, range, role),
     fetchApptsKpi(sb, user.id, brandId, range, role),
@@ -198,6 +200,7 @@ export default async function DashboardPage({
     detectStaleLeads(sb, user.id, undefined, brandId).catch(() => []),
     clinicsForModalPromise,
     providersForModalPromise,
+    fetchKpiTrends(sb, user.id, brandId, role, timezone),
   ])
 
   const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
@@ -251,9 +254,9 @@ export default async function DashboardPage({
 
       {/* Section 2: KPI grid — arriba, lo primero que ve el usuario */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <CallsKpiCard data={kpiCalls} label={callsLabel} />
-        <ApptsKpiCard data={kpiAppts} label={apptsLabel} />
-        <SalesKpiCard data={kpiSales} label={salesLabel} />
+        <CallsKpiCard data={kpiCalls} label={callsLabel} trend={kpiTrends.calls} />
+        <ApptsKpiCard data={kpiAppts} label={apptsLabel} trend={kpiTrends.appts} />
+        <SalesKpiCard data={kpiSales} label={salesLabel} trend={kpiTrends.sales} />
         <PendingKpiCard data={kpiPending} />
       </div>
 
