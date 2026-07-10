@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { fetchLeads } from "@/lib/queries/leads"
-import { getBrandIdBySlug } from "@/lib/queries/dashboard"
+import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
+import { fetchLeadsStats, type LeadsStats } from "@/lib/queries/leads-stats"
 import { LeadFilterBar } from "./_components/filter-bar"
+import { LeadsStatStrip } from "./_components/leads-stat-strip"
 import { LeadsTableBulk } from "./_components/leads-table-bulk"
 import { logQuickCall } from "./actions"
 import { getTranslations } from "next-intl/server"
@@ -89,6 +91,20 @@ export default async function LeadsPage({
     limit: 50, offset,
   })
 
+  // Tira de stats (arriba de la tabla). Solo no-provider. Scope idéntico al de
+  // la lista. Revisado con Fable: sin fuga de marca, semana/mes con timezone.
+  let leadsStats: LeadsStats | null = null
+  if (role !== "provider") {
+    const timezone = await fetchTimezone(sb, user.id)
+    leadsStats = await fetchLeadsStats(sb, {
+      userId: user.id,
+      role,
+      brandId: allMode ? null : brandId,
+      brandIds: authorizedBrandIds,
+      timezone,
+    })
+  }
+
   // Reps disponibles para reasignar bulk (admin/manager only).
   // En modo "todas las compañías" se omite: la reasignación bulk necesita un
   // solo brand, así que se pasa brandReps=[] (bulk delete sigue funcionando).
@@ -164,6 +180,13 @@ export default async function LeadsPage({
           )}
         </div>
       </div>
+
+      {leadsStats && (
+        <LeadsStatStrip
+          stats={leadsStats}
+          showUnassigned={role === "admin" || role === "manager"}
+        />
+      )}
 
       <LeadFilterBar total={total} showRepFilter={role !== "rep"} />
 
