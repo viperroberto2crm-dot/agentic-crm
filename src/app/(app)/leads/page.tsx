@@ -150,7 +150,7 @@ export default async function LeadsPage({
             </>
           )}
           {role !== "provider" && (
-            <Button asChild size="sm" className="h-9 text-xs gap-1.5 cursor-pointer" style={{ background: "var(--brand)" }}>
+            <Button asChild size="sm" className="h-9 text-xs gap-1.5 cursor-pointer rounded-xl text-white shadow-[0_8px_20px_-8px_rgba(226,101,63,0.6)]" style={{ background: "linear-gradient(150deg,#EF7B5C,#E2653F)" }}>
               <Link href="/leads/new">
                 <Plus className="w-3.5 h-3.5" />
                 {t("newLead")}
@@ -162,7 +162,7 @@ export default async function LeadsPage({
 
       <LeadFilterBar total={total} showRepFilter={role !== "rep"} />
 
-      <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
+      <div className="bg-card border border-[#ECE3D3] rounded-2xl px-4 py-1 shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
         <LeadsTableBulk
           leads={leads}
           canBulkDelete={role === "admin" || role === "manager"}

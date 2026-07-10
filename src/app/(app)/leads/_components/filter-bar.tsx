@@ -101,18 +101,18 @@ export function LeadFilterBar({
   return (
     <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
       <div className="relative flex-1 min-w-0">
-        <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        <Search className="absolute left-3.5 top-2.5 w-3.5 h-3.5 text-[#93A39D] pointer-events-none" />
         <Input
           type="text"
           placeholder={t("searchPlaceholder")}
           value={searchInput}
-          className="pl-8 h-9 bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 text-sm focus-visible:ring-zinc-700"
+          className="pl-9 h-9 rounded-full bg-card border-[#ECE3D3] text-[#20342C] placeholder:text-[#93A39D] text-sm shadow-[0_1px_2px_rgba(26,46,40,0.05)] focus-visible:ring-[#12483B]/25"
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
         />
       </div>
 
       <Select value={status} onValueChange={(v: string) => update("status", v)}>
-        <SelectTrigger className="h-9 w-[160px] bg-white border-gray-200 text-gray-700 text-sm">
+        <SelectTrigger className="h-9 w-[150px] rounded-full bg-card border-[#ECE3D3] text-[#5C6F68] text-sm shadow-[0_1px_2px_rgba(26,46,40,0.05)]">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent className="bg-white border-gray-200">
@@ -124,7 +124,7 @@ export function LeadFilterBar({
       </Select>
 
       <Select value={source} onValueChange={(v: string) => update("source", v)}>
-        <SelectTrigger className="h-9 w-[160px] bg-white border-gray-200 text-gray-700 text-sm">
+        <SelectTrigger className="h-9 w-[150px] rounded-full bg-card border-[#ECE3D3] text-[#5C6F68] text-sm shadow-[0_1px_2px_rgba(26,46,40,0.05)]">
           <SelectValue placeholder="Source" />
         </SelectTrigger>
         <SelectContent className="bg-white border-gray-200">

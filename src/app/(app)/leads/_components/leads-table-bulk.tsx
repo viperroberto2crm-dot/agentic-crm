@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Phone, Trash2, Loader2, UserPlus, ChevronDown } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -70,15 +69,50 @@ const BRAND_COLORS: Record<string, string> = {
   "sunny-slim": "#F59E0B",
 }
 
-const STATUS_CLASS: Record<LeadStatus, string> = {
-  new:             "border-gray-300 text-gray-500",
-  contacted:       "border-blue-500/40 text-blue-400",
-  qualified:       "border-violet-500/40 text-violet-400",
-  appointment_set: "border-amber-500/40 text-amber-400",
-  sold:            "border-emerald-500/40 text-emerald-400",
-  lost:            "border-red-500/40 text-red-500",
-  on_hold:         "border-yellow-500/40 text-yellow-500",
-  not_interested:  "border-zinc-500/40 text-gray-500",
+// Chips de estado en pastel (fondo suave + texto + puntito), se leen de un vistazo.
+const STATUS_CHIP: Record<LeadStatus, { bg: string; text: string; dot: string }> = {
+  new:             { bg: "#EAF0FD", text: "#4E79D6", dot: "#5F8CE6" },
+  contacted:       { bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+  qualified:       { bg: "#EFEAF9", text: "#6E5AA6", dot: "#8E7CC3" },
+  appointment_set: { bg: "#FCEEE4", text: "#C56A3E", dot: "#EF7B5C" },
+  sold:            { bg: "#E6F3EC", text: "#2E7E5B", dot: "#3FA278" },
+  lost:            { bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+  on_hold:         { bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
+  not_interested:  { bg: "#EFEBE4", text: "#7C8B80", dot: "#A8B0A2" },
+}
+
+// Degradados para el avatar; se elige de forma estable por el nombre del lead.
+const AVATAR_GRADS = [
+  "linear-gradient(150deg,#EF7B5C,#E2653F)",
+  "linear-gradient(150deg,#3FA278,#2C6B57)",
+  "linear-gradient(150deg,#5F8CE6,#3E63B8)",
+  "linear-gradient(150deg,#E0A64E,#C88A2E)",
+  "linear-gradient(150deg,#8E7CC3,#6E5AA6)",
+  "linear-gradient(150deg,#D5807E,#B85D5B)",
+]
+
+function avatarGrad(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_GRADS[h % AVATAR_GRADS.length]
+}
+
+function initials(first: string, last: string | null): string {
+  const a = first?.trim()?.[0] ?? ""
+  const b = last?.trim()?.[0] ?? ""
+  return (a + b || a || "?").toUpperCase()
+}
+
+function LeadAvatar({ first, last, id }: { first: string; last: string | null; id: string }) {
+  return (
+    <span
+      aria-hidden
+      className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[14px] shadow-[0_2px_6px_rgba(18,60,48,0.14)] select-none"
+      style={{ background: avatarGrad(id || `${first}${last ?? ""}`) }}
+    >
+      {initials(first, last)}
+    </span>
+  )
 }
 
 function daysAgoLocal(iso: string | null): string {
@@ -91,14 +125,16 @@ function daysAgoLocal(iso: string | null): string {
 }
 
 function ScoreBar({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-gray-300 text-xs">—</span>
-  const color = score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500"
+  if (score === null) return <span className="text-[#C9C0AF] text-xs">—</span>
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-10 h-1 bg-gray-200 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
+    <div className="flex items-center gap-2 justify-start">
+      <div className="w-11 h-1.5 rounded-full bg-[#EFE8DA] overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${score}%`, background: "linear-gradient(90deg,#E0A64E,#EF7B5C)" }}
+        />
       </div>
-      <span className="text-[10px] text-gray-400 tabular-nums">{score}</span>
+      <span className="text-[12px] font-bold text-[#20342C] tabular-nums w-5 text-right">{score}</span>
     </div>
   )
 }
@@ -258,7 +294,7 @@ export function LeadsTableBulk({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200">
+            <tr className="border-b border-[#ECE3D3]">
               {canBulkDelete && (
                 <th className="text-left pb-2 pr-2 w-8">
                   <input
@@ -274,24 +310,24 @@ export function LeadsTableBulk({
                   />
                 </th>
               )}
-              <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">
+              <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 min-w-[180px]">
                 Lead
               </th>
               {showCompany && (
-                <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">
                   {labels.colCompany}
                 </th>
               )}
-              <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4">
+              <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">
                 Status
               </th>
-              <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">
+              <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">
                 Rep
               </th>
-              <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">
+              <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">
                 {labels.colLastContact}
               </th>
-              <th className="text-left text-[10px] text-gray-400 font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">
+              <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 hidden lg:table-cell">
                 Score
               </th>
               <th className="pb-2 w-8" />
@@ -299,13 +335,13 @@ export function LeadsTableBulk({
           </thead>
           <tbody>
             {leads.map((lead) => {
-              const cfg = STATUS_CLASS[lead.status] ?? "border-gray-300 text-gray-500"
+              const chip = STATUS_CHIP[lead.status] ?? STATUS_CHIP.new
               const isSelected = selected.has(lead.id)
               return (
                 <tr
                   key={lead.id}
-                  className={`border-b border-gray-100 transition-colors group ${
-                    isSelected ? "bg-gray-50" : "hover:bg-gray-50"
+                  className={`border-b border-[#F1EADD] transition-colors group ${
+                    isSelected ? "bg-[#FBF6EC]" : "hover:bg-[#FBF6EC]"
                   }`}
                 >
                   {canBulkDelete && (
@@ -322,13 +358,18 @@ export function LeadsTableBulk({
                   )}
 
                   <td className="py-3 pr-4">
-                    <Link
-                      href={`/leads/${lead.id}`}
-                      className="font-medium text-gray-800 hover:text-gray-900 transition-colors block leading-tight"
-                    >
-                      {lead.first_name} {lead.last_name ?? ""}
-                    </Link>
-                    <span className="text-[11px] text-gray-400 font-mono">{lead.phone}</span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <LeadAvatar first={lead.first_name} last={lead.last_name} id={lead.id} />
+                      <div className="min-w-0">
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="font-semibold text-[15px] text-[#20342C] hover:text-[#12483B] transition-colors block leading-tight truncate"
+                        >
+                          {lead.first_name} {lead.last_name ?? ""}
+                        </Link>
+                        <span className="text-[11.5px] text-[#93A39D] tabular-nums">{lead.phone}</span>
+                      </div>
+                    </div>
                   </td>
 
                   {showCompany && (
@@ -344,7 +385,7 @@ export function LeadsTableBulk({
                                 "#3B82F6",
                             }}
                           />
-                          <span className="text-xs text-gray-500 truncate max-w-[140px]">
+                          <span className="text-[13px] text-[#5C6F68] truncate max-w-[140px]">
                             {lead.brand.name}
                           </span>
                         </span>
@@ -355,9 +396,13 @@ export function LeadsTableBulk({
                   )}
 
                   <td className="py-3 pr-4">
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${cfg}`}>
+                    <span
+                      className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[12px] font-semibold whitespace-nowrap"
+                      style={{ backgroundColor: chip.bg, color: chip.text }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: chip.dot }} />
                       {statusLabels[lead.status] ?? lead.status}
-                    </Badge>
+                    </span>
                   </td>
 
                   <td className="py-3 pr-4 hidden md:table-cell">
