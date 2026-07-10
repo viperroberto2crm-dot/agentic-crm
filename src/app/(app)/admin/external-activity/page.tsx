@@ -144,7 +144,12 @@ export default async function ExternalActivityPage({
     if (r.lead_id) leadIds.add(r.lead_id)
   }
 
-  const [brandsRes, leadsRes] = await Promise.all([
+  // Nombres legibles de servicio: el ID crudo (service_variation_id) → offer_label
+  // del mapa de ofertas, si está mapeado. Si no, el UI muestra "Cita agendada".
+  const serviceIds = new Set<string>()
+  for (const r of apptRows) if (r.service) serviceIds.add(r.service)
+
+  const [brandsRes, leadsRes, offersRes] = await Promise.all([
     admin.from("brands").select("id, name, slug"),
     leadIds.size > 0
       ? admin
@@ -152,7 +157,18 @@ export default async function ExternalActivityPage({
           .select("id, first_name, last_name")
           .in("id", Array.from(leadIds))
       : Promise.resolve({ data: [], error: null }),
+    serviceIds.size > 0
+      ? admin
+          .from("offer_brand_map")
+          .select("offer_key, offer_label")
+          .in("offer_key", Array.from(serviceIds))
+      : Promise.resolve({ data: [], error: null }),
   ])
+
+  const serviceMap = new Map<string, string>()
+  for (const o of (offersRes.data ?? []) as Array<{ offer_key: string; offer_label: string | null }>) {
+    if (o.offer_label) serviceMap.set(o.offer_key, o.offer_label)
+  }
 
   if (brandsRes.error) {
     console.error("[external-activity] brands:", brandsRes.error.message)
@@ -192,6 +208,7 @@ export default async function ExternalActivityPage({
     provider: r.provider,
     status: r.status,
     service: r.service,
+    serviceLabel: r.service ? serviceMap.get(r.service) ?? "Cita agendada" : "Cita agendada",
     staff: r.staff,
     starts_at: r.starts_at,
     customer_name: r.customer_name,
@@ -230,8 +247,8 @@ export default async function ExternalActivityPage({
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
+        <p className="text-[13px] text-[#93A39D] mt-1">{t("subtitle")}</p>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -259,16 +276,26 @@ export default async function ExternalActivityPage({
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">
-          {t("appointmentsHeading", { count: appointments.length })}
-        </h2>
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-[10px] bg-[#E4F2EE] flex items-center justify-center shrink-0">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2E8B6F" strokeWidth="2"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4" strokeLinecap="round"/></svg>
+          </span>
+          <h2 className="font-display text-lg font-semibold tracking-tight text-[#20342C]">
+            {t("appointmentsHeading", { count: appointments.length })}
+          </h2>
+        </div>
         <ExternalAppointmentsList appointments={appointments} />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">
-          {t("paymentsHeading", { count: payments.length })}
-        </h2>
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-[10px] bg-[#E6F3EC] flex items-center justify-center shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2E7E5B" strokeWidth="2"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18" strokeLinecap="round"/></svg>
+          </span>
+          <h2 className="font-display text-lg font-semibold tracking-tight text-[#20342C]">
+            {t("paymentsHeading", { count: payments.length })}
+          </h2>
+        </div>
         <ExternalPaymentsList payments={payments} />
       </section>
     </div>
