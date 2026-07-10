@@ -4,9 +4,11 @@
 
 @layer base {
   :root {
-    /* HORIZON palette */
-    --background: 43 30% 95%; /* #F7F5F0 warm cream */
+    /* HORIZON palette (suavizada) */
+    --background: 40 40% 93%; /* #F6F1E7 crema cálida */
     --foreground: 162 28% 14%; /* #1A2E28 ink */
+    --brand-accent: 12 82% 65%; /* #EF7B5C coral suavizado (acento de marca) */
+    --brand-gold: 36 68% 59%; /* #E0A64E dorado cálido */
     --card: 0 0% 100%; /* #FFFFFF */
     --card-foreground: 162 28% 14%;
     --popover: 0 0% 100%;
@@ -35,6 +37,8 @@
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
+    --brand-accent: 12 82% 65%; /* #EF7B5C coral (marca, constante en ambos temas) */
+    --brand-gold: 36 68% 59%; /* #E0A64E dorado */
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;

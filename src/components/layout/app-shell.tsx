@@ -43,7 +43,7 @@ export function AppShell({
 
   return (
     <BrandProvider brands={brands}>
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex h-screen bg-background overflow-hidden">
         <AppSidebar
           mobileOpen={mobileOpen}
           onMobileClose={() => setMobileOpen(false)}

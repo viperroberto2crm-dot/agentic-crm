@@ -34,6 +34,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 
 type UserRole = "admin" | "manager" | "rep" | "provider"
 
+// Fondo del sidebar (verde HORIZON suavizado): degradado verde cálido + un
+// resplandor coral→dorado sutil arriba, detrás del logo. Un solo valor
+// compartido por desktop, móvil y el botón de colapsar para que no se desincronicen.
+const SIDEBAR_BG =
+  "radial-gradient(115% 55% at 18% 0%, rgba(255,120,100,0.22), rgba(224,166,78,0.07) 42%, rgba(12,59,49,0) 72%), linear-gradient(178deg, #12483B 0%, #0C3B30 82%)"
+
 type NavItem = {
   label: string
   href: string
@@ -118,14 +124,14 @@ function NavLink({
       {active && (
         <span
           className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full"
-          style={{ backgroundColor: "hsl(var(--accent))" }}
+          style={{ backgroundColor: "hsl(var(--brand-accent))" }}
         />
       )}
       <Icon
         className={cn(
           "w-4 h-4 shrink-0 transition-colors",
           active
-            ? "text-[hsl(var(--accent))]"
+            ? "text-[hsl(var(--brand-accent))]"
             : "text-white/50 group-hover:text-white"
         )}
       />
@@ -244,12 +250,12 @@ function SidebarContent({
           )}
         >
           {collapsed ? (
-            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0 shadow-[0_6px_16px_-5px_rgba(239,123,92,0.55)]">
               <Sunrise className="w-4 h-4 text-white" />
             </span>
           ) : (
             <span className="flex items-center gap-2.5 select-none">
-              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0">
+              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF6B5E] to-[#D9A441] flex items-center justify-center shrink-0 shadow-[0_6px_16px_-5px_rgba(239,123,92,0.55)]">
                 <Sunrise className="w-4 h-4 text-white" />
               </span>
               <span className="font-display text-[15px] font-semibold tracking-[0.14em] text-white">
@@ -294,7 +300,7 @@ function SidebarContent({
                   onClick={onOpenCommand}
                   className="group h-9 w-9 mx-auto flex items-center justify-center rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all"
                 >
-                  <Sparkles className="w-4 h-4 group-hover:text-[hsl(var(--accent))] transition-colors" />
+                  <Sparkles className="w-4 h-4 group-hover:text-[hsl(var(--brand-accent))] transition-colors" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8} className="text-xs">
@@ -309,7 +315,7 @@ function SidebarContent({
               onClick={onOpenCommand}
               className="group flex items-center gap-3 w-full h-9 px-2.5 rounded-xl text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all"
             >
-              <Sparkles className="w-4 h-4 shrink-0 text-white/50 group-hover:text-[hsl(var(--accent))] transition-colors" />
+              <Sparkles className="w-4 h-4 shrink-0 text-white/50 group-hover:text-[hsl(var(--brand-accent))] transition-colors" />
               <span className="flex-1 text-left truncate">{t("askAgent")}</span>
               <kbd className="text-[9px] text-white/50 font-mono bg-white/5 border border-white/10 rounded px-1 py-0.5 leading-none">
                 ⌘K
@@ -353,8 +359,9 @@ export function AppSidebar({
     <>
       {/* Desktop sidebar */}
       <aside
+        style={{ background: SIDEBAR_BG }}
         className={cn(
-          "hidden md:flex flex-col h-screen bg-[#0A4538] border-r border-white/10",
+          "hidden md:flex flex-col h-screen border-r border-white/10",
           "transition-[width] duration-300 ease-in-out shrink-0 relative",
           collapsed ? "w-14" : "w-60"
         )}
@@ -364,7 +371,7 @@ export function AppSidebar({
         {/* Collapse toggle */}
         <button
           onClick={toggle}
-          className="absolute -right-3 top-[68px] z-10 w-6 h-6 rounded-full bg-[#0A4538] border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/40 transition-all shadow-md"
+          className="absolute -right-3 top-[68px] z-10 w-6 h-6 rounded-full bg-[#12483B] border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/40 transition-all shadow-md"
           aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
         >
           {collapsed ? (
@@ -379,7 +386,8 @@ export function AppSidebar({
       <Sheet open={mobileOpen} onOpenChange={(v) => !v && onMobileClose()}>
         <SheetContent
           side="left"
-          className="p-0 w-60 bg-[#0A4538] border-white/10"
+          style={{ background: SIDEBAR_BG }}
+          className="p-0 w-60 border-white/10"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>{t("navigation")}</SheetTitle>
