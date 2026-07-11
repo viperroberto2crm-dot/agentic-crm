@@ -185,6 +185,24 @@ export default async function LeadDetailPage({
   }, 0)
   const totalPendingCents = standalonePendingCents + planPendingCents
 
+  // COBRADO EXTERNO (Square/Stripe): settled − refunded, SOLO la moneda principal
+  // (nunca se suman monedas distintas). Es un universo INDEPENDIENTE de las ventas
+  // manuales (no hay vínculo external_payment↔sale) → sumarlo aquí NO doble-cuenta.
+  // Diseño de Fable: se EXPONE como línea aparte, no se fusiona en "Ventas cerradas"
+  // ni se inyecta en los KPIs del dashboard (evita reescribir la serie auditada).
+  const extCurrency = (externalPayments[0]?.currency ?? "USD").toUpperCase()
+  const externalCollectedCents = externalPayments.reduce((sum, p) => {
+    if ((p.currency ?? "USD").toUpperCase() !== extCurrency) return sum
+    const s = (p.status ?? "").toLowerCase()
+    if (s === "completed" || s === "paid") return sum + (p.amount_cents ?? 0)
+    if (s === "refunded") return sum - (p.amount_cents ?? 0)
+    return sum
+  }, 0)
+  const externalApptCount = externalAppointments.filter((a) => {
+    const s = (a.status ?? "").toLowerCase()
+    return s !== "cancelled" && s !== "no_show"
+  }).length
+
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
 
@@ -200,7 +218,7 @@ export default async function LeadDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-3">
-          <Card className="bg-white border-border/60">
+          <Card className="bg-white border border-[#EAE3D5] shadow-[0_1px_2px_rgba(46,63,58,0.04),0_6px_18px_-8px_rgba(46,63,58,0.12)]">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
                 {t("summary")}
@@ -209,10 +227,24 @@ export default async function LeadDetailPage({
             <CardContent className="space-y-3">
               {role !== "provider" && <Stat label={t("callCount")} value={calls.length} />}
               <Stat label={t("apptCount")} value={appointments.length} />
+              {externalApptCount > 0 && (
+                <Stat label="Citas Square" value={externalApptCount} />
+              )}
               {role !== "provider" && (
                 <Stat label={t("closedSales")} value={
                   (totalCollectedCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })
                 } />
+              )}
+              {role !== "provider" && externalCollectedCents !== 0 && (
+                <Stat
+                  label="Cobrado Square/Stripe"
+                  value={
+                    (externalCollectedCents / 100).toLocaleString("en-US", {
+                      style: "currency",
+                      currency: extCurrency.length === 3 ? extCurrency : "USD",
+                    })
+                  }
+                />
               )}
               {role !== "provider" && totalPendingCents > 0 && (
                 <Stat
@@ -234,7 +266,7 @@ export default async function LeadDetailPage({
         </div>
 
         <div className="lg:col-span-2">
-          <Card className="bg-white border-border/60">
+          <Card className="bg-white border border-[#EAE3D5] shadow-[0_1px_2px_rgba(46,63,58,0.04),0_6px_18px_-8px_rgba(46,63,58,0.12)]">
             <CardHeader className="pb-3">
               <CardTitle className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
                 {t("activityTitle")}
@@ -255,7 +287,7 @@ export default async function LeadDetailPage({
       </div>
 
       {intakeData && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-white border border-[#EAE3D5] shadow-[0_1px_2px_rgba(46,63,58,0.04),0_6px_18px_-8px_rgba(46,63,58,0.12)]">
           <CardContent className="pt-5">
             <IntakeCard data={intakeData} />
           </CardContent>
@@ -263,7 +295,7 @@ export default async function LeadDetailPage({
       )}
 
       {lead.brand_id && role !== "provider" && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-white border border-[#EAE3D5] shadow-[0_1px_2px_rgba(46,63,58,0.04),0_6px_18px_-8px_rgba(46,63,58,0.12)]">
           <CardContent className="pt-5">
             <PaymentPlansSection
               plans={paymentPlans}
@@ -275,7 +307,7 @@ export default async function LeadDetailPage({
       )}
 
       {lead.brand_id && role !== "provider" && (
-        <Card className="bg-white border-border/60">
+        <Card className="bg-white border border-[#EAE3D5] shadow-[0_1px_2px_rgba(46,63,58,0.04),0_6px_18px_-8px_rgba(46,63,58,0.12)]">
           <CardContent className="pt-5">
             <PracticeBetterCard
               appointments={pbAppointments}
@@ -289,7 +321,7 @@ export default async function LeadDetailPage({
 
       {role !== "provider" &&
         (externalPayments.length > 0 || externalAppointments.length > 0) && (
-          <Card className="bg-white border-border/60">
+          <Card className="bg-white border border-[#EAE3D5] shadow-[0_1px_2px_rgba(46,63,58,0.04),0_6px_18px_-8px_rgba(46,63,58,0.12)]">
             <CardContent className="pt-5">
               <ExternalPaymentsCard
                 payments={externalPayments}
