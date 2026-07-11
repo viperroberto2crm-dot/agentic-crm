@@ -16,6 +16,7 @@ import {
   fetchAgentSummary,
   fetchPivotStats,
   fetchKpiTrends,
+  fetchExternalCollectedKpi,
   formatCurrency as fmtCurrency,
 } from "@/lib/queries/dashboard"
 import { getLocale, getTranslations } from "next-intl/server"
@@ -31,7 +32,7 @@ import { DateRangeFilter } from "./_components/date-range-filter"
 // Cast to bypass @supabase/ssr↔@supabase/supabase-js@2.46 type param mismatch
 type TypedClient = SupabaseClient<Database>
 import { fetchDashboardAnalytics } from "@/lib/queries/dashboard-analytics"
-import { CallsKpiCard, ApptsKpiCard, SalesKpiCard, PendingKpiCard } from "./_components/kpi-cards"
+import { CallsKpiCard, ApptsKpiCard, SalesKpiCard, PendingKpiCard, ExternalCollectedKpiCard } from "./_components/kpi-cards"
 import { AnalyticsPanel } from "./_components/analytics-panel"
 import { TodayApptList } from "./_components/appt-list"
 import { UrgentLeadList } from "./_components/urgent-list"
@@ -191,6 +192,7 @@ export default async function DashboardPage({
     providersForModal,
     kpiTrends,
     analytics,
+    kpiExternal,
   ] = await Promise.all([
     fetchCallsKpi(sb, user.id, brandId, range, role),
     fetchApptsKpi(sb, user.id, brandId, range, role),
@@ -205,6 +207,11 @@ export default async function DashboardPage({
     providersForModalPromise,
     fetchKpiTrends(sb, user.id, brandId, role, timezone),
     fetchDashboardAnalytics(sb, user.id, role, { brandId, timezone }),
+    // Cobros automáticos (Square/Stripe): métrica a nivel MARCA. external_payments
+    // no tiene rep_id → solo para admin/manager (a un rep no se le puede atribuir).
+    role !== "rep"
+      ? fetchExternalCollectedKpi(sb, brandId, range)
+      : Promise.resolve(null),
   ])
 
   const staleLeadsForPanel: DailyInsightLead[] = staleLeadsRaw.map((l) => ({
@@ -262,6 +269,9 @@ export default async function DashboardPage({
         <ApptsKpiCard data={kpiAppts} label={apptsLabel} trend={kpiTrends.appts} />
         <SalesKpiCard data={kpiSales} label={salesLabel} trend={kpiTrends.sales} />
         <PendingKpiCard data={kpiPending} />
+        {kpiExternal && kpiExternal.count > 0 && (
+          <ExternalCollectedKpiCard data={kpiExternal} />
+        )}
       </div>
 
       {/* Panel Analítica (estilo dashboard moderno) — data real, últimas 8 semanas */}

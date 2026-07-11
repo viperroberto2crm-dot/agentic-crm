@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { Phone, CalendarDays, DollarSign, Clock } from "lucide-react"
+import { Phone, CalendarDays, DollarSign, Clock, CreditCard } from "lucide-react"
 import { formatCurrency } from "@/lib/queries/dashboard"
-import type { CallsKpi, ApptsKpi, SalesKpi, PendingKpi } from "@/lib/queries/dashboard"
+import type { CallsKpi, ApptsKpi, SalesKpi, PendingKpi, ExternalCollectedKpi } from "@/lib/queries/dashboard"
 import { getTranslations } from "next-intl/server"
 
 export { formatCurrency }
@@ -134,7 +134,7 @@ function KpiShell({
   children?: React.ReactNode
 }) {
   return (
-    <Card className="bg-white rounded-2xl border-[#E8E4DC]/60 shadow-[0_1px_2px_rgba(26,46,40,.05),0_2px_8px_rgba(26,46,40,.04)]">
+    <Card className="bg-white rounded-2xl border border-[#E8E4DC]/70 shadow-[0_1px_2px_rgba(26,46,40,.05),0_2px_8px_rgba(26,46,40,.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(26,46,40,.06),0_12px_28px_-8px_rgba(26,46,40,.16)]">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <p className="text-[10px] text-[#5C6F68] uppercase tracking-widest font-semibold pt-1">
@@ -274,6 +274,32 @@ export async function PendingKpiCard({ data }: { data: PendingKpi }) {
         <ChartCell caption="vencido" title={`${data.overdue_count} de ${data.count} pagos vencidos (>7 días)`}>
           <Ring pct={overduePct} color="#EF7B5C" />
         </ChartCell>
+      }
+    />
+  )
+}
+
+// Cobros automáticos de Square/Stripe (métrica SEPARADA, no mezclada con Ventas).
+export async function ExternalCollectedKpiCard({ data }: { data: ExternalCollectedKpi }) {
+  const cur = data.currency.length === 3 ? data.currency : "USD"
+  const value =
+    data.total_cents === 0
+      ? "$0"
+      : (data.total_cents / 100).toLocaleString("en-US", { style: "currency", currency: cur })
+  const sub =
+    data.count === 0
+      ? "Sin cobros automáticos"
+      : `${data.count} ${data.count !== 1 ? "cobros" : "cobro"} · Square/Stripe`
+
+  return (
+    <KpiShell
+      label="Cobros automáticos"
+      value={value}
+      sub={sub}
+      icon={
+        <span className="w-8 h-8 rounded-[10px] bg-[#E3F0F5] flex items-center justify-center shrink-0">
+          <CreditCard className="w-4 h-4 text-[#3B8FA6]" />
+        </span>
       }
     />
   )

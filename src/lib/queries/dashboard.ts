@@ -243,6 +243,47 @@ export async function fetchSalesKpi(
   }
 }
 
+// ─── Fetch: KPI cobros automáticos (Square/Stripe) ───────────────────────────
+// Métrica NUEVA y SEPARADA (diseño de Fable): suma external_payments settled −
+// refunded del periodo, a nivel MARCA (external_payments no tiene rep_id, así que
+// no se atribuye por rep). NO toca getSalesBreakdown ni la serie histórica de
+// "Ventas" → no reescribe meses pasados ni doble-cuenta. Solo la moneda principal.
+
+export type ExternalCollectedKpi = { total_cents: number; count: number; currency: string }
+
+export async function fetchExternalCollectedKpi(
+  supabase: SB,
+  brandId: string | null,
+  range: DayRange,
+): Promise<ExternalCollectedKpi> {
+  let q = supabase
+    .from("external_payments")
+    .select("amount_cents, currency, status")
+    .gte("paid_at", range.start)
+    .lt("paid_at", range.end)
+  if (brandId) q = q.eq("brand_id", brandId)
+  const { data } = await q
+  const rows = (data ?? []) as {
+    amount_cents: number | null
+    currency: string | null
+    status: string | null
+  }[]
+  const primary = (rows[0]?.currency ?? "USD").toUpperCase()
+  let total = 0
+  let count = 0
+  for (const r of rows) {
+    if ((r.currency ?? "USD").toUpperCase() !== primary) continue
+    const s = (r.status ?? "").toLowerCase()
+    if (s === "completed" || s === "paid") {
+      total += r.amount_cents ?? 0
+      count++
+    } else if (s === "refunded") {
+      total -= r.amount_cents ?? 0
+    }
+  }
+  return { total_cents: total, count, currency: primary }
+}
+
 // ─── Fetch: KPI pending payments ─────────────────────────────────────────────
 
 export async function fetchPendingKpi(
