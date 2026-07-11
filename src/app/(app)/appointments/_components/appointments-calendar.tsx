@@ -1,7 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, ArrowRight, CalendarDays } from "lucide-react"
 
 export type CalendarAppt = {
   id: string
@@ -12,6 +13,10 @@ export type CalendarAppt = {
   leadId: string | null
   dot: string // color por estado
   statusLabel: string
+  statusBg: string
+  statusText: string
+  service: string | null
+  typeLabel: string
 }
 
 type Props = {
@@ -20,6 +25,7 @@ type Props = {
   month: number // 1-12
   monthLabel: string
   todayKey: string
+  locale: string
   total?: number
   hiddenCount?: number
   prevHref: string
@@ -30,8 +36,31 @@ type Props = {
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const pad2 = (n: number) => String(n).padStart(2, "0")
 
+const GRADS = [
+  "linear-gradient(150deg,#EF7B5C,#E2653F)",
+  "linear-gradient(150deg,#3FA278,#2C6B57)",
+  "linear-gradient(150deg,#5F8CE6,#3E63B8)",
+  "linear-gradient(150deg,#E0A64E,#C88A2E)",
+  "linear-gradient(150deg,#8E7CC3,#6E5AA6)",
+  "linear-gradient(150deg,#D5807E,#B85D5B)",
+]
+function grad(s: string) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return GRADS[h % GRADS.length]
+}
+function initials(n: string) {
+  const p = (n || "?").trim().split(/\s+/)
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "") || "?").toUpperCase()
+}
+function dayLabel(key: string, locale: string): string {
+  const [y, m, d] = key.split("-").map(Number)
+  return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d)))
+}
+
 export function AppointmentsCalendar({
-  items, year, month, monthLabel, todayKey, total, hiddenCount, prevHref, nextHref, todayHref,
+  items, year, month, monthLabel, todayKey, locale, total, hiddenCount, prevHref, nextHref, todayHref,
 }: Props) {
   // Agrupar citas por día
   const byDay = new Map<string, CalendarAppt[]>()
@@ -43,6 +72,10 @@ export function AppointmentsCalendar({
   // Orden dentro del día por hora real (epoch), no por texto ("1 PM" vs "9 AM").
   for (const arr of byDay.values()) arr.sort((a, b) => a.sortKey - b.sortKey)
   const showWarning = typeof hiddenCount === "number" && hiddenCount > 0
+
+  // Día seleccionado: por defecto HOY si está en este mes y tiene citas.
+  const [selected, setSelected] = useState<string | null>(byDay.has(todayKey) ? todayKey : null)
+  const selectedAppts = selected ? byDay.get(selected) ?? [] : []
 
   // Construir la cuadrícula (semanas lun→dom)
   const firstDow = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7 // Lunes = 0
@@ -93,21 +126,28 @@ export function AppointmentsCalendar({
             ))}
           </div>
 
-          {/* Cuadrícula */}
+          {/* Cuadrícula — cada día es un botón que abre el detalle del día */}
           <div className="grid grid-cols-7 gap-1.5">
             {cells.map((c, i) => {
               if (c.day === null) {
                 return <div key={i} className="min-h-[96px] rounded-xl bg-[#FBF7EF]/60 border border-transparent" />
               }
               const isToday = c.key === todayKey
+              const isSelected = c.key === selected
               const dayAppts = c.key ? byDay.get(c.key) ?? [] : []
               const shown = dayAppts.slice(0, 3)
               const extra = dayAppts.length - shown.length
               return (
-                <div
+                <button
                   key={i}
-                  className={`min-h-[96px] rounded-xl border p-1.5 flex flex-col ${
-                    isToday ? "border-[#2E8B6F] bg-[#F2FBF7]" : "border-[#F1EADD] bg-white"
+                  type="button"
+                  onClick={() => setSelected(c.key)}
+                  className={`min-h-[96px] rounded-xl border p-1.5 flex flex-col text-left transition-colors ${
+                    isSelected
+                      ? "border-[#2E8B6F] bg-[#F2FBF7] ring-2 ring-[#2E8B6F]/25"
+                      : isToday
+                        ? "border-[#2E8B6F] bg-[#F2FBF7] hover:bg-[#EAF6F0]"
+                        : "border-[#F1EADD] bg-white hover:bg-[#FBF6EC]"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -124,43 +164,83 @@ export function AppointmentsCalendar({
                   </div>
 
                   <div className="flex flex-col gap-1 min-w-0">
-                    {shown.map((a) => {
-                      const inner = (
-                        <span className="flex items-center gap-1 min-w-0">
-                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: a.dot }} />
-                          <span className="text-[10px] font-semibold text-[#5C6F68] tabular-nums shrink-0">{a.time.replace(/\s?[AP]M/i, "")}</span>
-                          <span className="text-[10px] text-[#20342C] truncate">{a.leadName}</span>
-                        </span>
-                      )
-                      return a.leadId ? (
-                        <Link
-                          key={a.id}
-                          href={`/leads/${a.leadId}`}
-                          title={`${a.time} · ${a.leadName} · ${a.statusLabel}`}
-                          className="block rounded-md px-1.5 py-1 bg-[#F6F9F6] hover:bg-[#ECF4EE] transition-colors"
-                        >
-                          {inner}
-                        </Link>
-                      ) : (
-                        <span
-                          key={a.id}
-                          title={`${a.time} · ${a.leadName} · ${a.statusLabel}`}
-                          className="block rounded-md px-1.5 py-1 bg-[#F6F9F6]"
-                        >
-                          {inner}
-                        </span>
-                      )
-                    })}
+                    {shown.map((a) => (
+                      <span key={a.id} className="flex items-center gap-1 min-w-0 rounded-md px-1.5 py-1 bg-[#F6F9F6]">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: a.dot }} />
+                        <span className="text-[10px] font-semibold text-[#5C6F68] tabular-nums shrink-0">{a.time.replace(/\s?[AP]M/i, "")}</span>
+                        <span className="text-[10px] text-[#20342C] truncate">{a.leadName}</span>
+                      </span>
+                    ))}
                     {extra > 0 && (
-                      <span className="text-[9.5px] font-semibold text-[#93A39D] pl-1">+{extra} más</span>
+                      <span className="text-[9.5px] font-semibold text-[#2E8B6F] pl-1">+{extra} más →</span>
                     )}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
         </div>
       </div>
+
+      {/* Panel del día seleccionado — TODAS las citas de ese día */}
+      {selected && (
+        <div className="mt-4 border-t border-[#F1EADD] pt-4">
+          <div className="flex items-center gap-2.5 mb-3">
+            <span className="w-8 h-8 rounded-[10px] bg-[#E4F2EE] grid place-items-center shrink-0">
+              <CalendarDays className="w-4 h-4 text-[#2E8B6F]" />
+            </span>
+            <h4 className="font-display text-[15px] font-semibold tracking-tight text-[#20342C] capitalize">
+              {dayLabel(selected, locale)}
+            </h4>
+            <span className="text-[12px] text-[#93A39D] font-medium">
+              · {selectedAppts.length} {selectedAppts.length === 1 ? "cita" : "citas"}
+            </span>
+          </div>
+
+          {selectedAppts.length === 0 ? (
+            <p className="text-[13px] text-[#93A39D] py-4">Sin citas ese día.</p>
+          ) : (
+            <div className="space-y-2">
+              {selectedAppts.map((a) => {
+                const row = (
+                  <div className="flex items-center gap-3 rounded-xl border border-[#F1EADD] bg-white p-2.5 hover:bg-[#FBF6EC] transition-colors">
+                    <span
+                      className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[13px] shadow-[0_2px_6px_rgba(18,60,48,0.14)]"
+                      style={{ background: grad(a.leadName) }}
+                    >
+                      {initials(a.leadName)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-[14px] text-[#20342C] truncate">{a.leadName}</div>
+                      <div className="text-[12px] text-[#93A39D] truncate">
+                        {a.typeLabel}{a.service ? ` · ${a.service}` : ""}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                      <span className="font-semibold text-[13px] text-[#20342C] tabular-nums whitespace-nowrap">{a.time}</span>
+                      <span
+                        className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap"
+                        style={{ backgroundColor: a.statusBg, color: a.statusText }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: a.dot }} />
+                        {a.statusLabel}
+                      </span>
+                    </div>
+                    {a.leadId && <ArrowRight className="w-4 h-4 text-[#B7AE9C] shrink-0" />}
+                  </div>
+                )
+                return a.leadId ? (
+                  <Link key={a.id} href={`/leads/${a.leadId}`} title="Ver lead · dar seguimiento" className="block">
+                    {row}
+                  </Link>
+                ) : (
+                  <div key={a.id}>{row}</div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

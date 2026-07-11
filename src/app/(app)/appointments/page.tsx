@@ -216,7 +216,8 @@ export default async function AppointmentsPage({
   const calRange = dateOnlyRangeToUtc(calFrom, calTo, BRAND_TIMEZONE)
 
   type CalRow = {
-    id: string; scheduled_at: string; status: ApptStatus; brand_id: string | null
+    id: string; scheduled_at: string; status: ApptStatus; service: string | null; type: ApptType
+    brand_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
   }
   const calRows: CalRow[] = []
@@ -229,7 +230,7 @@ export default async function AppointmentsPage({
       let cq: any = (sb as any)
         .from("appointments")
         .select(
-          "id, scheduled_at, status, brand_id, lead:leads!appointments_lead_id_fkey(id, first_name, last_name)",
+          "id, scheduled_at, status, service, type, brand_id, lead:leads!appointments_lead_id_fkey(id, first_name, last_name)",
           { count: "exact" },
         )
         .gte("scheduled_at", calRange.start)
@@ -272,6 +273,10 @@ export default async function AppointmentsPage({
       leadId: a.lead?.id ?? null,
       dot: cfg.dot,
       statusLabel: cfg.label,
+      statusBg: cfg.bg,
+      statusText: cfg.text,
+      service: a.service ?? null,
+      typeLabel: TYPE_LABEL[a.type],
     }]
   })
   // Aviso si algo NO se pudo mostrar (tope de páginas o fecha inválida). Nunca mudo.
@@ -467,6 +472,7 @@ export default async function AppointmentsPage({
         month={calMonth}
         monthLabel={calMonthLabel}
         todayKey={calTodayKey}
+        locale={locale}
         total={calCount}
         hiddenCount={calHidden}
         prevHref={calPrevHref}
