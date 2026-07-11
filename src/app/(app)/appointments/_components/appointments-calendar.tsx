@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, ArrowRight, CalendarDays } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export type CalendarAppt = {
   id: string
@@ -73,9 +74,9 @@ export function AppointmentsCalendar({
   for (const arr of byDay.values()) arr.sort((a, b) => a.sortKey - b.sortKey)
   const showWarning = typeof hiddenCount === "number" && hiddenCount > 0
 
-  // Día seleccionado: por defecto HOY si está en este mes y tiene citas.
-  const [selected, setSelected] = useState<string | null>(byDay.has(todayKey) ? todayKey : null)
-  const selectedAppts = selected ? byDay.get(selected) ?? [] : []
+  // Día abierto en el modal (null = cerrado).
+  const [openDay, setOpenDay] = useState<string | null>(null)
+  const dayAppts = openDay ? byDay.get(openDay) ?? [] : []
 
   // Construir la cuadrícula (semanas lun→dom)
   const firstDow = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7 // Lunes = 0
@@ -126,31 +127,31 @@ export function AppointmentsCalendar({
             ))}
           </div>
 
-          {/* Cuadrícula — cada día es un botón que abre el detalle del día */}
+          {/* Cuadrícula */}
           <div className="grid grid-cols-7 gap-1.5">
             {cells.map((c, i) => {
               if (c.day === null) {
                 return <div key={i} className="min-h-[96px] rounded-xl bg-[#FBF7EF]/60 border border-transparent" />
               }
               const isToday = c.key === todayKey
-              const isSelected = c.key === selected
-              const dayAppts = c.key ? byDay.get(c.key) ?? [] : []
-              const shown = dayAppts.slice(0, 3)
-              const extra = dayAppts.length - shown.length
+              const appts = c.key ? byDay.get(c.key) ?? [] : []
+              const shown = appts.slice(0, 3)
+              const extra = appts.length - shown.length
               return (
-                <button
+                <div
                   key={i}
-                  type="button"
-                  onClick={() => setSelected(c.key)}
-                  className={`min-h-[96px] rounded-xl border p-1.5 flex flex-col text-left transition-colors ${
-                    isSelected
-                      ? "border-[#2E8B6F] bg-[#F2FBF7] ring-2 ring-[#2E8B6F]/25"
-                      : isToday
-                        ? "border-[#2E8B6F] bg-[#F2FBF7] hover:bg-[#EAF6F0]"
-                        : "border-[#F1EADD] bg-white hover:bg-[#FBF6EC]"
+                  className={`min-h-[96px] rounded-xl border p-1.5 flex flex-col ${
+                    isToday ? "border-[#2E8B6F] bg-[#F2FBF7]" : "border-[#F1EADD] bg-white"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  {/* Nº de día → abre el modal del día */}
+                  <button
+                    type="button"
+                    onClick={() => c.key && appts.length > 0 && setOpenDay(c.key)}
+                    disabled={appts.length === 0}
+                    className={`flex items-center justify-between mb-1 -mx-0.5 px-0.5 rounded ${appts.length > 0 ? "hover:bg-[#F0EBE0]/60 cursor-pointer" : "cursor-default"}`}
+                    aria-label={appts.length > 0 ? `Ver ${appts.length} citas del día ${c.day}` : undefined}
+                  >
                     <span
                       className={`text-[11px] font-bold tabular-nums grid place-items-center ${
                         isToday ? "w-5 h-5 rounded-full bg-[#2E8B6F] text-white" : "text-[#5C6F68]"
@@ -158,89 +159,116 @@ export function AppointmentsCalendar({
                     >
                       {c.day}
                     </span>
-                    {dayAppts.length > 0 && (
-                      <span className="text-[9.5px] font-semibold text-[#93A39D] tabular-nums">{dayAppts.length}</span>
+                    {appts.length > 0 && (
+                      <span className="text-[9.5px] font-semibold text-[#2E8B6F] tabular-nums">{appts.length}</span>
                     )}
-                  </div>
+                  </button>
 
+                  {/* Cada cita = enlace directo al lead (seguimiento) */}
                   <div className="flex flex-col gap-1 min-w-0">
-                    {shown.map((a) => (
-                      <span key={a.id} className="flex items-center gap-1 min-w-0 rounded-md px-1.5 py-1 bg-[#F6F9F6]">
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: a.dot }} />
-                        <span className="text-[10px] font-semibold text-[#5C6F68] tabular-nums shrink-0">{a.time.replace(/\s?[AP]M/i, "")}</span>
-                        <span className="text-[10px] text-[#20342C] truncate">{a.leadName}</span>
-                      </span>
-                    ))}
+                    {shown.map((a) => {
+                      const chip = (
+                        <span className="flex items-center gap-1 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: a.dot }} />
+                          <span className="text-[10px] font-semibold text-[#5C6F68] tabular-nums shrink-0">{a.time.replace(/\s?[AP]M/i, "")}</span>
+                          <span className="text-[10px] text-[#20342C] truncate">{a.leadName}</span>
+                        </span>
+                      )
+                      return a.leadId ? (
+                        <Link
+                          key={a.id}
+                          href={`/leads/${a.leadId}`}
+                          title={`${a.time} · ${a.leadName} · ${a.statusLabel}`}
+                          className="block rounded-md px-1.5 py-1 bg-[#F6F9F6] hover:bg-[#ECF4EE] transition-colors"
+                        >
+                          {chip}
+                        </Link>
+                      ) : (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => c.key && setOpenDay(c.key)}
+                          title={`${a.time} · ${a.leadName} · ${a.statusLabel}`}
+                          className="block w-full text-left rounded-md px-1.5 py-1 bg-[#F6F9F6] hover:bg-[#ECF4EE] transition-colors"
+                        >
+                          {chip}
+                        </button>
+                      )
+                    })}
                     {extra > 0 && (
-                      <span className="text-[9.5px] font-semibold text-[#2E8B6F] pl-1">+{extra} más →</span>
+                      <button
+                        type="button"
+                        onClick={() => c.key && setOpenDay(c.key)}
+                        className="text-[9.5px] font-semibold text-[#2E8B6F] pl-1 text-left hover:underline"
+                      >
+                        +{extra} más →
+                      </button>
                     )}
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>
         </div>
       </div>
 
-      {/* Panel del día seleccionado — TODAS las citas de ese día */}
-      {selected && (
-        <div className="mt-4 border-t border-[#F1EADD] pt-4">
-          <div className="flex items-center gap-2.5 mb-3">
-            <span className="w-8 h-8 rounded-[10px] bg-[#E4F2EE] grid place-items-center shrink-0">
-              <CalendarDays className="w-4 h-4 text-[#2E8B6F]" />
-            </span>
-            <h4 className="font-display text-[15px] font-semibold tracking-tight text-[#20342C] capitalize">
-              {dayLabel(selected, locale)}
-            </h4>
-            <span className="text-[12px] text-[#93A39D] font-medium">
-              · {selectedAppts.length} {selectedAppts.length === 1 ? "cita" : "citas"}
-            </span>
-          </div>
+      {/* Modal del día — TODAS las citas de ese día */}
+      <Dialog open={openDay !== null} onOpenChange={(o) => !o && setOpenDay(null)}>
+        <DialogContent className="max-w-md bg-card border-[#ECE3D3] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-left">
+              <span className="w-8 h-8 rounded-[10px] bg-[#E4F2EE] grid place-items-center shrink-0">
+                <CalendarDays className="w-4 h-4 text-[#2E8B6F]" />
+              </span>
+              <span className="font-display text-[16px] font-semibold tracking-tight text-[#20342C] capitalize">
+                {openDay ? dayLabel(openDay, locale) : ""}
+                <span className="text-[12px] text-[#93A39D] font-medium ml-1.5">
+                  · {dayAppts.length} {dayAppts.length === 1 ? "cita" : "citas"}
+                </span>
+              </span>
+            </DialogTitle>
+          </DialogHeader>
 
-          {selectedAppts.length === 0 ? (
-            <p className="text-[13px] text-[#93A39D] py-4">Sin citas ese día.</p>
-          ) : (
-            <div className="space-y-2">
-              {selectedAppts.map((a) => {
-                const row = (
-                  <div className="flex items-center gap-3 rounded-xl border border-[#F1EADD] bg-white p-2.5 hover:bg-[#FBF6EC] transition-colors">
-                    <span
-                      className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[13px] shadow-[0_2px_6px_rgba(18,60,48,0.14)]"
-                      style={{ background: grad(a.leadName) }}
-                    >
-                      {initials(a.leadName)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-[14px] text-[#20342C] truncate">{a.leadName}</div>
-                      <div className="text-[12px] text-[#93A39D] truncate">
-                        {a.typeLabel}{a.service ? ` · ${a.service}` : ""}
-                      </div>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {dayAppts.map((a) => {
+              const row = (
+                <div className="flex items-center gap-3 rounded-xl border border-[#F1EADD] bg-white p-2.5 hover:bg-[#FBF6EC] transition-colors">
+                  <span
+                    className="w-10 h-10 rounded-[13px] shrink-0 grid place-items-center text-white font-semibold text-[13px] shadow-[0_2px_6px_rgba(18,60,48,0.14)]"
+                    style={{ background: grad(a.leadName) }}
+                  >
+                    {initials(a.leadName)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-[14px] text-[#20342C] truncate">{a.leadName}</div>
+                    <div className="text-[12px] text-[#93A39D] truncate">
+                      {a.typeLabel}{a.service ? ` · ${a.service}` : ""}
                     </div>
-                    <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                      <span className="font-semibold text-[13px] text-[#20342C] tabular-nums whitespace-nowrap">{a.time}</span>
-                      <span
-                        className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap"
-                        style={{ backgroundColor: a.statusBg, color: a.statusText }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: a.dot }} />
-                        {a.statusLabel}
-                      </span>
-                    </div>
-                    {a.leadId && <ArrowRight className="w-4 h-4 text-[#B7AE9C] shrink-0" />}
                   </div>
-                )
-                return a.leadId ? (
-                  <Link key={a.id} href={`/leads/${a.leadId}`} title="Ver lead · dar seguimiento" className="block">
-                    {row}
-                  </Link>
-                ) : (
-                  <div key={a.id}>{row}</div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                    <span className="font-semibold text-[13px] text-[#20342C] tabular-nums whitespace-nowrap">{a.time}</span>
+                    <span
+                      className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap"
+                      style={{ backgroundColor: a.statusBg, color: a.statusText }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: a.dot }} />
+                      {a.statusLabel}
+                    </span>
+                  </div>
+                  {a.leadId && <ArrowRight className="w-4 h-4 text-[#B7AE9C] shrink-0" />}
+                </div>
+              )
+              return a.leadId ? (
+                <Link key={a.id} href={`/leads/${a.leadId}`} title="Ver lead · dar seguimiento" className="block">
+                  {row}
+                </Link>
+              ) : (
+                <div key={a.id}>{row}</div>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
