@@ -9,13 +9,21 @@ import {
   squareOrigin,
   retrieveSquareCustomer,
   retrieveSquareOrder,
+  retrieveSquareServiceName,
+  retrieveSquareTeamMember,
+  toPbAddress,
+  buildPaymentPbNote,
+  buildBookingPbNote,
   normalizeBookingStatus,
   bookingEndsAt,
   type SquareWebhookEvent,
   type SquarePayment,
   type SquareBooking,
+  type SquareAddressParts,
 } from "@/lib/integrations/square"
 import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
+import { enrichPbRecord, type PbAddress } from "@/lib/integrations/practice-better"
+import { pushPbSession } from "@/lib/integrations/pb-sessions"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -84,24 +92,62 @@ type Contact = {
   email: string | null
   phone: string | null
   name: string | null
+  firstName: string | null
+  lastName: string | null
   address: string | null
+  addressParts: SquareAddressParts | null
   customer: unknown | null
 }
 async function contactFor(directEmail: string | null, customerId: string | undefined): Promise<Contact> {
   let email = directEmail?.trim().toLowerCase() ?? null
   let phone: string | null = null
   let name: string | null = null
+  let firstName: string | null = null
+  let lastName: string | null = null
   let address: string | null = null
+  let addressParts: SquareAddressParts | null = null
   let customer: unknown | null = null
   if (customerId) {
     const cust = await retrieveSquareCustomer(customerId)
     if (!email && cust.email) email = cust.email.trim().toLowerCase()
     if (cust.phone) phone = normalizeToE164(cust.phone) || null
     name = cust.name
+    firstName = cust.firstName
+    lastName = cust.lastName
     address = cust.address
+    addressParts = cust.addressParts
     customer = cust.customer
   }
-  return { email, phone, name, address, customer }
+  return { email, phone, name, firstName, lastName, address, addressParts, customer }
+}
+
+// Enriquece el paciente de PB de un lead YA vinculado (caso Leslie): dirección +
+// nota de pago. Gate PB_ENRICH_RECORDS. No bloqueante: un fallo de PB nunca
+// hace fallar el webhook. Idempotente (enrichPbRecord no pisa datos ni duplica notas).
+async function enrichLinkedLeadPb(
+  sb: DB,
+  leadId: string | null,
+  pbAddress: PbAddress | null,
+  pbNote: string | null,
+): Promise<void> {
+  if (process.env.PB_ENRICH_RECORDS !== "true" || !leadId) return
+  if (!pbAddress && !pbNote) return
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb as any)
+      .from("leads")
+      .select("pb_record_id")
+      .eq("id", leadId)
+      .maybeSingle()
+    const recId = (data as { pb_record_id: string | null } | null)?.pb_record_id
+    if (!recId) return
+    await enrichPbRecord(recId, { address: pbAddress, appendNote: pbNote })
+  } catch (e) {
+    console.warn(
+      "[square webhook] enrich PB (no bloqueante):",
+      e instanceof Error ? e.message : String(e),
+    )
+  }
 }
 
 /**
@@ -177,6 +223,15 @@ export async function POST(request: Request) {
         itemCatalogIds = ord.itemCatalogIds
       }
 
+      // Datos para enriquecer el perfil de PB: dirección estructurada + nota con
+      // el detalle del pago (el "recibo" de facto, ya que PB no deja crear facturas).
+      const pbAddress = toPbAddress(c.addressParts)
+      const pbNote = buildPaymentPbNote(p, items)
+
+      // Lead vinculado ANTES del ruteo (existente o previo). Los leads que crea
+      // routeAndCreateLead ya reciben el enrich en su creación → no re-enriquecer.
+      const preLinkedLeadId = prev?.leadId ?? match?.leadId ?? null
+
       // Ruteo automático: SOLO si no matcheó un lead existente. Con flags OFF,
       // routeAndCreateLead devuelve null → comportamiento idéntico al de hoy.
       if (!match && !prev) {
@@ -185,7 +240,12 @@ export async function POST(request: Request) {
           candidateKeys: itemCatalogIds,
           origin: squareOrigin(p),
           externalCustomerId: payment.customer_id ?? null,
-          contact: { email: c.email, phone: c.phone, name: c.name, address: c.address },
+          contact: {
+            email: c.email, phone: c.phone, name: c.name,
+            firstName: c.firstName, lastName: c.lastName, address: c.address,
+          },
+          pbAddress,
+          pbNote,
           noteSuffix: items ? `Productos: ${items}` : null,
         })
         if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
@@ -219,6 +279,9 @@ export async function POST(request: Request) {
         console.error("[square webhook] pago upsert:", error.message)
         return NextResponse.json({ error: "db error" }, { status: 500 })
       }
+      // Enriquecer el paciente de PB del lead PRE-EXISTENTE (caso Leslie) con
+      // dirección + detalle del pago. Gate PB_ENRICH_RECORDS. No bloqueante.
+      await enrichLinkedLeadPb(sb, preLinkedLeadId, pbAddress, pbNote)
       return NextResponse.json({ ok: true, kind: "payment", linked: Boolean(match) })
     }
 
@@ -234,6 +297,27 @@ export async function POST(request: Request) {
       const b = booking as SquareBooking
       const seg = b.appointment_segments?.[0]
 
+      // Nombres legibles (Fase 1): resolver service_variation_id → servicio y
+      // team_member_id → staff. Gate SQUARE_RESOLVE_NAMES (2 llamadas extra a
+      // Square por booking). Defensivo: null si falla → se cae al ID crudo en UI.
+      let serviceName: string | null = null
+      let staffName: string | null = null
+      if (process.env.SQUARE_RESOLVE_NAMES === "true") {
+        if (seg?.service_variation_id) {
+          serviceName = await retrieveSquareServiceName(seg.service_variation_id)
+        }
+        if (seg?.team_member_id) {
+          staffName = await retrieveSquareTeamMember(seg.team_member_id)
+        }
+      }
+
+      // Enriquecimiento de PB: dirección + nota con la cita.
+      const pbAddress = toPbAddress(c.addressParts)
+      const pbNote = buildBookingPbNote(b, serviceName ?? seg?.service_variation_id ?? null)
+
+      // Lead vinculado ANTES del ruteo (los recién creados ya se enriquecen al crearse).
+      const preLinkedLeadId = prev?.leadId ?? match?.leadId ?? null
+
       // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
       if (!match && !prev) {
         const routed = await routeAndCreateLead(sb, {
@@ -242,10 +326,23 @@ export async function POST(request: Request) {
             (v): v is string => Boolean(v),
           ),
           externalCustomerId: booking.customer_id ?? null,
-          contact: { email: c.email, phone: c.phone, name: c.name, address: c.address },
+          contact: {
+            email: c.email, phone: c.phone, name: c.name,
+            firstName: c.firstName, lastName: c.lastName, address: c.address,
+          },
+          pbAddress,
+          pbNote,
         })
         if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
       }
+
+      // Columnas de nombres legibles: SOLO se incluyen si la flag está prendida.
+      // Así, con la flag OFF, el insert NO referencia service_name/staff_name y
+      // NO depende de que el SQL (ALTER TABLE) se haya corrido → sin regresión.
+      const nameCols =
+        process.env.SQUARE_RESOLVE_NAMES === "true"
+          ? { service_name: serviceName, staff_name: staffName }
+          : {}
 
       const row = {
         provider: "square",
@@ -254,8 +351,9 @@ export async function POST(request: Request) {
         external_id: booking.id,
         event_id: event.event_id ?? null,
         status: normalizeBookingStatus(b.status),
-        service: seg?.service_variation_id ?? null, // ID por ahora (v1)
+        service: seg?.service_variation_id ?? null, // ID crudo (fuente de verdad)
         staff: seg?.team_member_id ?? null,
+        ...nameCols,
         starts_at: b.start_at ?? null,
         ends_at: bookingEndsAt(b),
         customer_name: c.name,
@@ -267,12 +365,33 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (sb as any)
+      const { data: upserted, error } = await (sb as any)
         .from("external_appointments")
         .upsert(row, { onConflict: "provider,external_id" })
+        .select("id")
+        .single()
       if (error) {
         console.error("[square webhook] cita upsert:", error.message)
         return NextResponse.json({ error: "db error" }, { status: 500 })
+      }
+      await enrichLinkedLeadPb(sb, preLinkedLeadId, pbAddress, pbNote)
+
+      // Fase 3.2/3.3: crear/reagendar/cancelar la cita como SESIÓN en PB. Usa el
+      // lead vinculado FINAL (incluye los recién creados por el ruteo, que ya
+      // tienen pb_record_id). Gate PB_PUSH_SESSIONS. No bloqueante.
+      const sessionLeadId = prev?.leadId ?? match?.leadId ?? null
+      const rowId = (upserted as { id: string } | null)?.id ?? null
+      if (rowId) {
+        await pushPbSession(sb, {
+          rowId,
+          leadId: sessionLeadId,
+          serviceVariationId: seg?.service_variation_id ?? null,
+          startsAt: b.start_at ?? null,
+          endsAt: bookingEndsAt(b),
+          status: normalizeBookingStatus(b.status),
+          squareCustomerId: booking.customer_id ?? null,
+          sessionNote: pbNote,
+        })
       }
       return NextResponse.json({ ok: true, kind: "booking", linked: Boolean(match) })
     }

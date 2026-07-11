@@ -21,6 +21,8 @@ import {
   OfferBrandMapTab,
   type OfferMapRow,
 } from "./_components/offer-brand-map-tab"
+import { PbServiceMapTab } from "./_components/pb-service-map-tab"
+import type { ServiceMapRow } from "./_actions/pb-service-map-actions"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -60,6 +62,7 @@ export default async function SettingsPage({
   if (role !== "admin" && tab === "marcas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "tracking") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "ofertas") redirect("/settings?tab=perfil")
+  if (role !== "admin" && tab === "servicios-pb") redirect("/settings?tab=perfil")
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -171,6 +174,27 @@ export default async function SettingsPage({
     }
   }
 
+  // ── Square → Practice Better service map (admin) ────────────────────────────
+  let serviceMaps: ServiceMapRow[] = []
+  if (role === "admin") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const admin = createAdminClient() as any
+      // square_pb_service_map no está en Database types — cast puntual.
+      const { data: smData, error: smErr } = await admin
+        .from("square_pb_service_map")
+        .select(
+          "id, square_variation_id, square_label, pb_service_id, pb_service_name, pb_service_type, duration_min, active",
+        )
+        .order("active", { ascending: false })
+        .order("square_label", { ascending: true })
+      if (smErr) console.error("[settings] square_pb_service_map query error:", smErr.message)
+      serviceMaps = (smData ?? []) as ServiceMapRow[]
+    } catch (e) {
+      console.error("[settings] square_pb_service_map fetch threw:", e)
+    }
+  }
+
   let brandUsers: UserRow[] = []
   if (role === "admin" && brandId) {
     try {
@@ -204,6 +228,7 @@ export default async function SettingsPage({
         { value: "marcas", label: t("tabMarcas") },
         { value: "tracking", label: t("tabTracking") },
         { value: "ofertas", label: t("tabOfertas") },
+        { value: "servicios-pb", label: t("tabServiciosPb") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -282,6 +307,9 @@ export default async function SettingsPage({
             brands={offerBrands}
             defaultBrandId={brandId}
           />
+        )}
+        {tab === "servicios-pb" && role === "admin" && (
+          <PbServiceMapTab serviceMaps={serviceMaps} />
         )}
         {tab === "usuarios" && role === "admin" && (
           brandId

@@ -25,6 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { escapeIlike } from "@/lib/queries/search"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
+import type { PbAddress } from "@/lib/integrations/practice-better"
 
 type DB = SupabaseClient<Database>
 
@@ -178,9 +179,15 @@ export type RouteAndCreateParams = {
   contact: {
     email?: string | null
     phone?: string | null
-    name?: string | null
-    address?: string | null
+    name?: string | null // nombre completo (fallback / customer_name)
+    firstName?: string | null // nombre de pila (Square given_name) para PB
+    lastName?: string | null // apellido (Square family_name) para PB
+    address?: string | null // dirección legible (para el lead)
   }
+  /** Dirección estructurada para el perfil de Practice Better. */
+  pbAddress?: PbAddress | null
+  /** Nota para el perfil de PB (ej. detalle del pago Square). */
+  pbNote?: string | null
   noteSuffix?: string | null
 }
 
@@ -193,7 +200,7 @@ export async function routeAndCreateLead(
   sb: DB,
   params: RouteAndCreateParams,
 ): Promise<{ leadId: string; brandId: string } | null> {
-  const { provider, candidateKeys, origin, externalCustomerId, contact, noteSuffix } = params
+  const { provider, candidateKeys, origin, externalCustomerId, contact, noteSuffix, pbAddress, pbNote } = params
 
   // ── Feature flags (default OFF → comportamiento idéntico al de hoy) ──────────
   if (process.env.OFFER_BRAND_MAP_ENABLED !== "true") return null
@@ -234,7 +241,11 @@ export async function routeAndCreateLead(
     return null
   }
 
-  const firstName = contact.name?.trim() || phone || email || `${provider} sin contacto`
+  // Nombre/apellido separados (Square ya da given_name/family_name). Fallback al
+  // nombre completo si solo viene ese, o a teléfono/email como último recurso.
+  const firstName =
+    contact.firstName?.trim() || contact.name?.trim() || phone || email || `${provider} sin contacto`
+  const lastName = contact.lastName?.trim() || null
 
   // ── Dedup Layer 1: por external customer id (idempotente re-runs) ────────────
   let leadId: string | null = null
@@ -284,6 +295,7 @@ export async function routeAndCreateLead(
     const insertRow = {
       brand_id: targetBrandId,
       first_name: firstName,
+      last_name: lastName,
       phone,
       email,
       address_line1: contact.address ?? null,
@@ -340,8 +352,13 @@ export async function routeAndCreateLead(
           leadId,
           brandId: targetBrandId,
           firstName,
+          lastName,
           email,
           phone,
+          // Enriquecimiento (Fase 2): dirección + nota de pago. Gate propio para
+          // poder apagar lo caro sin tocar el ruteo; default como antes (sin datos).
+          address: process.env.PB_ENRICH_RECORDS === "true" ? (pbAddress ?? null) : null,
+          notes: process.env.PB_ENRICH_RECORDS === "true" ? (pbNote ?? null) : null,
         })
       }
     } catch (e) {

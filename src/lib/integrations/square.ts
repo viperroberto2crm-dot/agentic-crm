@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import type { PbAddress } from "@/lib/integrations/practice-better"
 
 // Square integration helpers. Docs: developer.squareup.com
 // - Webhook signature: HMAC-SHA256 sobre (notificationUrl + rawBody), base64,
@@ -205,16 +206,33 @@ export function bookingEndsAt(booking: SquareBooking): string | null {
 // ── Enriquecimiento de cliente (email/teléfono) ──────────────────────────────
 // El payment a veces no trae email/teléfono completos; si hay customer_id los
 // buscamos con el Access Token. Defensivo: si falla, devolvemos nulls.
+// Dirección estructurada del cliente (para empujar a Practice Better, que espera
+// campos separados). Independiente del string `address` legible que ya usamos.
+export type SquareAddressParts = {
+  street: string | null
+  unit: string | null
+  locality: string | null // ciudad
+  region: string | null // estado
+  postalCode: string | null
+  country: string | null // ISO Alpha-2, ej. "US"
+}
+
 export type SquareCustomerInfo = {
   email: string | null
   phone: string | null
   name: string | null
-  address: string | null
+  firstName: string | null // given_name (para partir nombre/apellido en PB)
+  lastName: string | null // family_name
+  address: string | null // string legible (para customer_address de las tablas)
+  addressParts: SquareAddressParts | null // estructurado (para PB)
   customer: unknown | null // objeto crudo del customer (para guardar en raw)
 }
 
 export async function retrieveSquareCustomer(customerId: string): Promise<SquareCustomerInfo> {
-  const empty: SquareCustomerInfo = { email: null, phone: null, name: null, address: null, customer: null }
+  const empty: SquareCustomerInfo = {
+    email: null, phone: null, name: null, firstName: null, lastName: null,
+    address: null, addressParts: null, customer: null,
+  }
   const token = process.env.SQUARE_ACCESS_TOKEN
   if (!token) return empty
   try {
@@ -238,12 +256,15 @@ export async function retrieveSquareCustomer(customerId: string): Promise<Square
           locality?: string
           administrative_district_level_1?: string
           postal_code?: string
+          country?: string
         }
       }
     }
     const c = json.customer
     if (!c) return empty
-    const name = [c.given_name, c.family_name].filter(Boolean).join(" ").trim() || null
+    const firstName = c.given_name?.trim() || null
+    const lastName = c.family_name?.trim() || null
+    const name = [firstName, lastName].filter(Boolean).join(" ").trim() || null
     const a = c.address
     const address = a
       ? [
@@ -254,14 +275,147 @@ export async function retrieveSquareCustomer(customerId: string): Promise<Square
           .filter(Boolean)
           .join(" · ") || null
       : null
+    const addressParts: SquareAddressParts | null = a
+      ? {
+          street: a.address_line_1?.trim() || null,
+          unit: a.address_line_2?.trim() || null,
+          locality: a.locality?.trim() || null,
+          region: a.administrative_district_level_1?.trim() || null,
+          postalCode: a.postal_code?.trim() || null,
+          country: a.country?.trim() || null,
+        }
+      : null
     return {
       email: c.email_address ?? null,
       phone: c.phone_number ?? null,
       name,
+      firstName,
+      lastName,
       address,
+      addressParts,
       customer: c,
     }
   } catch {
     return empty
   }
+}
+
+// ── Resolución de nombres legibles (Catalog + Team) ──────────────────────────
+// Un booking de Square guarda service_variation_id y team_member_id en crudo.
+// Estas funciones los traducen a nombres para mostrarlos en la UI. Defensivas:
+// devuelven null si falla (nunca rompen el webhook). Se resuelven al ingerir el
+// booking y se guardan como columnas (service_name/staff_name) — el nombre queda
+// "congelado" aunque el catálogo cambie después.
+
+/**
+ * service_variation_id (ITEM_VARIATION del catálogo) → "Servicio — Variación".
+ * Usa include_related_objects para traer el ITEM padre y armar el nombre.
+ */
+export async function retrieveSquareServiceName(variationId: string): Promise<string | null> {
+  const token = process.env.SQUARE_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const res = await fetch(
+      `${SQUARE_API_BASE}/v2/catalog/object/${variationId}?include_related_objects=true`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Square-Version": "2025-01-23",
+        },
+      },
+    )
+    if (!res.ok) return null
+    const json = (await res.json()) as {
+      object?: { item_variation_data?: { name?: string; item_id?: string } }
+      related_objects?: Array<{ type?: string; id?: string; item_data?: { name?: string } }>
+    }
+    const variationName = json.object?.item_variation_data?.name?.trim() || null
+    const itemId = json.object?.item_variation_data?.item_id
+    const item = (json.related_objects ?? []).find(
+      (o) => o.type === "ITEM" && o.id === itemId,
+    )
+    const itemName = item?.item_data?.name?.trim() || null
+    if (itemName && variationName && variationName.toLowerCase() !== itemName.toLowerCase()) {
+      return `${itemName} — ${variationName}`
+    }
+    return itemName || variationName || null
+  } catch {
+    return null
+  }
+}
+
+/** team_member_id → "Nombre Apellido" del profesional. null si falla. */
+export async function retrieveSquareTeamMember(teamMemberId: string): Promise<string | null> {
+  const token = process.env.SQUARE_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const res = await fetch(`${SQUARE_API_BASE}/v2/team-members/${teamMemberId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Square-Version": "2025-01-23",
+      },
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as {
+      team_member?: { given_name?: string; family_name?: string; display_name?: string }
+    }
+    const tm = json.team_member
+    if (!tm) return null
+    const name = [tm.given_name, tm.family_name].filter(Boolean).join(" ").trim()
+    return name || tm.display_name?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+// ── Mapeo Square → Practice Better (dirección + notas de perfil) ──────────────
+// Compartido por el webhook y el mini-importador. PB no permite crear facturas
+// por API, así que el detalle del pago/cita se anexa a profile.notes.
+
+/**
+ * Dirección estructurada de Square → formato PB. Las clínicas son de EE.UU., así
+ * que default country="US" cuando hay dirección sin país. null si no hay datos.
+ */
+export function toPbAddress(parts: SquareAddressParts | null): PbAddress | null {
+  if (!parts) return null
+  const hasAny = parts.street || parts.unit || parts.locality || parts.region || parts.postalCode
+  if (!hasAny) return null
+  return {
+    street: parts.street,
+    unit: parts.unit,
+    locality: parts.locality,
+    region: parts.region,
+    postalCode: parts.postalCode,
+    country: parts.country || "US",
+  }
+}
+
+// ISO → "YYYY-MM-DD" (sin dependencias de zona horaria en el webhook).
+function fmtDateOnly(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const s = String(iso)
+  return s.length >= 10 ? s.slice(0, 10) : s
+}
+
+/** Nota de pago para el perfil de PB. Formato estable (incluye tx id) para dedup. */
+export function buildPaymentPbNote(p: SquarePayment, items: string | null): string | null {
+  const cents = typeof p.amount_money?.amount === "number" ? p.amount_money.amount : null
+  if (cents == null && !items) return null
+  const cur = (p.amount_money?.currency ?? "USD").toUpperCase()
+  const amount = cents != null ? `$${(cents / 100).toFixed(2)} ${cur}` : "(monto n/d)"
+  const date = fmtDateOnly(p.created_at)
+  const parts = [`Pago Square${date ? ` ${date}` : ""}: ${amount}`]
+  if (items) parts.push(`— ${items}`)
+  if (p.id) parts.push(`[tx ${p.id}]`)
+  return parts.join(" ")
+}
+
+/** Nota de cita para el perfil de PB. Formato estable (incluye booking id) para dedup. */
+export function buildBookingPbNote(b: SquareBooking, serviceLabel: string | null): string | null {
+  if (!b.id) return null
+  const date = fmtDateOnly(b.start_at)
+  const svc = serviceLabel ? `: ${serviceLabel}` : ""
+  return `Cita Square${date ? ` ${date}` : ""}${svc} [booking ${b.id}]`
 }

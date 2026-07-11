@@ -33,7 +33,9 @@ export type ExternalAppointment = {
   provider: string | null
   status: string | null
   service: string | null
+  service_name: string | null
   staff: string | null
+  staff_name: string | null
   starts_at: string | null
   ends_at: string | null
 }
@@ -213,8 +215,10 @@ export function ExternalPaymentsCard({
                   {a.starts_at ? formatApptDateTime(a.starts_at) : "—"}
                 </span>
                 <span className="text-sm text-gray-700 flex-1 truncate">
-                  {a.service ?? "Cita"}
-                  {a.staff && <span className="text-muted-foreground"> · {a.staff}</span>}
+                  {a.service_name ?? a.service ?? "Cita"}
+                  {(a.staff_name ?? a.staff) && (
+                    <span className="text-muted-foreground"> · {a.staff_name ?? a.staff}</span>
+                  )}
                 </span>
                 {a.provider && (
                   <span className="text-[10px] text-muted-foreground shrink-0">

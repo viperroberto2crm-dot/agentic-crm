@@ -7,12 +7,18 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import {
   retrieveSquareCustomer,
+  retrieveSquareServiceName,
+  retrieveSquareTeamMember,
+  toPbAddress,
+  buildBookingPbNote,
   normalizeBookingStatus,
   bookingEndsAt,
   type SquareBooking,
+  type SquareAddressParts,
 } from "@/lib/integrations/square"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
+import { pushPbSession } from "@/lib/integrations/pb-sessions"
 
 type DB = SupabaseClient<Database>
 
@@ -118,7 +124,10 @@ type Contact = {
   email: string | null
   phone: string | null
   name: string | null
+  firstName: string | null
+  lastName: string | null
   address: string | null
+  addressParts: SquareAddressParts | null
   customer: unknown | null
 }
 async function contactFor(
@@ -128,17 +137,36 @@ async function contactFor(
   let email = directEmail?.trim().toLowerCase() ?? null
   let phone: string | null = null
   let name: string | null = null
+  let firstName: string | null = null
+  let lastName: string | null = null
   let address: string | null = null
+  let addressParts: SquareAddressParts | null = null
   let customer: unknown | null = null
   if (customerId) {
     const cust = await retrieveSquareCustomer(customerId)
     if (!email && cust.email) email = cust.email.trim().toLowerCase()
     if (cust.phone) phone = normalizeToE164(cust.phone) || null
     name = cust.name
+    firstName = cust.firstName
+    lastName = cust.lastName
     address = cust.address
+    addressParts = cust.addressParts
     customer = cust.customer
   }
-  return { email, phone, name, address, customer }
+  return { email, phone, name, firstName, lastName, address, addressParts, customer }
+}
+
+// Resuelve nombres legibles de servicio/staff (Fase 1). Gate SQUARE_RESOLVE_NAMES.
+async function resolveNames(
+  seg: { service_variation_id?: string; team_member_id?: string } | undefined,
+): Promise<{ serviceName: string | null; staffName: string | null }> {
+  let serviceName: string | null = null
+  let staffName: string | null = null
+  if (process.env.SQUARE_RESOLVE_NAMES === "true") {
+    if (seg?.service_variation_id) serviceName = await retrieveSquareServiceName(seg.service_variation_id)
+    if (seg?.team_member_id) staffName = await retrieveSquareTeamMember(seg.team_member_id)
+  }
+  return { serviceName, staffName }
 }
 
 // ── Bookings API: página de resultados ───────────────────────────────────────
@@ -226,7 +254,13 @@ export async function importSquareBookings(
         const externalId = booking.id
         if (!externalId) continue
 
+        const b = booking as SquareBooking
+        const seg = b.appointment_segments?.[0]
+
         // Idempotencia: si ya existe (provider='square', external_id) → skip.
+        // El SELECT de dedup pide SOLO `id` (columna base) para NO depender del
+        // ALTER TABLE de las columnas nuevas: si dependiera y el SQL no estuviera
+        // corrido, el select fallaría → dedup roto → citas duplicadas.
         const { data: existing } = await sb
           .from("external_appointments")
           .select("id")
@@ -236,12 +270,57 @@ export async function importSquareBookings(
           .maybeSingle()
         if (existing) {
           skippedExisting++
+          const exId = (existing as { id: string }).id
+          // Backfill de nombres legibles en filas viejas (caso Leslie, hoy con IDs
+          // crudos). El SELECT de las columnas nuevas va DENTRO del gate: con la
+          // flag OFF no se referencian → sin dependencia del SQL.
+          if (process.env.SQUARE_RESOLVE_NAMES === "true") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: cur } = await (sb as any)
+              .from("external_appointments")
+              .select("service_name, staff_name")
+              .eq("id", exId)
+              .maybeSingle()
+            const c2 = cur as { service_name: string | null; staff_name: string | null } | null
+            if (!c2?.service_name || !c2?.staff_name) {
+              const { serviceName, staffName } = await resolveNames(seg)
+              const patch: Record<string, string> = {}
+              if (!c2?.service_name && serviceName) patch.service_name = serviceName
+              if (!c2?.staff_name && staffName) patch.staff_name = staffName
+              if (Object.keys(patch).length) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb as any).from("external_appointments").update(patch).eq("id", exId)
+              }
+            }
+          }
+          // Fase 3.4: recuperar la sesión de PB para citas YA importadas (caso
+          // Leslie). pushPbSession es idempotente (si ya hay pb_session_id, no
+          // duplica) y no bloqueante. Gate PB_PUSH_SESSIONS.
+          const b0 = booking as SquareBooking
+          const seg0 = b0.appointment_segments?.[0]
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: exRow } = await (sb as any)
+            .from("external_appointments")
+            .select("lead_id")
+            .eq("id", exId)
+            .maybeSingle()
+          await pushPbSession(sb, {
+            rowId: exId,
+            leadId: (exRow as { lead_id: string | null } | null)?.lead_id ?? null,
+            serviceVariationId: seg0?.service_variation_id ?? null,
+            startsAt: b0.start_at ?? null,
+            endsAt: bookingEndsAt(b0),
+            status: normalizeBookingStatus(b0.status),
+            squareCustomerId: b0.customer_id ?? null,
+            sessionNote: null,
+          })
           continue
         }
 
-        const b = booking as SquareBooking
-        const seg = b.appointment_segments?.[0]
         const contact = await contactFor(null, b.customer_id)
+        const { serviceName, staffName } = await resolveNames(seg)
+        const pbAddress = toPbAddress(contact.addressParts)
+        const pbNote = buildBookingPbNote(b, serviceName ?? seg?.service_variation_id ?? null)
 
         // Match por lead existente (réplica exacta de resolveLead del webhook).
         let match = await resolveLead(sb, contact.email, contact.phone)
@@ -258,12 +337,23 @@ export async function importSquareBookings(
               email: contact.email,
               phone: contact.phone,
               name: contact.name,
+              firstName: contact.firstName,
+              lastName: contact.lastName,
               address: contact.address,
             },
+            pbAddress,
+            pbNote,
           })
           if (routed) match = { leadId: routed.leadId, brandId: routed.brandId }
         }
         if (match) linkedToLead++
+
+        // Columnas de nombres legibles solo si la flag está prendida (sin la flag
+        // no se referencian → no dependen de que el ALTER TABLE se haya corrido).
+        const nameCols =
+          process.env.SQUARE_RESOLVE_NAMES === "true"
+            ? { service_name: serviceName, staff_name: staffName }
+            : {}
 
         const row = {
           provider: "square",
@@ -274,6 +364,7 @@ export async function importSquareBookings(
           status: normalizeBookingStatus(b.status),
           service: seg?.service_variation_id ?? null,
           staff: seg?.team_member_id ?? null,
+          ...nameCols,
           starts_at: b.start_at ?? null,
           ends_at: bookingEndsAt(b),
           customer_name: contact.name,
@@ -285,15 +376,33 @@ export async function importSquareBookings(
           updated_at: new Date().toISOString(),
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (sb as any)
+        const { data: upserted, error } = await (sb as any)
           .from("external_appointments")
           .upsert(row, { onConflict: "provider,external_id" })
+          .select("id")
+          .single()
         if (error) {
           console.error("[import-square-bookings] cita upsert:", error.message)
           // No abortamos toda la corrida por una fila; seguimos con las demás.
           continue
         }
         imported++
+
+        // Fase 3.4: crear la sesión en PB para la cita recuperada. Idempotente,
+        // no bloqueante, gate PB_PUSH_SESSIONS.
+        const newRowId = (upserted as { id: string } | null)?.id ?? null
+        if (newRowId) {
+          await pushPbSession(sb, {
+            rowId: newRowId,
+            leadId: match?.leadId ?? null,
+            serviceVariationId: seg?.service_variation_id ?? null,
+            startsAt: b.start_at ?? null,
+            endsAt: bookingEndsAt(b),
+            status: normalizeBookingStatus(b.status),
+            squareCustomerId: b.customer_id ?? null,
+            sessionNote: pbNote,
+          })
+        }
       }
 
       cursor = resp.cursor ?? null

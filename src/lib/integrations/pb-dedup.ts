@@ -22,7 +22,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { createPbRecord, deletePbRecord, pbId } from "@/lib/integrations/practice-better"
+import { createPbRecord, deletePbRecord, pbId, type PbAddress } from "@/lib/integrations/practice-better"
 
 type DB = SupabaseClient<Database>
 
@@ -33,6 +33,8 @@ export type PbLinkInput = {
   lastName?: string | null
   email?: string | null
   phone?: string | null
+  address?: PbAddress | null
+  notes?: string | null
 }
 
 export type PbLinkResult = {
@@ -142,6 +144,8 @@ export async function findOrCreatePbRecord(sb: DB, input: PbLinkInput): Promise<
     lastName: input.lastName ?? undefined,
     email: email ?? undefined,
     phone: input.phone ?? undefined,
+    address: input.address ?? undefined,
+    notes: input.notes ?? undefined,
   })
   const recId = pbId(rec)
   if (!recId) return { pbRecordId: null, reused: false, linked: false, skipped: "no_id" }

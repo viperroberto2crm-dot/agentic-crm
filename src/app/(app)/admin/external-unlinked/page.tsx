@@ -14,6 +14,8 @@ import {
 } from "./_components/unlinked-appointments-table"
 import type { BrandOption } from "./_components/link-lead-dialog"
 import { ImportSquareBookingsButton } from "./_components/import-square-bookings-button"
+import { ImportSquarePaymentsButton } from "./_components/import-square-payments-button"
+import { PbSessionQueue, type PbSessionQueueRow } from "./_components/pb-session-queue"
 import {
   UnassignedLeadsTable,
 } from "./_components/unassigned-leads-table"
@@ -88,6 +90,20 @@ export default async function ExternalUnlinkedPage() {
   const brands = (brandsRes.data ?? []) as BrandOption[]
   const defaultBrandId = brands[0]?.id ?? null
 
+  // Cola de sesiones de PB que no se pudieron empujar (unmapped/failed). Columnas
+  // nuevas (Fase 3) no están en los tipos generados → cast admin as any.
+  let pbSessionQueue: PbSessionQueueRow[] = []
+  {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: qData } = await (admin as any)
+      .from("external_appointments")
+      .select("id, customer_name, service, service_name, starts_at, pb_session_status, pb_error")
+      .in("pb_session_status", ["unmapped", "failed"])
+      .order("starts_at", { ascending: false, nullsFirst: false })
+      .limit(100)
+    pbSessionQueue = (qData ?? []) as PbSessionQueueRow[]
+  }
+
   // Leads que quedaron en la marca centinela 'unassigned' (bug #3). El dropdown
   // de reasignación usa `brands` (active=true), que ya excluye a 'unassigned'.
   const unassignedBrandId = await getUnassignedBrandId(admin)
@@ -114,12 +130,15 @@ export default async function ExternalUnlinkedPage() {
         <h2 className="text-sm font-semibold text-foreground">
           {t("paymentsHeading", { count: payments.length })}
         </h2>
+        <ImportSquarePaymentsButton />
         <UnlinkedPaymentsTable
           payments={payments}
           brands={brands}
           defaultBrandId={defaultBrandId}
         />
       </section>
+
+      <PbSessionQueue rows={pbSessionQueue} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground">

@@ -3,6 +3,7 @@ import type { Database, Json } from "@/types/database"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { escapeIlike } from "@/lib/queries/search"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
+import { enrichPbRecord, type PbAddress } from "@/lib/integrations/practice-better"
 
 type SB = SupabaseClient<Database>
 
@@ -81,6 +82,39 @@ function buildIntakeCustomFields(values: IntakeValues): Record<string, string> {
   if (preferredLanguage) cf.preferred_language = preferredLanguage
   cf.intake_date = intakeDate
   return cf
+}
+
+/**
+ * Datos completos de la aplicación del portal para Practice Better (Fase 3.0):
+ * dirección estructurada + una nota con los demográficos del intake. PB no deja
+ * empujar respuestas de formulario por API, así que lo estructurado va al perfil
+ * y el resto a `notes`. La nota lleva un token `[intake <fecha>]` estable para
+ * que enrichPbRecord no la duplique en reintentos.
+ */
+function buildIntakePbData(
+  values: IntakeValues,
+  addr: { line1: string | null; city: string | null; state: string | null; zip: string | null },
+): { address: PbAddress | null; notes: string | null } {
+  const hasAddr = addr.line1 || addr.city || addr.state || addr.zip
+  const address: PbAddress | null = hasAddr
+    ? { street: addr.line1, locality: addr.city, region: addr.state, postalCode: addr.zip, country: "US" }
+    : null
+
+  const lines: string[] = []
+  const dob = clean(values.dob)
+  if (dob) lines.push(`Fecha de nacimiento: ${dob}`)
+  if (values.gender) lines.push(`Género: ${values.gender}`)
+  const ident = clean(values.identifies_as)
+  if (ident) lines.push(`Se identifica como: ${ident}`)
+  const occupation = clean(values.occupation)
+  if (occupation) lines.push(`Ocupación: ${occupation}`)
+  if (values.marital_status) lines.push(`Estado civil: ${values.marital_status}`)
+  if (values.preferred_language) lines.push(`Idioma preferido: ${values.preferred_language}`)
+
+  if (lines.length === 0) return { address, notes: null }
+  const stamp = clean(values.intake_date) ?? new Date().toISOString().slice(0, 10)
+  const notes = `— Aplicación del portal [intake ${stamp}] —\n${lines.join("\n")}`
+  return { address, notes }
 }
 
 // ── Core ──────────────────────────────────────────────────────────────────────
@@ -229,8 +263,17 @@ export async function submitIntake(params: {
   }
 
   // ── Practice Better push (no bloqueante, solo slugs habilitados) ─────────────
-  // findOrCreatePbRecord busca por email antes de crear (anti-duplicados, bug #2).
-  if (pbEnabledSlugs().has(brandSlug) && !leadHasPbRecord) {
+  // Fase 3.0: empuja la aplicación COMPLETA del portal (dirección + demográficos).
+  // Los datos ricos van detrás de PB_ENRICH_RECORDS (mismo gate que el path Square).
+  const pbEnabled = pbEnabledSlugs().has(brandSlug)
+  const enrichOn = process.env.PB_ENRICH_RECORDS === "true"
+  const { address: pbAddress, notes: pbNotes } = enrichOn
+    ? buildIntakePbData(values, { line1: addressLine1, city, state, zip })
+    : { address: null, notes: null }
+
+  if (pbEnabled && !leadHasPbRecord) {
+    // Paciente NUEVO en PB: crear con datos completos (findOrCreatePbRecord busca
+    // por email antes de crear — anti-duplicados, bug #2).
     try {
       await findOrCreatePbRecord(sb, {
         leadId,
@@ -239,11 +282,22 @@ export async function submitIntake(params: {
         lastName,
         email,
         phone,
+        address: pbAddress,
+        notes: pbNotes,
       })
     } catch (e) {
-      // Un fallo de PB NUNCA hace fallar el intake.
       console.warn(
         "[intake] Practice Better push falló (no bloqueante):",
+        e instanceof Error ? e.message : String(e),
+      )
+    }
+  } else if (pbEnabled && leadHasPbRecord && enrichOn && existing?.pb_record_id) {
+    // Paciente YA en PB: enriquecer su record (GET→rellena vacíos+anexa nota→PUT).
+    try {
+      await enrichPbRecord(existing.pb_record_id, { address: pbAddress, appendNote: pbNotes })
+    } catch (e) {
+      console.warn(
+        "[intake] Practice Better enrich falló (no bloqueante):",
         e instanceof Error ? e.message : String(e),
       )
     }

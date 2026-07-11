@@ -1644,7 +1644,9 @@ export type Database = {
           event_id: string | null
           status: string | null
           service: string | null
+          service_name: string | null
           staff: string | null
+          staff_name: string | null
           starts_at: string | null
           ends_at: string | null
           customer_name: string | null
@@ -1665,7 +1667,9 @@ export type Database = {
           event_id?: string | null
           status?: string | null
           service?: string | null
+          service_name?: string | null
           staff?: string | null
+          staff_name?: string | null
           starts_at?: string | null
           ends_at?: string | null
           customer_name?: string | null
@@ -1686,7 +1690,9 @@ export type Database = {
           event_id?: string | null
           status?: string | null
           service?: string | null
+          service_name?: string | null
           staff?: string | null
+          staff_name?: string | null
           starts_at?: string | null
           ends_at?: string | null
           customer_name?: string | null
