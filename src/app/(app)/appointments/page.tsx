@@ -10,18 +10,22 @@ import { NewAppointmentButton } from "./_components/new-appointment-button"
 import { AppointmentStatusActions } from "./_components/appointment-status-actions"
 import { EditAppointmentButton } from "./_components/edit-appointment-button"
 import { getLocale, getTranslations } from "next-intl/server"
-import { formatApptDateTime } from "@/lib/datetime"
+import { formatApptDateTime, formatTime, parseDbDate, BRAND_TIMEZONE } from "@/lib/datetime"
 import { RepCellSelectClient } from "./_components/rep-cell-select-client"
 import { ProviderCellSelectClient } from "./_components/provider-cell-select-client"
 import { PatientSearchInput } from "@/components/ui/patient-search-input"
 import { DeleteAppointmentButton } from "./_components/delete-appointment-button"
 import {
   dateOnlyRangeToUtc,
+  formatYmd,
   formatYmdForDisplay,
+  getPresetRange,
   resolveActiveRange,
+  ymdFromDateInTz,
   type DashboardSearchParams,
 } from "@/lib/dashboard/date-ranges"
 import { DateRangeFilter } from "../dashboard/_components/date-range-filter"
+import { AppointmentsCalendar, type CalendarAppt } from "./_components/appointments-calendar"
 
 type TypedClient = SupabaseClient<Database>
 type ApptStatus = Database["public"]["Enums"]["appointment_status"]
@@ -200,6 +204,103 @@ export default async function AppointmentsPage({
   }
   const appts = (raw ?? []) as unknown as ApptItem[]
 
+  // ── Datos para el CALENDARIO mensual (query DEDICADA — revisado con Fable) ──
+  // NO reusa la lista (.limit(100) ocultaría citas). Todo en BRAND_TIMEZONE
+  // (Pacific) para que el día de la celda cuadre con la hora mostrada. Paginado
+  // hasta traer todas; si algo no cabe, se AVISA (nunca truncado mudo).
+  const calYear = parseInt(active.from.slice(0, 4), 10)
+  const calMonth = parseInt(active.from.slice(5, 7), 10)
+  const calLastDay = new Date(Date.UTC(calYear, calMonth, 0)).getUTCDate()
+  const calFrom = formatYmd(calYear, calMonth, 1)
+  const calTo = formatYmd(calYear, calMonth, calLastDay)
+  const calRange = dateOnlyRangeToUtc(calFrom, calTo, BRAND_TIMEZONE)
+
+  type CalRow = {
+    id: string; scheduled_at: string; status: ApptStatus; brand_id: string | null
+    lead: { id: string; first_name: string; last_name: string | null } | null
+  }
+  const calRows: CalRow[] = []
+  let calCount = 0
+  {
+    const PAGE = 1000
+    const MAX_PAGES = 5 // tope de seguridad (5,000 citas/mes no es realista hoy)
+    for (let p = 0; p < MAX_PAGES; p++) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let cq: any = (sb as any)
+        .from("appointments")
+        .select(
+          "id, scheduled_at, status, brand_id, lead:leads!appointments_lead_id_fkey(id, first_name, last_name)",
+          { count: "exact" },
+        )
+        .gte("scheduled_at", calRange.start)
+        .lt("scheduled_at", calRange.end)
+        .order("scheduled_at", { ascending: true })
+        .range(p * PAGE, p * PAGE + PAGE - 1)
+      // MISMO scope que la lista (seguridad/alcance)
+      if (role === "rep") cq = cq.eq("rep_id", user.id)
+      if (role === "provider") cq = cq.eq("provider_id", user.id)
+      if (allMode) {
+        cq = cq.in("brand_id", authorizedBrandIds.length ? authorizedBrandIds : ["00000000-0000-0000-0000-000000000000"])
+      } else if (brandId) {
+        cq = cq.eq("brand_id", brandId)
+      }
+      if (statusFilter) cq = cq.eq("status", statusFilter as ApptStatus)
+      if (leadIdsFilter) cq = cq.in("lead_id", leadIdsFilter)
+      const { data: cData, count: cCount } = await cq
+      if (typeof cCount === "number") calCount = cCount
+      const batch = (cData ?? []) as CalRow[]
+      calRows.push(...batch)
+      if (batch.length < PAGE) break
+    }
+  }
+
+  const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BRAND_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit",
+  })
+  let calInvalid = 0
+  const calItems: CalendarAppt[] = calRows.flatMap((a) => {
+    const d = parseDbDate(a.scheduled_at)
+    if (!d) { calInvalid++; return [] }
+    const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.scheduled
+    const nm = a.lead ? `${a.lead.first_name} ${a.lead.last_name ?? ""}`.trim() : ""
+    return [{
+      id: a.id,
+      dayKey: dayKeyFmt.format(d),
+      time: formatTime(a.scheduled_at),
+      sortKey: d.getTime(),
+      leadName: nm || "(sin paciente)",
+      leadId: a.lead?.id ?? null,
+      dot: cfg.dot,
+      statusLabel: cfg.label,
+    }]
+  })
+  // Aviso si algo NO se pudo mostrar (tope de páginas o fecha inválida). Nunca mudo.
+  const calHidden = Math.max(0, calCount - calRows.length) + calInvalid
+
+  const calMonthLabel = new Intl.DateTimeFormat(locale, {
+    month: "long", year: "numeric", timeZone: "UTC",
+  }).format(new Date(Date.UTC(calYear, calMonth - 1, 1)))
+  const calTodayKey = ymdFromDateInTz(new Date(), BRAND_TIMEZONE)
+  const monthHref = (from: string, to: string): string => {
+    const qs = new URLSearchParams()
+    qs.set("preset", "custom"); qs.set("from", from); qs.set("to", to)
+    if (statusFilter) qs.set("status", statusFilter)
+    if (searchTerm) qs.set("search", searchTerm)
+    return `/appointments?${qs.toString()}`
+  }
+  const prevD = new Date(Date.UTC(calYear, calMonth - 2, 1))
+  const nextD = new Date(Date.UTC(calYear, calMonth, 1))
+  const calPrevHref = monthHref(
+    formatYmd(prevD.getUTCFullYear(), prevD.getUTCMonth() + 1, 1),
+    formatYmd(prevD.getUTCFullYear(), prevD.getUTCMonth() + 1, new Date(Date.UTC(prevD.getUTCFullYear(), prevD.getUTCMonth() + 1, 0)).getUTCDate()),
+  )
+  const calNextHref = monthHref(
+    formatYmd(nextD.getUTCFullYear(), nextD.getUTCMonth() + 1, 1),
+    formatYmd(nextD.getUTCFullYear(), nextD.getUTCMonth() + 1, new Date(Date.UTC(nextD.getUTCFullYear(), nextD.getUTCMonth() + 1, 0)).getUTCDate()),
+  )
+  const thisMonthRange = getPresetRange("thisMonth", timezone)
+  const calTodayHref = monthHref(thisMonthRange.from, thisMonthRange.to)
+
   let leadsForModal: {
     id: string
     first_name: string
@@ -359,6 +460,19 @@ export default async function AppointmentsPage({
           )
         })}
       </div>
+
+      <AppointmentsCalendar
+        items={calItems}
+        year={calYear}
+        month={calMonth}
+        monthLabel={calMonthLabel}
+        todayKey={calTodayKey}
+        total={calCount}
+        hiddenCount={calHidden}
+        prevHref={calPrevHref}
+        nextHref={calNextHref}
+        todayHref={calTodayHref}
+      />
 
       <div className="bg-card border border-[#ECE3D3] rounded-2xl shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)] px-4 py-2">
         {appts.length === 0 ? (
