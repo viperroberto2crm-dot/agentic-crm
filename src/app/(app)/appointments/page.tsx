@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { applyLeadSearch } from "@/lib/queries/search"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import Link from "next/link"
@@ -141,17 +142,11 @@ export default async function AppointmentsPage({
 
   let leadIdsFilter: string[] | null = null
   if (searchTerm && (brandId || (allMode && authorizedBrandIds.length > 0))) {
-    const tokens = searchTerm.replace(/[(),]/g, " ").split(/\s+/).filter(Boolean)
-    const orParts: string[] = []
-    for (const tok of tokens) {
-      const t = tok.replace(/%/g, "")
-      orParts.push(`first_name.ilike.%${t}%`, `last_name.ilike.%${t}%`, `phone.ilike.%${t}%`)
-    }
     const base = sb.from("leads").select("id")
     const scoped = allMode
       ? base.in("brand_id", authorizedBrandIds)
       : base.eq("brand_id", brandId!)
-    const { data: matchingLeads } = await scoped.or(orParts.join(",")).limit(500)
+    const { data: matchingLeads } = await applyLeadSearch(scoped, searchTerm).limit(500)
     leadIdsFilter = (matchingLeads ?? []).map((l) => l.id)
     if (leadIdsFilter.length === 0) leadIdsFilter = ["00000000-0000-0000-0000-000000000000"]
   }

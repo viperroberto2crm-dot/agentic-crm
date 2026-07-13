@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { getSalesBreakdown } from "@/lib/queries/sales-kpi"
-import { sanitizeOrSearch } from "@/lib/queries/search"
+import { applyLeadSearch } from "@/lib/queries/search"
 import { BRAND_TIMEZONE } from "@/lib/datetime"
 
 /**
@@ -285,22 +285,10 @@ export async function executeGetLeads(
   }
 
   if (input.query && input.query.trim().length > 0) {
-    // Escape commas, parens and `%` to keep the PostgREST `or` filter safe.
-    const safe = sanitizeOrSearch(input.query)
-    // Split words and OR each against name/phone/email. Each word ANDed isn't
-    // supported in a single .or() chain, so we use a token-aware OR string:
-    // any word matching first_name/last_name/phone/email returns the lead.
-    const tokens = safe.split(/\s+/).filter(Boolean)
-    const parts: string[] = []
-    for (const tok of tokens) {
-      parts.push(`first_name.ilike.%${tok}%`)
-      parts.push(`last_name.ilike.%${tok}%`)
-      parts.push(`phone.ilike.%${tok}%`)
-      parts.push(`email.ilike.%${tok}%`)
-    }
-    if (parts.length > 0) {
-      query = query.or(parts.join(","))
-    }
+    // Buscador unificado (applyLeadSearch): CADA palabra debe aparecer (AND entre
+    // palabras — múltiples .or() encadenados se AND-ean en PostgREST), OR entre
+    // campos. Antes era OR entre todo → "navarrete maria" traía todas las "Maria".
+    query = applyLeadSearch(query, input.query)
   }
 
   const { data } = await query

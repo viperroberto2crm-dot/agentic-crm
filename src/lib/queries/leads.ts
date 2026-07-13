@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { applyLeadSearch } from "./search"
 
 type SB = SupabaseClient<Database>
 
@@ -96,32 +97,9 @@ export async function fetchLeads(
   }
 
   if (filters.search) {
-    // Search más flexible: tokenizar por espacios (matchea "Maria Lopez"
-    // con first_name=Maria y last_name=Lopez en campos separados), normalizar
-    // phone (sin guiones/paréntesis matchea phone E.164), incluir email y
-    // phone_alt. Mismo patrón que /sales y /appointments.
-    const raw = filters.search.trim()
-    if (raw.length > 0) {
-      const digits = raw.replace(/\D/g, "")
-      const looksLikePhone = digits.length >= 7 // teléfono real, no un "714" suelto
-      if (looksLikePhone) {
-        // Búsqueda por teléfono: cualquiera de los dos campos.
-        query = query.or(`phone.ilike.%${digits}%,phone_alt.ilike.%${digits}%`)
-      } else {
-        // Búsqueda por nombre: CADA palabra debe aparecer (AND entre palabras,
-        // OR entre campos). Antes era OR entre TODO → "navarrete maria" traía a
-        // todas las "Maria". Ahora exige "navarrete" Y "maria".
-        const tokens = raw
-          .replace(/[(),]/g, " ")
-          .split(/\s+/)
-          .filter(Boolean)
-          .map((t) => t.replace(/%/g, ""))
-          .filter((t) => t.length > 0)
-        for (const tok of tokens) {
-          query = query.or(`first_name.ilike.%${tok}%,last_name.ilike.%${tok}%,email.ilike.%${tok}%`)
-        }
-      }
-    }
+    // Buscador unificado (applyLeadSearch en ./search): AND entre palabras, OR
+    // entre campos; teléfono busca phone/phone_alt. Mismo helper en todos lados.
+    query = applyLeadSearch(query, filters.search)
   }
 
   const { data, count, error } = await query

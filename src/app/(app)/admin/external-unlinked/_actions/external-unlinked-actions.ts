@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
-import { sanitizeOrSearch, escapeIlike } from "@/lib/queries/search"
+import { sanitizeOrSearch, escapeIlike, applyLeadSearch } from "@/lib/queries/search"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 import { getUnassignedBrandId } from "@/lib/integrations/offer-brand-map"
 import { retrieveSquareCustomer } from "@/lib/integrations/square"
@@ -69,12 +69,10 @@ export async function searchLeadsForLink(
     if (q.length < 2) return { ok: true, leads: [] }
 
     const admin = createAdminClient() as unknown as TypedClient
-    const { data, error } = await admin
-      .from("leads")
-      .select("id, first_name, last_name, phone, email, brand_id, brands(name)")
-      .or(
-        `first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`,
-      )
+    const { data, error } = await applyLeadSearch(
+      admin.from("leads").select("id, first_name, last_name, phone, email, brand_id, brands(name)"),
+      query,
+    )
       .order("created_at", { ascending: false })
       .limit(10)
 

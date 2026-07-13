@@ -3,7 +3,7 @@ import { cookies } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { resolveEffectiveBrandId, NO_BRAND_SENTINEL } from "@/lib/queries/brand-access"
-import { sanitizeOrSearch } from "@/lib/queries/search"
+import { applyLeadSearch } from "@/lib/queries/search"
 import { buildCsv, buildCsvFilename, type CsvCell } from "@/lib/exports/csv"
 import type { Database } from "@/types/database"
 
@@ -74,13 +74,9 @@ export async function GET(req: NextRequest) {
   if (status) query = query.eq("status", status as LeadStatus)
   if (source) query = query.eq("source", source as LeadSource)
   if (search) {
-    // Escapar comas/paréntesis/`%` para no romper el filtro `or` de PostgREST.
-    const safe = sanitizeOrSearch(search)
-    if (safe) {
-      query = query.or(
-        `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`
-      )
-    }
+    // Mismo buscador que la pantalla (AND entre palabras) → el CSV coincide con
+    // lo que ve el usuario. Antes buscaba la frase completa en un solo campo.
+    query = applyLeadSearch(query, search)
   }
   if (from) query = query.gte("created_at", from)
   if (to) query = query.lte("created_at", to)
