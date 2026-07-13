@@ -103,27 +103,23 @@ export async function fetchLeads(
     const raw = filters.search.trim()
     if (raw.length > 0) {
       const digits = raw.replace(/\D/g, "")
-      const looksLikePhone = digits.length >= 5
-      const tokens = raw
-        .replace(/[(),]/g, " ")
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((t) => t.replace(/%/g, ""))
-
-      const orParts: string[] = []
+      const looksLikePhone = digits.length >= 7 // teléfono real, no un "714" suelto
       if (looksLikePhone) {
-        orParts.push(`phone.ilike.%${digits}%`)
-        orParts.push(`phone_alt.ilike.%${digits}%`)
-      }
-      for (const tok of tokens) {
-        if (tok.length === 0) continue
-        orParts.push(`first_name.ilike.%${tok}%`)
-        orParts.push(`last_name.ilike.%${tok}%`)
-        orParts.push(`email.ilike.%${tok}%`)
-      }
-
-      if (orParts.length > 0) {
-        query = query.or(orParts.join(","))
+        // Búsqueda por teléfono: cualquiera de los dos campos.
+        query = query.or(`phone.ilike.%${digits}%,phone_alt.ilike.%${digits}%`)
+      } else {
+        // Búsqueda por nombre: CADA palabra debe aparecer (AND entre palabras,
+        // OR entre campos). Antes era OR entre TODO → "navarrete maria" traía a
+        // todas las "Maria". Ahora exige "navarrete" Y "maria".
+        const tokens = raw
+          .replace(/[(),]/g, " ")
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((t) => t.replace(/%/g, ""))
+          .filter((t) => t.length > 0)
+        for (const tok of tokens) {
+          query = query.or(`first_name.ilike.%${tok}%,last_name.ilike.%${tok}%,email.ilike.%${tok}%`)
+        }
       }
     }
   }
