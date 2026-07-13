@@ -376,7 +376,7 @@ export default async function CallsPage({
                     </td>
                     {role !== "rep" && (
                       <td className="py-3 hidden lg:table-cell">
-                        <span className="text-xs text-[#93A39D]">{c.rep?.name ?? "—"}</span>
+                        <span className="text-xs text-[#93A39D]">{c.rep?.name ?? "no REP"}</span>
                       </td>
                     )}
                   </tr>

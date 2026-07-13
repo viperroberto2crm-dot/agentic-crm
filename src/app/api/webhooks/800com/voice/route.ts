@@ -150,7 +150,7 @@ async function resolveTracking(
   sb: DB,
   trackingNumberId: string | number | null,
   dialedE164: string | null,
-): Promise<{ brand_id: string; rep_id: string; tracking_number_id: string } | null> {
+): Promise<{ brand_id: string; tracking_number_id: string } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = (sb as any)
     .from("tracking_numbers")
@@ -183,34 +183,10 @@ async function resolveTracking(
   }
   if (!matched) return null
 
-  // Rep de la llamada: un usuario DEL BRAND correcto (no el admin global más
-  // viejo). Los leads van al pool, pero la call necesita un rep_id; admin/manager
-  // igual ven todas las calls por RLS, así que el toast les llega.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: brandUser } = await (sb as any)
-    .from("user_brands")
-    .select("user_id, users!inner(id, role, active)")
-    .eq("brand_id", matched.brand_id)
-    .eq("users.active", true)
-    .in("users.role", ["rep", "manager", "admin"])
-    .limit(1)
-    .maybeSingle()
-  let repId: string | null = brandUser?.user_id ?? null
-  if (!repId) {
-    // Fallback: cualquier admin activo, para NO descartar la llamada.
-    const { data: anyAdmin } = await sb
-      .from("users")
-      .select("id")
-      .eq("active", true)
-      .eq("role", "admin")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    repId = anyAdmin?.id ?? null
-  }
-  if (!repId) return null
-
-  return { brand_id: matched.brand_id, rep_id: repId, tracking_number_id: matched.id }
+  // 800.com no nos dice qué empleado contestó → la call entra SIN rep ("no REP").
+  // No inventar un rep de respaldo: distorsiona métricas y atribuye la llamada a
+  // quien no la tomó. Admin/manager igual ven TODAS las calls por RLS.
+  return { brand_id: matched.brand_id, tracking_number_id: matched.id }
 }
 
 async function handleCallEvent(
@@ -305,7 +281,7 @@ async function handleCallEvent(
   const insertPayload: any = {
     brand_id: tracking.brand_id,
     lead_id: leadId,
-    rep_id: tracking.rep_id,
+    rep_id: null,
     direction,
     outcome,
     duration_seconds: typeof call.duration === "number" ? call.duration : null,

@@ -599,7 +599,7 @@ export type Database = {
           id: string
           brand_id: string
           lead_id: string | null
-          rep_id: string
+          rep_id: string | null
           direction: Database["public"]["Enums"]["call_direction"]
           outcome: Database["public"]["Enums"]["call_outcome"] | null
           duration_seconds: number | null
@@ -621,7 +621,7 @@ export type Database = {
           id?: string
           brand_id: string
           lead_id?: string | null
-          rep_id: string
+          rep_id?: string | null
           direction?: Database["public"]["Enums"]["call_direction"]
           outcome?: Database["public"]["Enums"]["call_outcome"] | null
           duration_seconds?: number | null
@@ -643,7 +643,7 @@ export type Database = {
           id?: string
           brand_id?: string
           lead_id?: string | null
-          rep_id?: string
+          rep_id?: string | null
           direction?: Database["public"]["Enums"]["call_direction"]
           outcome?: Database["public"]["Enums"]["call_outcome"] | null
           duration_seconds?: number | null

@@ -371,7 +371,6 @@ export function normalize800ToCrm(
   call: EightHundredCallV2,
   tracking: TrackingNumberRow,
   matchedLeadId: string | null,
-  repIdFallback: string,
 ): CrmCallRow {
   const duration = call.duration ?? 0
   const direction: CallDirection = call.direction === "outbound" ? "outbound" : "inbound"
@@ -380,7 +379,10 @@ export function normalize800ToCrm(
   return {
     brand_id: tracking.brand_id,
     lead_id: matchedLeadId,
-    rep_id: repIdFallback,
+    // 800.com no nos dice qué empleado contestó → la llamada entra SIN rep
+    // ("no REP" en la UI). Nunca inventar un rep de respaldo (distorsiona
+    // métricas y atribuye llamadas a quien no las tomó).
+    rep_id: null,
     direction,
     outcome,
     duration_seconds: duration > 0 ? duration : null,
@@ -510,39 +512,6 @@ async function loadTrackingNumbersByNumberId(
   return map
 }
 
-/**
- * Find a default rep_id to attribute calls to when we can't infer from
- * `answeredBy` (since that's a phone number, not a user_id). For now we
- * use the user that created the brand or any admin. Future: map
- * answeredBy phone → users.cell_phone.
- */
-async function getFallbackRepId(sb: DB, brandId: string): Promise<string> {
-  // Try: a user assigned to this brand con rol rep/manager/admin (NUNCA provider:
-  // un provider no debe ser dueño de una llamada → distorsiona métricas).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: ub } = await (sb as any)
-    .from("user_brands")
-    .select("user_id, users!inner(id, role, active)")
-    .eq("brand_id", brandId)
-    .eq("users.active", true)
-    .in("users.role", ["rep", "manager", "admin"])
-    .limit(1)
-    .maybeSingle()
-  if (ub?.user_id) return ub.user_id as string
-
-  // Last resort: any active admin
-  const { data: admin } = await sb
-    .from("users")
-    .select("id")
-    .eq("role", "admin")
-    .eq("active", true)
-    .limit(1)
-    .maybeSingle()
-  if (admin?.id) return admin.id
-
-  throw new Error("No fallback rep_id available — at least 1 active user required")
-}
-
 export type ImportOptions = {
   /** ISO start date for the fetch window. Default: 24h ago for cron, longer for backfill. */
   startDate?: string
@@ -581,9 +550,6 @@ export async function importCallsFromEightHundred(
     console.warn("[800com] No tracking_numbers configured for provider=800com — nothing to do")
     return { ...result, duration_ms: Date.now() - t0 }
   }
-
-  // 2) Cache rep fallback per brand
-  const repIdByBrand = new Map<string, string>()
 
   // 3) Iterate calls page by page (cursor)
   let pagesProcessed = 0
@@ -645,21 +611,8 @@ export async function importCallsFromEightHundred(
         if (leadId) result.leads_created++
       }
 
-      // Rep fallback (cached per brand)
-      let repId = repIdByBrand.get(tracking.brand_id)
-      if (!repId) {
-        try {
-          repId = await getFallbackRepId(sb, tracking.brand_id)
-          repIdByBrand.set(tracking.brand_id, repId)
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          result.errors.push({ call_id: call.id, error: `rep fallback: ${msg}` })
-          continue
-        }
-      }
-
-      // Normalize + insert
-      const row = normalize800ToCrm(call, tracking, leadId, repId)
+      // Normalize + insert (800.com no da rep → la call entra sin rep = "no REP")
+      const row = normalize800ToCrm(call, tracking, leadId)
       const { error: insertErr } = await sb.from("calls").insert(row)
       if (insertErr) {
         result.errors.push({ call_id: call.id, error: insertErr.message })

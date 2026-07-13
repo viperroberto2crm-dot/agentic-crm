@@ -90,7 +90,7 @@ export default async function CallDetailPage({
     recording_url: string | null
     transcript_text: string | null
     ai_summary: string | null
-    rep_id: string
+    rep_id: string | null
     lead_id: string | null
     brand_id: string
     lead: {
