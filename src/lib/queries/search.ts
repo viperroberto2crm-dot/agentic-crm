@@ -23,12 +23,14 @@ export function sanitizeOrSearch(value: string): string {
  * ventas, llamadas, export, vincular externos, bot). Revisado con Fable.
  *
  * Reglas:
- * - Teléfono (>=7 dígitos) → busca en phone / phone_alt.
+ * - Teléfono (>=7 dígitos) → busca en phone / phone_alt (en cualquier posición).
  * - Texto → CADA palabra debe aparecer (AND entre palabras: cada `.or()`
- *   encadenado se AND-ea en PostgREST), buscando en first_name / last_name /
- *   email / phone / phone_alt (OR entre campos). Así "navarrete maria" exige las
- *   dos, y una sola palabra ("mari") sigue trayendo parciales (Maria/Mario/
- *   Maricarmen). Máx 5 palabras (evita URLs gigantes).
+ *   encadenado se AND-ea en PostgREST). Cada palabra hace match por el INICIO de
+ *   first_name / last_name (prefijo `tok%`, como autocompletar del teléfono), NO
+ *   en medio. Así "Ma" → Maria/Mario/Manuel (no "Irma", "Holman", ni todos los
+ *   "gmail"), y "navarrete maria" exige las dos. Máx 5 palabras.
+ * - Email solo se busca si la palabra trae "@" (evita que "ma" matchee "gmail").
+ * - Una palabra con dígitos (≥4) también busca en phone (parcial).
  *
  * Ojo (mejora futura): `ilike` NO ignora acentos — "maria" no matchea "María".
  * Se resolverá con la extensión `unaccent` + índice. Documentado en el vault.
@@ -48,9 +50,12 @@ export function applyLeadSearch<T extends { or: (filter: string) => T }>(query: 
   const tokens = sanitizeOrSearch(raw).split(/\s+/).filter(Boolean).slice(0, 5)
   let q = query
   for (const tok of tokens) {
-    q = q.or(
-      `first_name.ilike.%${tok}%,last_name.ilike.%${tok}%,email.ilike.%${tok}%,phone.ilike.%${tok}%,phone_alt.ilike.%${tok}%`,
-    )
+    // Prefijo: empieza-con, no contiene-en-medio.
+    const parts = [`first_name.ilike.${tok}%`, `last_name.ilike.${tok}%`]
+    if (tok.includes("@")) parts.push(`email.ilike.%${tok}%`)
+    const tokDigits = tok.replace(/\D/g, "")
+    if (tokDigits.length >= 4) parts.push(`phone.ilike.%${tokDigits}%`, `phone_alt.ilike.%${tokDigits}%`)
+    q = q.or(parts.join(","))
   }
   return q
 }
