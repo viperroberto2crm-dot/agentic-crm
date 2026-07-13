@@ -280,6 +280,14 @@ export default async function LeadDetailPage({
                 notes={lead.notes}
                 leadId={role !== "provider" ? id : undefined}
                 planSaleIds={Array.from(planSaleIds)}
+                clinics={clinicsForModal}
+                leadAddress={{
+                  address_line1: lead.address_line1,
+                  address_line2: lead.address_line2,
+                  city: lead.city,
+                  state: lead.state,
+                  zip: lead.zip,
+                }}
               />
             </CardContent>
           </Card>

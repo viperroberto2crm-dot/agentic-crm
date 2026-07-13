@@ -3,6 +3,23 @@ import { getTranslations } from "next-intl/server"
 import type { Database } from "@/types/database"
 import { BRAND_TIMEZONE, parseDbDate } from "@/lib/datetime"
 import { SaleActions } from "./sale-actions"
+import { AppointmentActions } from "./appointment-actions"
+
+type ClinicOption = {
+  id: string
+  name: string
+  address_line1: string | null
+  city: string | null
+  state: string | null
+}
+
+type LeadAddr = {
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+}
 
 type CallRow = {
   id: string
@@ -62,6 +79,8 @@ export async function ActivityTimeline({
   notes,
   leadId,
   planSaleIds = [],
+  clinics = [],
+  leadAddress,
 }: {
   calls: CallRow[]
   appointments: ApptRow[]
@@ -69,6 +88,8 @@ export async function ActivityTimeline({
   notes: string | null
   leadId?: string
   planSaleIds?: string[]
+  clinics?: ClinicOption[]
+  leadAddress?: LeadAddr
 }) {
   const ta = await getTranslations("activity")
   const tCalls = await getTranslations("calls")
@@ -150,6 +171,13 @@ export async function ActivityTimeline({
                 {a.service && <p className="text-xs text-gray-400 mt-0.5">{a.service}</p>}
                 <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(a.scheduled_at)}</p>
               </div>
+              {leadId && leadAddress && (
+                <AppointmentActions
+                  appointmentId={a.id}
+                  clinics={clinics}
+                  leadAddress={leadAddress}
+                />
+              )}
             </div>
           )
         }

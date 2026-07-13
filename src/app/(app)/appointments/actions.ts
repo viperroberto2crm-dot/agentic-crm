@@ -254,13 +254,19 @@ export async function updateAppointment(raw: UpdateAppointmentInput) {
 
   const base = supabase.from("appointments").update(updates).eq("id", input.id)
   // Provider está en provider_id (separado de rep_id desde commit 779a819).
-  const { error } =
+  const scoped =
     role === "rep"
-      ? await base.eq("rep_id", user.id)
+      ? base.eq("rep_id", user.id)
       : role === "provider"
-        ? await base.eq("provider_id", user.id)
-        : await base
+        ? base.eq("provider_id", user.id)
+        : base
+  // .select() para detectar el no-op: si el scope de rol no matchea (cita ajena
+  // o borrada), el update afecta 0 filas SIN error → evitamos el "éxito falso".
+  const { data: updated, error } = await scoped.select("id")
   if (error) throw new Error(error.message)
+  if (!updated || updated.length === 0) {
+    throw new Error("No se pudo actualizar la cita: no existe o no tienes permiso.")
+  }
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
   if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)
