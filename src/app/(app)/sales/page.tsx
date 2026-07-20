@@ -183,7 +183,8 @@ export default async function SalesPage({
 
   const selectFields = `id, amount_cents, payment_method, payment_status, paid_at, created_at, notes, brand_id,
        lead:leads!sales_lead_id_fkey(id, first_name, last_name),
-       rep:users!sales_rep_id_fkey(id, name)`
+       rep:users!sales_rep_id_fkey(id, name),
+       sale_items(product_category)`
 
   type SaleRow = {
     id: string
@@ -196,6 +197,19 @@ export default async function SalesPage({
     brand_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
+    sale_items: { product_category: string | null }[] | null
+  }
+
+  // Una venta puede tener varias líneas con categorías distintas. Mostramos la
+  // primera y un contador con las demás para que la fila quede en un renglón.
+  function productTypes(sale: { sale_items: { product_category: string | null }[] | null }): {
+    primary: string | null
+    extra: number
+  } {
+    const cats = Array.from(
+      new Set((sale.sale_items ?? []).map((i) => i.product_category).filter((c): c is string => !!c)),
+    )
+    return { primary: cats[0] ?? null, extra: Math.max(0, cats.length - 1) }
   }
 
   async function fetchPaidInRange(): Promise<SaleRow[]> {
@@ -332,6 +346,7 @@ export default async function SalesPage({
     brand_id: string | null
     lead: { id: string; first_name: string; last_name: string | null } | null
     rep: { id: string; name: string } | null
+    sale_items: { product_category: string | null }[] | null
   }
 
   const sales = (salesRaw ?? []) as unknown as SaleItem[]
@@ -678,6 +693,7 @@ export default async function SalesPage({
                 {allMode && (
                   <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{tc("colCompany")}</th>
                 )}
+                <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden sm:table-cell">{t("colType")}</th>
                 <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colAmount")}</th>
                 <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4">{t("colStatus")}</th>
                 <th className="text-left text-[10px] text-[#93A39D] font-semibold uppercase tracking-widest pb-2 pr-4 hidden md:table-cell">{t("colMethod")}</th>
@@ -692,6 +708,7 @@ export default async function SalesPage({
                 const cfg = STATUS_CONFIG[sale.payment_status] ?? STATUS_CONFIG.pending
                 const brand = allMode && sale.brand_id ? brandsById.get(sale.brand_id) : null
                 const leadName = sale.lead ? `${sale.lead.first_name} ${sale.lead.last_name ?? ""}`.trim() : ""
+                const types = productTypes(sale)
                 return (
                   <tr key={sale.id} className="border-b border-[#F1EADD] hover:bg-[#FBF6EC] transition-colors">
                     <td className="py-3 pr-4">
@@ -721,6 +738,25 @@ export default async function SalesPage({
                         )}
                       </td>
                     )}
+                    <td className="py-3 pr-4 hidden sm:table-cell">
+                      {types.primary ? (
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[12px] text-[#5C6F68] uppercase tracking-wide truncate max-w-[130px]">
+                            {types.primary}
+                          </span>
+                          {types.extra > 0 && (
+                            <span
+                              className="shrink-0 inline-flex items-center h-4 px-1.5 rounded-full bg-[#F1EADD] text-[10px] font-semibold text-[#5C6F68] tabular-nums"
+                              title={`${types.extra + 1} tipos de producto en esta venta`}
+                            >
+                              +{types.extra}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#C9C0AF]">—</span>
+                      )}
+                    </td>
                     <td className="py-3 pr-4">
                       <span className="text-[#20342C] font-semibold tabular-nums">{fmtCents(sale.amount_cents)}</span>
                     </td>

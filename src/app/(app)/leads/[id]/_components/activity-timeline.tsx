@@ -209,7 +209,7 @@ export async function ActivityTimeline({
                     id: s.id,
                     amount_cents: s.amount_cents,
                     payment_status: s.payment_status as "paid" | "pending" | "partial" | "failed" | "refunded",
-                    payment_method: s.payment_method as "cash" | "card" | "stripe",
+                    payment_method: s.payment_method as "cash" | "card" | "stripe" | "zelle",
                     paid_at: s.paid_at,
                   }}
                   leadId={leadId}

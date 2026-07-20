@@ -78,7 +78,7 @@ export type GetSalesKpiInput = {
   period?: "today" | "week" | "month"
   scope?: Scope
   /** Filtra cobros (sales paid + abonos) por método de pago. */
-  payment_method?: "cash" | "card" | "stripe"
+  payment_method?: "cash" | "card" | "stripe" | "zelle"
   /** Si "payment_method", devuelve breakdown agrupado por método. */
   breakdown_by?: "payment_method"
 }
@@ -159,7 +159,7 @@ export const AGENT_TOOLS = [
   {
     name: "get_sales_kpi",
     description:
-      "Get sales KPIs (revenue, pending, count, avg ticket). When scope='all', also returns a per-brand breakdown so you can compare brands. Use payment_method='cash'|'card'|'stripe' to filter collected amount by method (e.g. '¿cuánto cash hoy?'). Use breakdown_by='payment_method' to get a per-method breakdown (cash vs card vs stripe). Always derived from real sales+abonos rows — never invent breakdowns.",
+      "Get sales KPIs (revenue, pending, count, avg ticket). When scope='all', also returns a per-brand breakdown so you can compare brands. Use payment_method='cash'|'card'|'stripe'|'zelle' to filter collected amount by method (e.g. '¿cuánto cash hoy?'). Use breakdown_by='payment_method' to get a per-method breakdown (cash vs card vs stripe vs zelle). Always derived from real sales+abonos rows — never invent breakdowns.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -175,7 +175,7 @@ export const AGENT_TOOLS = [
         },
         payment_method: {
           type: "string",
-          enum: ["cash", "card", "stripe"],
+          enum: ["cash", "card", "stripe", "zelle"],
           description: "Filter collected amount (sales paid + abonos) by payment method. Use only when user explicitly asks about one method.",
         },
         breakdown_by: {

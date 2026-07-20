@@ -2066,7 +2066,7 @@ export type Database = {
       call_outcome: "no_answer" | "voicemail" | "connected" | "appointment_set" | "not_interested" | "callback_requested" | "wrong_number"
       lead_source: "inbound_call" | "web_form" | "referral" | "whatsapp" | "walk_in" | "social" | "other" | "facebook"
       lead_status: "new" | "contacted" | "qualified" | "appointment_set" | "sold" | "lost" | "on_hold" | "not_interested"
-      payment_method: "cash" | "card" | "stripe"
+      payment_method: "cash" | "card" | "stripe" | "zelle"
       payment_status: "pending" | "paid" | "failed" | "refunded" | "partial"
       pending_status: "pending" | "approved" | "rejected" | "executed" | "expired"
       task_priority: "low" | "normal" | "high" | "urgent"

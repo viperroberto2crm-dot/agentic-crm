@@ -106,7 +106,7 @@ const CartItemSchema = z.object({
 const RegisterSaleSchema = z.object({
   lead_id: z.string().uuid(),
   brand_id: z.string().uuid(),
-  payment_method: z.enum(["cash", "card", "stripe"]),
+  payment_method: z.enum(["cash", "card", "stripe", "zelle"]),
   payment_status: z.enum(["pending", "paid", "failed", "refunded", "partial"]),
   notes: z.string().nullable(),
   items: z.array(CartItemSchema).min(1),
@@ -510,7 +510,7 @@ const UpdateSaleSchema = z.object({
   lead_id: z.string().uuid(),
   amount_cents: z.number().int().min(0),
   payment_status: z.enum(["paid", "pending", "partial", "failed", "refunded"]),
-  payment_method: z.enum(["cash", "card", "stripe"]),
+  payment_method: z.enum(["cash", "card", "stripe", "zelle"]),
   notes: z.string().nullable(),
   // Fecha de pago opcional. Si viene como YYYY-MM-DD el rep la corrigió manualmente.
   // Si undefined: usar comportamiento anterior (auto-now si paid, null si no).

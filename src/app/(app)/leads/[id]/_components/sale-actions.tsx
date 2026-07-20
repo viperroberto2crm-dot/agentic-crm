@@ -13,7 +13,7 @@ type Sale = {
   id: string
   amount_cents: number
   payment_status: "paid" | "pending" | "partial" | "failed" | "refunded"
-  payment_method: "cash" | "card" | "stripe"
+  payment_method: "cash" | "card" | "stripe" | "zelle"
   notes?: string | null
   paid_at?: string | null
 }
@@ -56,7 +56,7 @@ export function SaleActions({
       <button
         type="button"
         onClick={() => setEditOpen(true)}
-        className="p-1 rounded hover:bg-gray-100 text-gray-300 hover:text-gray-600 transition-colors"
+        className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
         title="Editar venta"
         disabled={isDeleting}
       >
@@ -76,7 +76,7 @@ export function SaleActions({
             type="button"
             onClick={() => setConfirmDelete(false)}
             disabled={isDeleting}
-            className="px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-gray-100 rounded"
+            className="px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-100 rounded"
           >
             No
           </button>
@@ -85,7 +85,7 @@ export function SaleActions({
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+          className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors"
           title="Borrar venta"
         >
           <Trash2 className="w-3 h-3" />
@@ -207,6 +207,7 @@ function EditSaleDialog({
               <SelectContent className="bg-white border-gray-200">
                 <SelectItem value="cash" className="text-gray-800">Cash</SelectItem>
                 <SelectItem value="card" className="text-gray-800">Card</SelectItem>
+                <SelectItem value="zelle" className="text-gray-800">Zelle</SelectItem>
                 <SelectItem value="stripe" className="text-gray-800">Stripe</SelectItem>
               </SelectContent>
             </Select>

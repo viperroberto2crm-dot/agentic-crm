@@ -180,7 +180,7 @@ export function RegisterSaleModal({
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "stripe">("card")
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "stripe" | "zelle">("card")
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "pending">("paid")
   const [notes, setNotes] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -604,13 +604,14 @@ export function RegisterSaleModal({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs text-gray-400">{t("paymentMethod")}</label>
-                  <Select value={paymentMethod} onValueChange={(v: "cash" | "card" | "stripe") => setPaymentMethod(v)}>
+                  <Select value={paymentMethod} onValueChange={(v: "cash" | "card" | "stripe" | "zelle") => setPaymentMethod(v)}>
                     <SelectTrigger className="bg-white border-gray-200 text-gray-700 h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-gray-200">
                       <SelectItem value="card" className="text-gray-800">{t("card")}</SelectItem>
                       <SelectItem value="cash" className="text-gray-800">{t("cash")}</SelectItem>
+                      <SelectItem value="zelle" className="text-gray-800">{t("zelle")}</SelectItem>
                       <SelectItem value="stripe" className="text-gray-800">{t("stripe")}</SelectItem>
                     </SelectContent>
                   </Select>
