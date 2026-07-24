@@ -18,6 +18,7 @@ import {
 } from "@/lib/integrations/square"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
+import { isStaffEmail } from "@/lib/integrations/staff-email"
 import { pushPbSession } from "@/lib/integrations/pb-sessions"
 
 type DB = SupabaseClient<Database>
@@ -92,7 +93,8 @@ async function resolveLead(
   if (brandIds.length === 0) return null
 
   const cands: Cand[] = []
-  if (email) {
+  // No enlazar por email de staff/rep: se vuelve un imán que absorbe pagos ajenos.
+  if (email && !(await isStaffEmail(sb, email))) {
     // Escapar comodines LIKE (%, _, \); ilike preserva el match sin distinción
     // de mayúsculas (mismo patrón exacto que el webhook).
     const emailPattern = email.replace(/([\\%_])/g, "\\$1")

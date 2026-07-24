@@ -17,6 +17,7 @@ import {
 } from "@/lib/integrations/square"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
+import { isStaffEmail } from "@/lib/integrations/staff-email"
 import { enrichPbRecord, type PbAddress } from "@/lib/integrations/practice-better"
 
 type DB = SupabaseClient<Database>
@@ -89,7 +90,8 @@ async function resolveLead(
   if (brandIds.length === 0) return null
 
   const cands: Cand[] = []
-  if (email) {
+  // No enlazar por email de staff/rep: se vuelve un imán que absorbe pagos ajenos.
+  if (email && !(await isStaffEmail(sb, email))) {
     const emailPattern = email.replace(/([\\%_])/g, "\\$1")
     const { data } = await sb
       .from("leads")

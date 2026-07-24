@@ -14,6 +14,7 @@ import {
   type StripeCharge,
 } from "@/lib/integrations/stripe"
 import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
+import { isStaffEmail } from "@/lib/integrations/staff-email"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -45,7 +46,8 @@ async function resolveLead(sb: DB, email: string | null, phone: string | null): 
   if (brandIds.length === 0) return null
 
   const cands: Cand[] = []
-  if (email) {
+  // No enlazar por email de staff/rep: se vuelve un imán que absorbe pagos ajenos.
+  if (email && !(await isStaffEmail(sb, email))) {
     const emailPattern = email.replace(/([\\%_])/g, "\\$1")
     const { data } = await sb
       .from("leads")

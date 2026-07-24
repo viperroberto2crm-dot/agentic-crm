@@ -24,6 +24,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { escapeIlike } from "@/lib/queries/search"
+import { isStaffEmail } from "@/lib/integrations/staff-email"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 import type { PbAddress } from "@/lib/integrations/practice-better"
 
@@ -113,7 +114,8 @@ export async function findLeadByEmailOrPhone(
   email: string | null,
   phone: string | null,
 ): Promise<string | null> {
-  if (email) {
+  // No enlazar por email de staff/rep: se vuelve un imán que absorbe pagos ajenos.
+  if (email && !(await isStaffEmail(sb, email))) {
     const { data } = await sb
       .from("leads")
       .select("id")

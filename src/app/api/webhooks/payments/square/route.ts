@@ -22,6 +22,7 @@ import {
   type SquareAddressParts,
 } from "@/lib/integrations/square"
 import { routeAndCreateLead } from "@/lib/integrations/offer-brand-map"
+import { isStaffEmail } from "@/lib/integrations/staff-email"
 import { enrichPbRecord, type PbAddress } from "@/lib/integrations/practice-better"
 import { pushPbSession } from "@/lib/integrations/pb-sessions"
 
@@ -60,7 +61,8 @@ async function resolveLead(
   if (brandIds.length === 0) return null
 
   const cands: Cand[] = []
-  if (email) {
+  // No enlazar por email de staff/rep: se vuelve un imán que absorbe pagos ajenos.
+  if (email && !(await isStaffEmail(sb, email))) {
     // Escapar comodines LIKE (%, _, \): el email viene de Square. ilike preserva
     // el match sin distinción de mayúsculas (emails guardados con cualquier casing).
     const emailPattern = email.replace(/([\\%_])/g, "\\$1")
