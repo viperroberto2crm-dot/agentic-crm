@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "src/app/api/agent/ask/route.ts": { "maxDuration": 60 }
+  },
   "crons": [
     { "path": "/api/agent/reflect", "schedule": "0 7 * * *" },
     { "path": "/api/agent/daily-insights", "schedule": "30 7 * * *" },

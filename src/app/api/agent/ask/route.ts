@@ -50,11 +50,11 @@ const MODEL = "claude-sonnet-4-6"
 const MAX_TOOL_ROUNDS = 3
 const HISTORY_LIMIT = 5
 
-// El peor caso son 4 llamadas al modelo en cadena + ejecución de herramientas +
-// una 5a llamada forzada. Igualamos el límite de los demás endpoints del agente
-// (transcribe-calls, poll-*, daily-insights = 60) para no arriesgar un 504 que
+// NOTA: este archivo tiene la directiva "use server" arriba, que SOLO permite
+// exportar funciones async — por eso el timeout (maxDuration=60) va en vercel.json
+// (functions), no como `export const maxDuration` aquí. El peor caso son 4 llamadas
+// al modelo en cadena + herramientas + una 5a llamada forzada; 60s evita un 504 que
 // dejaría el UPDATE final de agent_runs sin correr (fila huérfana).
-export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   const startedAt = Date.now()
