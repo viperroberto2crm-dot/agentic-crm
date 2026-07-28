@@ -50,6 +50,12 @@ const MODEL = "claude-sonnet-4-6"
 const MAX_TOOL_ROUNDS = 3
 const HISTORY_LIMIT = 5
 
+// El peor caso son 4 llamadas al modelo en cadena + ejecución de herramientas +
+// una 5a llamada forzada. Igualamos el límite de los demás endpoints del agente
+// (transcribe-calls, poll-*, daily-insights = 60) para no arriesgar un 504 que
+// dejaría el UPDATE final de agent_runs sin correr (fila huérfana).
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   const startedAt = Date.now()
 
@@ -527,10 +533,56 @@ Ejemplo INCORRECTO (Spanglish): "Tienes 4 appointments hoy. La primera es a las 
     }
 
     // ---------- 5) Extraer texto final ----------
-    finalText = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as Anthropic.TextBlock).text)
-      .join("")
+    const extractText = (r: Anthropic.Message): string =>
+      r.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as Anthropic.TextBlock).text)
+        .join("")
+
+    finalText = extractText(response)
+
+    // Si el loop se agotó con el modelo AÚN pidiendo herramientas (más de
+    // MAX_TOOL_ROUNDS), o gastó su presupuesto de tokens en tool_use, la última
+    // respuesta viene sin texto y el bot devolvería vacío ("no contesta").
+    // Forzamos UNA llamada final con tool_choice:"none" para que el modelo
+    // escriba una respuesta en lenguaje natural sobre los datos que ya reunió.
+    // OJO: NO omitir `tools` — la API rechaza requests sin `tools` cuando el
+    // historial trae tool_use/tool_result. Solo forzamos si YA hay tool_results
+    // en el historial: sin datos, una respuesta forzada inventaría (peor que el
+    // mensaje de fallback). Envuelto en try/catch para degradar con gracia (un
+    // 429/529 en esta llamada NO debe escalar a 500).
+    if (!finalText.trim()) {
+      const hasToolResults = messages.some(
+        (m) =>
+          Array.isArray(m.content) &&
+          m.content.some((b) => (b as { type?: string }).type === "tool_result"),
+      )
+      if (hasToolResults) {
+        try {
+          const forced = await anthropic.messages.create({
+            model: MODEL,
+            max_tokens: 2048, // holgura: respuesta final, sin tool_use que la recorte
+            system: systemBlocks,
+            tools: allTools, // requerido: `messages` contiene tool_use/tool_result
+            tool_choice: { type: "none" }, // prohíbe herramientas → el modelo responde texto
+            messages,
+          })
+          tokensIn += forced.usage?.input_tokens ?? 0
+          tokensOut += forced.usage?.output_tokens ?? 0
+          finalText = extractText(forced)
+        } catch (err) {
+          console.error("[agent/ask] llamada final forzada falló:", err)
+          // cae al mensaje de fallback de abajo en vez de escalar a 500
+        }
+      }
+      // Último recurso: mensaje claro en vez de una respuesta vacía.
+      if (!finalText.trim()) {
+        finalText =
+          userLocale === "en"
+            ? "I couldn't finish a complete answer for this one. Try rephrasing or narrowing the question."
+            : "No pude completar una respuesta para esto. Intenta reformular o acotar la pregunta."
+      }
+    }
   } catch (err) {
     failure = err instanceof Error ? err : new Error(String(err))
     console.error("[agent/ask] loop falló:", failure)
