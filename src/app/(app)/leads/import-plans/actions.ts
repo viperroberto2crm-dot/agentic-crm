@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
+import { normalizeToE164 } from "@/lib/integrations/800com"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -181,7 +182,8 @@ export async function importPaymentPlans(
       }
 
       // a) Crear lead nuevo (siempre — la usuaria pidió "wipe + start fresh")
-      const phoneClean = plan.phone?.trim() || null
+      const phoneTrim = plan.phone?.trim() || null
+      const phoneClean = phoneTrim ? normalizeToE164(phoneTrim) || phoneTrim : null
       const matchedRepId = findRepByText(plan.assigned_rep)
       const repText = plan.assigned_rep?.trim() || null
       // Si el rep no se pudo matchear, lo apuntamos en las notas para no perderlo

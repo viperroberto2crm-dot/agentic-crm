@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 import { maybeEnrichLead } from "@/lib/integrations/ecid-enrich"
+import { normalizeToE164 } from "@/lib/integrations/800com"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -127,7 +128,11 @@ export async function createLead(formData: FormData) {
   const brand_id = formData.get("brand_id") as string
   const first_name = (formData.get("first_name") as string).trim()
   const last_name = (formData.get("last_name") as string | null)?.trim() || null
-  const phone = (formData.get("phone") as string).trim()
+  // Normalizamos a E.164 para que el teléfono se guarde en UN solo formato y el
+  // match por teléfono (crons/webhooks) funcione. Sin esto se crean leads
+  // duplicados y se mal-vinculan llamadas/pagos (raíz del imán de pagos).
+  const phoneRaw = (formData.get("phone") as string).trim()
+  const phone = normalizeToE164(phoneRaw) || phoneRaw
   const email = (formData.get("email") as string | null)?.trim() || null
   const source = (formData.get("source") as string | null) || null
   const notes = (formData.get("notes") as string | null)?.trim() || null

@@ -692,11 +692,15 @@ export function normalizeToE164(input: string): string {
   // Si ya empieza con +, conservar + y solo limpiar non-digits del resto
   if (trimmed.startsWith("+")) {
     const digits = trimmed.slice(1).replace(/\D/g, "")
-    return `+${digits}`
+    return digits ? `+${digits}` : ""
   }
   const digits = trimmed.replace(/\D/g, "")
   if (digits.length === 10) return `+1${digits}` // US 10-digit → assume US
-  return `+${digits}` // Asumir que ya trae country code
+  if (digits.length >= 11) return `+${digits}` // ya trae country code
+  // < 10 dígitos y sin '+': no es un teléfono normalizable (basura como "N/A",
+  // "123"). Devolvemos "" para que el caller conserve el crudo con `|| raw` y
+  // NO guardemos un "+" pelón. Alinea el helper con el backfill SQL (conservador).
+  return ""
 }
 
 /**

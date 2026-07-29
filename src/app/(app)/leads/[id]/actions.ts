@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
+import { normalizeToE164 } from "@/lib/integrations/800com"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -20,10 +21,17 @@ const UpdateLeadSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().nullable(),
   phone: z.preprocess(
-    (v) => (typeof v === "string" && v.trim().length === 0 ? null : v),
+    (v) => {
+      if (typeof v !== "string") return v
+      const t = v.trim()
+      return t ? normalizeToE164(t) || t : null
+    },
     z.string().min(1).nullable()
   ),
-  phone_alt: z.string().nullable(),
+  phone_alt: z
+    .string()
+    .nullable()
+    .transform((v) => (v && v.trim() ? normalizeToE164(v.trim()) || v.trim() : v)),
   email: z.string().nullable(),
   status: z.enum(["new", "contacted", "qualified", "appointment_set", "sold", "lost", "on_hold", "not_interested"]),
   source: z.enum(["inbound_call", "web_form", "referral", "whatsapp", "walk_in", "social", "facebook", "other"]).nullable(),

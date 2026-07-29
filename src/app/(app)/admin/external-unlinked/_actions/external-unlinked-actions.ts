@@ -199,7 +199,10 @@ const CreateLeadFromExternalSchema = z.object({
   phone: z
     .string()
     .nullable()
-    .transform((v) => (v && v.trim() ? v.trim() : null)),
+    .transform((v) => {
+      const t = v?.trim()
+      return t ? normalizeToE164(t) || t : null
+    }),
   email: z
     .string()
     .nullable()
