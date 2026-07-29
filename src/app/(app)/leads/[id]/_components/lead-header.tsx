@@ -3,7 +3,7 @@ import { ArrowLeft, Phone, Mail, MapPin, Calendar, Package } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { Database } from "@/types/database"
 import { getTranslations, getLocale } from "next-intl/server"
-import { parseDbDate } from "@/lib/datetime"
+import { parseDbDate, BRAND_TIMEZONE } from "@/lib/datetime"
 
 type LeadStatus = Database["public"]["Enums"]["lead_status"]
 
@@ -49,6 +49,9 @@ export async function LeadHeader({ lead, readyToShip = false }: Props) {
   const createdLabel = createdAt
     ? new Intl.DateTimeFormat(locale, {
         dateStyle: "long",
+        // Sin timeZone, el server (UTC) renderiza un lead creado de noche (hora
+        // Pacific) como del día SIGUIENTE → "Created on" salía un día adelantado.
+        timeZone: BRAND_TIMEZONE,
       }).format(createdAt)
     : "—"
 
