@@ -14,6 +14,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
+import { dayStartUtcInTz, nextYmd, todayInTz } from "@/lib/agent/tools"
 import { buildReportData, type ReportFilters } from "@/lib/exports/report-data"
 import { buildReportWorkbook, buildReportFilename } from "@/lib/exports/xlsx-builder"
 import { getBrandIdBySlug } from "@/lib/queries/dashboard"
@@ -56,7 +57,7 @@ export const FILE_TOOLS = [
         to: {
           type: "string",
           description:
-            "Fecha final YYYY-MM-DD. Omitir si historico=true.",
+            "Fecha final YYYY-MM-DD, INCLUSIVA (el último día se incluye completo). Para un solo día, poné el mismo valor en from y to (ej. from=2026-07-16, to=2026-07-16). Omitir si historico=true.",
         },
         brand: {
           type: "string",
@@ -151,11 +152,36 @@ async function executeGenerateSalesReport(
     let from = input.from ?? null
     let to = input.to ?? null
     const historico = input.historico ?? false
+    // Completar rango faltante en hora PT (no UTC del server). Si falta un extremo
+    // lo derivamos: from → primer día del mes PT, to → hoy PT. Así NUNCA un rango
+    // parcial ("desde el 16") se vuelve "todo el mes" en silencio, y el default
+    // "este mes" queda en fechas simples que la normalización PT de abajo convierte
+    // a instantes de medianoche PT — mismos límites que get_sales_kpi, con los
+    // abonos de hoy incluidos.
     if (!historico && (!from || !to)) {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      from = start.toISOString()
-      to = new Date().toISOString()
+      const t = todayInTz()
+      from = from ?? `${t.slice(0, 7)}-01`
+      to = to ?? t
+    }
+
+    // Normalizar fechas SIMPLES (YYYY-MM-DD) a instantes de medianoche PT, para que:
+    //  (a) el Excel cubra el MISMO día calendario que reporta get_sales_kpi (hora
+    //      de la clínica, no UTC) → el número hablado y el Excel coinciden;
+    //  (b) `to` sea INCLUSIVO del día completo (report-data lo aplica exclusivo con
+    //      paid_at.lt.to). Sin esto, "from=16 to=16" daba rango vacío [16,16) = $0
+    //      —el bug que veía el equipo— y "to=fin de mes" perdía el último día.
+    // Validamos ANTES de transformar (si no, un rango invertido se volvía vacío en
+    // vez de dar error). La etiqueta del periodo se arma con las fechas ORIGINALES
+    // (inclusivas) para que un solo día lea "2026-07-16", no "16 → 17".
+    let periodLabel: string | null = null
+    const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s)
+    if (!historico && isYmd(from) && isYmd(to)) {
+      if (from > to) {
+        return { ok: false, error: `El rango es inválido: ${from} es posterior a ${to}.` }
+      }
+      periodLabel = from === to ? from : `${from} → ${to}`
+      from = dayStartUtcInTz(from)
+      to = dayStartUtcInTz(nextYmd(to))
     }
 
     const filters: ReportFilters = {
@@ -165,6 +191,7 @@ async function executeGenerateSalesReport(
       brandId,
       repId,
       status: input.status ?? "all",
+      periodLabel,
     }
 
     const lang: ReportLang = ctx.lang ?? "es"

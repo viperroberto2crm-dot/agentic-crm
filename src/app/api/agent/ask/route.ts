@@ -181,11 +181,26 @@ Usa términos: marca, venta, lead, cita, llamada, plan de pagos, cuota, pendient
 Ejemplo correcto: "Tienes 4 citas hoy. La primera es a las 2:30 PM con Maria Flores para análisis de sangre, estado: agendada."
 Ejemplo INCORRECTO (Spanglish): "Tienes 4 appointments hoy. La primera es a las 2:30 PM con Maria Flores for blood work, status: scheduled."`
 
+  // Fecha de HOY en hora de la clínica (PT) para que el bot resuelva "ayer",
+  // "anteayer", nombres de día, y arme el parámetro `date` de get_sales_kpi.
+  // Sin esto el modelo no sabe qué día es y caía en period=today → día equivocado.
+  const todayPt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+
   const systemBlocks: Anthropic.TextBlockParam[] = [
     {
       type: "text",
       text: CRM_SYSTEM_PROMPT,
       cache_control: { type: "ephemeral" },
+    },
+    {
+      type: "text",
+      text: `FECHA DE HOY (hora de la clínica, Pacific Time): ${todayPt}. Úsala para resolver "hoy", "ayer", "anteayer" y nombres de día a fechas YYYY-MM-DD exactas.`,
     },
     {
       type: "text",

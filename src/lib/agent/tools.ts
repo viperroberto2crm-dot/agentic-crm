@@ -17,7 +17,7 @@ function scopeRep(userId: string, role: string): string | null {
  * Resuelve el bug de "hoy" calculado en server UTC cuando son las 9 PM PT
  * (4 AM UTC del día siguiente).
  */
-function todayInTz(tz: string = BRAND_TIMEZONE): string {
+export function todayInTz(tz: string = BRAND_TIMEZONE): string {
   // Formatter para sacar partes en la TZ deseada
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -35,7 +35,7 @@ function todayInTz(tz: string = BRAND_TIMEZONE): string {
  * Devuelve UTC ISO del inicio de día de una fecha YYYY-MM-DD en TZ dada.
  * Ej: dayStartUtc("2026-05-20", "America/Los_Angeles") → "2026-05-20T07:00:00Z" en PDT.
  */
-function dayStartUtcInTz(ymd: string, tz: string = BRAND_TIMEZONE): string {
+export function dayStartUtcInTz(ymd: string, tz: string = BRAND_TIMEZONE): string {
   // Construir Date en UTC interpretando ymd como medianoche en tz.
   // Truco: usar Intl para encontrar el offset.
   const [y, m, d] = ymd.split("-").map(Number)
@@ -81,6 +81,13 @@ export type GetSalesKpiInput = {
   payment_method?: "cash" | "card" | "stripe" | "zelle"
   /** Si "payment_method", devuelve breakdown agrupado por método. */
   breakdown_by?: "payment_method"
+  /**
+   * Día específico YYYY-MM-DD interpretado en hora local de la clínica (PT).
+   * Si se da, IGNORA `period` y consulta solo ese día (o el rango date..end_date).
+   */
+  date?: string
+  /** Fin de rango YYYY-MM-DD inclusivo (solo con `date`). */
+  end_date?: string
 }
 
 export type GetCallsInput = {
@@ -183,6 +190,16 @@ export const AGENT_TOOLS = [
           enum: ["payment_method"],
           description: "If 'payment_method', returns by_payment_method array with real totals per method.",
         },
+        date: {
+          type: "string",
+          description:
+            "Specific day in YYYY-MM-DD, clinic local time (PT). USE THIS WHENEVER the user names a concrete date ('el 16 de julio', 'July 16', 'ayer', 'anteayer', 'el lunes pasado') — resolve it to the exact date using TODAY's date given in the system prompt. Overrides `period`. Do NOT fall back to today/week/month for a specific date; that returns the WRONG day.",
+        },
+        end_date: {
+          type: "string",
+          description:
+            "Optional inclusive end of a date range, YYYY-MM-DD (PT). Use only together with `date` for ranges like 'del 16 al 18 de julio'.",
+        },
       },
     },
   },
@@ -247,6 +264,65 @@ function periodRange(period = "month"): { gte: string } {
   const today = todayInTz()
   const monthStart = `${today.slice(0, 7)}-01`
   return { gte: dayStartUtcInTz(monthStart) }
+}
+
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/
+/** true si `s` es un YYYY-MM-DD de calendario real (rechaza 2026-13-45, etc.). */
+function isValidYmd(s: string | undefined): s is string {
+  if (!s || !YMD_RE.test(s)) return false
+  const [y, m, d] = s.split("-").map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+/** Devuelve el día siguiente a un YYYY-MM-DD (aritmética en UTC, sin drift de TZ). */
+export function nextYmd(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + 1)
+  return dt.toISOString().slice(0, 10)
+}
+/**
+ * Rango de cobros para get_sales_kpi. Si viene una fecha específica (PT), la usa
+ * (día único o date..end_date inclusivo); si no, cae al period today/week/month.
+ * Reusa dayStartUtcInTz para que los límites sean medianoche PT (consistente con
+ * el resto de las queries de tiempo del bot) y no UTC.
+ *
+ * CRÍTICO (abonos): abonos.paid_at es date-only y se filtra con
+ * paidRange.{start,end}Iso.slice(0,10). Por eso endIso SIEMPRE debe ser la
+ * medianoche PT del día SIGUIENTE al último día del rango — así el slice cae en
+ * el día correcto e incluye los abonos de hoy. Antes endIso=now() → al cortar a
+ * 10 chars daba la fecha UTC de hoy, que hasta las 5 PM PT es el MISMO día →
+ * abonos: [hoy, hoy) = vacío → se perdían los cobros de planes de toda la mañana.
+ */
+function salesPaidRange(input: GetSalesKpiInput): {
+  paidRange: { startIso: string; endIso: string }
+  periodLabel: string
+} {
+  if (isValidYmd(input.date)) {
+    const startYmd = input.date
+    const endYmd =
+      isValidYmd(input.end_date) && input.end_date >= input.date
+        ? input.end_date
+        : input.date
+    return {
+      paidRange: {
+        startIso: dayStartUtcInTz(startYmd),
+        // Exclusivo: medianoche PT del día SIGUIENTE al último día → incluye todo endYmd.
+        endIso: dayStartUtcInTz(nextYmd(endYmd)),
+      },
+      periodLabel: startYmd === endYmd ? startYmd : `${startYmd}..${endYmd}`,
+    }
+  }
+  const { gte } = periodRange(input.period ?? "month")
+  return {
+    paidRange: {
+      startIso: gte,
+      // Fin exclusivo = medianoche PT de mañana → incluye TODO el día de hoy
+      // (tanto sales por timestamp como abonos por date-only slice).
+      endIso: dayStartUtcInTz(nextYmd(todayInTz())),
+    },
+    periodLabel: input.period ?? "month",
+  }
 }
 
 export async function executeListBrands(sb: DB) {
@@ -340,8 +416,23 @@ export async function executeGetSalesKpi(
   input: GetSalesKpiInput,
   role: string = "rep",
 ) {
-  const { gte } = periodRange(input.period ?? "month")
-  const paidRange = { startIso: gte, endIso: new Date().toISOString() }
+  // Validar fechas ANTES de armar el rango: si el modelo manda una fecha
+  // malformada ("July 16", "2026-13-45", end_date < date), devolvemos error para
+  // que reintente — NO caemos silenciosamente al mes (eso daría el día equivocado).
+  if (input.date !== undefined && !isValidYmd(input.date)) {
+    return { error: `Fecha inválida: "${input.date}". Usá formato YYYY-MM-DD.` }
+  }
+  if (input.end_date !== undefined && !isValidYmd(input.end_date)) {
+    return { error: `Fecha fin inválida: "${input.end_date}". Usá formato YYYY-MM-DD.` }
+  }
+  if (input.date && input.end_date && input.end_date < input.date) {
+    return { error: `Rango inválido: end_date (${input.end_date}) es anterior a date (${input.date}).` }
+  }
+  if (input.end_date && !input.date) {
+    return { error: `Para un rango, mandá también \`date\` (inicio). \`end_date\` sola se ignora.` }
+  }
+
+  const { paidRange, periodLabel } = salesPaidRange(input)
 
   function toUsd(cents: number) {
     return (cents / 100).toFixed(2)
@@ -457,7 +548,7 @@ export async function executeGetSalesKpi(
     )
 
     return {
-      period: input.period ?? "month",
+      period: periodLabel,
       scope: input.scope ?? "current",
       payment_method_filter: input.payment_method ?? null,
       total_collected_usd: toUsd(totalCollected),
@@ -510,7 +601,7 @@ export async function executeGetSalesKpi(
     const totalPaidCount = byBrand.reduce((s, b) => s + b.paid_count, 0)
 
     return {
-      period: input.period ?? "month",
+      period: periodLabel,
       scope: "all",
       overall: {
         total_paid_usd: toUsd(totalPaid),
@@ -530,7 +621,7 @@ export async function executeGetSalesKpi(
     paidRange,
   })
   return {
-    period: input.period ?? "month",
+    period: periodLabel,
     scope: "current",
     total_paid_usd: toUsd(br.collectedCents),
     total_pending_usd: toUsd(br.outstandingCents),

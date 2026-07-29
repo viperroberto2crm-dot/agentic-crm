@@ -817,7 +817,13 @@ async function refreshPlanSaleStatus(
       .filter(Boolean)
       .sort()
       .at(-1)
-    salePaidAt = maxPaidAt ?? new Date().toISOString()
+    // abonos.paid_at es date-only ("2026-07-16"). Guardarlo crudo en el timestamptz
+    // sale.paid_at lo castea a medianoche UTC = 5 PM PT del día ANTERIOR, corriendo
+    // el conteo del día en las vistas PT. Anclamos a mediodía UTC (mismo día PT),
+    // igual que el path de edición manual de abonos.
+    salePaidAt = maxPaidAt
+      ? `${maxPaidAt.slice(0, 10)}T12:00:00Z`
+      : new Date().toISOString()
   }
 
   await sb

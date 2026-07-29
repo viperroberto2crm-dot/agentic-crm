@@ -44,6 +44,11 @@ export type ReportFilters = {
   repId?: string | null
   /** Filtra transacciones de la Hoja 2 por status. Default 'all' */
   status?: "all" | "paid" | "pending"
+  /**
+   * Etiqueta de periodo a mostrar en el Excel. Si se da, se usa tal cual (permite
+   * mostrar el rango INCLUSIVO legible aunque `to` internamente sea exclusivo).
+   */
+  periodLabel?: string | null
 }
 
 export type ResumenRow = {
@@ -155,6 +160,9 @@ type LeadInfo = {
 
 function formatPeriodLabel(filters: ReportFilters, d: ReportDict): string {
   if (filters.historico || (!filters.from && !filters.to)) return d.periodoHistorico
+  // Etiqueta explícita (rango inclusivo legible) tiene prioridad sobre el `to`
+  // interno, que es exclusivo (medianoche PT del día siguiente).
+  if (filters.periodLabel) return filters.periodLabel
   const fmt = (iso: string) => iso.slice(0, 10)
   return `${filters.from ? fmt(filters.from) : "—"} → ${filters.to ? fmt(filters.to) : "—"}`
 }
