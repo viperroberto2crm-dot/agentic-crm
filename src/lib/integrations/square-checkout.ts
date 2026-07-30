@@ -107,3 +107,66 @@ export async function createSquarePaymentLinkForLead(
     return { ok: false, error: msg }
   }
 }
+
+/**
+ * Cobro por un MONTO PERSONALIZADO en Square (producto que no es oferta). Usa un
+ * `order` con line item ad-hoc (base_price_money, sin catálogo) para poder llevar
+ * reference_id + metadata igual que el path de oferta → consistente y listo para
+ * el vínculo determinista futuro. Hoy Square vincula por email/teléfono (el
+ * webhook aún no lee la metadata de la orden — ver square/route.ts).
+ */
+export async function createSquareCustomLink(args: {
+  amountCents: number
+  description: string
+  leadId: string
+  brandId: string
+  baseUrl: string
+}): Promise<CreateResult> {
+  const token = process.env.SQUARE_ACCESS_TOKEN
+  if (!token) return { ok: false, error: "Square no está configurado (falta SQUARE_ACCESS_TOKEN)." }
+
+  const locationId = await getSquareLocationId(token)
+  if (!locationId) return { ok: false, error: "No se encontró una ubicación (location) de Square." }
+
+  try {
+    const body = {
+      idempotency_key: crypto.randomUUID(),
+      order: {
+        location_id: locationId,
+        reference_id: args.leadId,
+        metadata: { lead_id: args.leadId, brand_id: args.brandId },
+        line_items: [
+          {
+            name: args.description,
+            quantity: "1",
+            base_price_money: { amount: args.amountCents, currency: "USD" },
+          },
+        ],
+      },
+      checkout_options: { redirect_url: `${args.baseUrl}/pago/gracias` },
+    }
+    const res = await fetch(`${SQUARE_API_BASE}/v2/online-checkout/payment-links`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Square-Version": SQUARE_VERSION,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      console.error("[square-checkout] custom", res.status, text.slice(0, 240))
+      return { ok: false, error: `Square rechazó el cobro (${res.status}).` }
+    }
+    const json = (await res.json()) as { payment_link?: { url?: string } }
+    const url = json.payment_link?.url
+    if (!url) return { ok: false, error: "Square no devolvió el link de pago." }
+    return { ok: true, url }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[square-checkout] custom threw:", msg)
+    return { ok: false, error: msg }
+  }
+}

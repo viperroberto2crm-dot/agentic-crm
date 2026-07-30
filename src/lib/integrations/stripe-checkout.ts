@@ -52,18 +52,28 @@ async function getPriceMode(
   return price.recurring ? "subscription" : "payment"
 }
 
-export async function createCheckoutSessionForLead(
-  args: CreateArgs,
+type SessionCore = {
+  leadId: string
+  brandId: string
+  email?: string | null
+  baseUrl: string
+}
+
+/**
+ * Arma y envía el Checkout Session. `setLineItem` fija el line_item (un price de
+ * oferta, o price_data con monto personalizado); el resto (metadata, tarjeta,
+ * urls, expiración) es común a ambos casos → una sola fuente de verdad.
+ */
+async function postCheckoutSession(
+  key: string,
+  mode: "payment" | "subscription",
+  setLineItem: (p: URLSearchParams) => void,
+  args: SessionCore,
 ): Promise<CreateResult> {
-  const key = process.env.STRIPE_SECRET_KEY
-  if (!key) return { ok: false, error: "Stripe no está configurado (falta STRIPE_SECRET_KEY)." }
-
   try {
-    const mode = await getPriceMode(args.priceId, key)
-
     const params = new URLSearchParams()
     params.set("mode", mode)
-    params.set("line_items[0][price]", args.priceId)
+    setLineItem(params)
     params.set("line_items[0][quantity]", "1")
     // Solo tarjeta: evita métodos diferidos (OXXO, débito bancario) cuyo cobro
     // se confirma en un evento aparte que este webhook no maneja → dinero real
@@ -116,4 +126,51 @@ export async function createCheckoutSessionForLead(
     console.error("[stripe-checkout] threw:", msg)
     return { ok: false, error: msg }
   }
+}
+
+/** Cobro por una OFERTA predefinida (Stripe price id). */
+export async function createCheckoutSessionForLead(
+  args: CreateArgs,
+): Promise<CreateResult> {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) return { ok: false, error: "Stripe no está configurado (falta STRIPE_SECRET_KEY)." }
+  try {
+    const mode = await getPriceMode(args.priceId, key)
+    return await postCheckoutSession(
+      key,
+      mode,
+      (p) => p.set("line_items[0][price]", args.priceId),
+      args,
+    )
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error("[stripe-checkout] threw:", msg)
+    return { ok: false, error: msg }
+  }
+}
+
+/**
+ * Cobro por un MONTO PERSONALIZADO (producto que no es oferta). Usa price_data
+ * inline → no requiere crear un price en Stripe. Siempre pago único.
+ */
+export async function createStripeCustomCheckout(args: {
+  amountCents: number
+  description: string
+  leadId: string
+  brandId: string
+  email?: string | null
+  baseUrl: string
+}): Promise<CreateResult> {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) return { ok: false, error: "Stripe no está configurado (falta STRIPE_SECRET_KEY)." }
+  return postCheckoutSession(
+    key,
+    "payment",
+    (p) => {
+      p.set("line_items[0][price_data][currency]", "usd")
+      p.set("line_items[0][price_data][product_data][name]", args.description)
+      p.set("line_items[0][price_data][unit_amount]", String(args.amountCents))
+    },
+    args,
+  )
 }

@@ -11,8 +11,8 @@ import { z } from "zod"
 import QRCode from "qrcode"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 import { normalizeToE164 } from "@/lib/integrations/800com"
-import { createCheckoutSessionForLead } from "@/lib/integrations/stripe-checkout"
-import { createSquarePaymentLinkForLead } from "@/lib/integrations/square-checkout"
+import { createCheckoutSessionForLead, createStripeCustomCheckout } from "@/lib/integrations/stripe-checkout"
+import { createSquarePaymentLinkForLead, createSquareCustomLink } from "@/lib/integrations/square-checkout"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -1271,6 +1271,80 @@ export async function createChargeLink(
     // 5) QR del link para que el paciente escanee y pague en su teléfono.
     const qrDataUrl = await QRCode.toDataURL(link.url, { margin: 1, width: 220 })
 
+    return { ok: true, url: link.url, qrDataUrl }
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Error al crear el cobro" }
+  }
+}
+
+const CustomChargeSchema = z.object({
+  lead_id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  provider: z.enum(["stripe", "square"]),
+  // $1.00 a $20,000. Entero en centavos.
+  amount_cents: z.number().int().min(100).max(2_000_000),
+  description: z.string().trim().min(1, "Escribe el concepto").max(120),
+})
+export type CustomChargeInput = z.infer<typeof CustomChargeSchema>
+
+/**
+ * Cobro por un MONTO PERSONALIZADO (un producto/concepto que NO es una oferta
+ * mapeada). El vendedor teclea concepto + monto. Igual que createChargeLink: no
+ * escribe en `sales`; el dinero lo registra el webhook en external_payments.
+ */
+export async function createCustomChargeLink(
+  raw: CustomChargeInput,
+): Promise<
+  { ok: true; url: string; qrDataUrl: string } | { ok: false; error: string }
+> {
+  try {
+    const input = CustomChargeSchema.parse(raw)
+    const sb = await typedClient()
+    const { userId, role } = await getCurrentRole(sb)
+    assertNotProvider(role)
+    if (!(await assertBrandMember(sb, userId, role, input.brand_id))) {
+      return { ok: false, error: "Sin acceso a esta marca." }
+    }
+
+    // El lead debe existir y pertenecer a la marca. Tomamos su email (Stripe).
+    const { data: lead } = await sb
+      .from("leads")
+      .select("email, brand_id")
+      .eq("id", input.lead_id)
+      .single()
+    if (!lead || lead.brand_id !== input.brand_id) {
+      return { ok: false, error: "El paciente no es válido para esta marca." }
+    }
+
+    const h = await headers()
+    const host = h.get("host")
+    if (!host) return { ok: false, error: "No se pudo determinar la URL del sitio." }
+    const proto = h.get("x-forwarded-proto") ?? "https"
+    const baseUrl = `${proto}://${host}`
+
+    const link =
+      input.provider === "square"
+        ? await createSquareCustomLink({
+            amountCents: input.amount_cents,
+            description: input.description,
+            leadId: input.lead_id,
+            brandId: input.brand_id,
+            baseUrl,
+          })
+        : await createStripeCustomCheckout({
+            amountCents: input.amount_cents,
+            description: input.description,
+            leadId: input.lead_id,
+            brandId: input.brand_id,
+            email: lead.email,
+            baseUrl,
+          })
+    if (!link.ok) return { ok: false, error: link.error }
+
+    const qrDataUrl = await QRCode.toDataURL(link.url, { margin: 1, width: 220 })
     return { ok: true, url: link.url, qrDataUrl }
   } catch (e) {
     if (e instanceof z.ZodError) {

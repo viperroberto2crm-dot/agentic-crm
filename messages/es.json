@@ -556,7 +556,16 @@
     "openLink": "Abrir",
     "newCharge": "Generar otro cobro",
     "noOffersHint": "No hay ofertas para esta marca. Un admin puede agregarlas en Configuración → Ofertas.",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "offerTab": "Oferta",
+    "customTab": "Monto personalizado",
+    "customSubtitle": "Cobra un producto o concepto que no está en la lista de ofertas.",
+    "conceptLabel": "Concepto / producto",
+    "conceptPlaceholder": "Ej. Consulta, suero IV, producto…",
+    "amountLabel": "Monto (USD)",
+    "providerLabel": "Procesador",
+    "willCharge": "Se cobrará",
+    "invalidAmount": "Monto inválido — usa punto para decimales (ej. 1500.00)"
   },
   "dashboard": {
     "title": "Dashboard",

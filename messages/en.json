@@ -556,7 +556,16 @@
     "openLink": "Open",
     "newCharge": "Generate another charge",
     "noOffersHint": "No offers for this brand yet. An admin can add them in Settings → Offers.",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "offerTab": "Offer",
+    "customTab": "Custom amount",
+    "customSubtitle": "Charge a product or item that isn’t in the offers list.",
+    "conceptLabel": "Item / concept",
+    "conceptPlaceholder": "e.g. Consultation, IV drip, product…",
+    "amountLabel": "Amount (USD)",
+    "providerLabel": "Processor",
+    "willCharge": "Will charge",
+    "invalidAmount": "Invalid amount — use a period for decimals (e.g. 1500.00)"
   },
   "dashboard": {
     "title": "Dashboard",
