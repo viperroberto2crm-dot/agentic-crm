@@ -67,8 +67,8 @@ export default async function SettingsPage({
   if (role !== "admin" && tab === "servicios-pb") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "integraciones") redirect("/settings?tab=perfil")
 
-  // Estado de integraciones (solo presencia de config, sin llamadas externas).
-  const integrationStatuses = role === "admin" ? getIntegrationStatuses() : null
+  // Estado de integraciones (presencia de config: DB cifrada + fallback env).
+  const integrationStatuses = role === "admin" ? await getIntegrationStatuses() : null
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null

@@ -1,16 +1,17 @@
 import "server-only"
+import { CONNECTORS } from "./connectors"
+import { getConnectionSecret, getAllStoredFieldKeys } from "./connections"
 
 /**
  * Estado de las integraciones para el hub de Configuración → Integraciones.
  *
- * Dos niveles:
- *  - getIntegrationStatuses(): rápido, SOLO mira si la config (env) está presente.
- *    Corre en el server (página de settings, admin). No hace llamadas externas y
- *    NUNCA devuelve el valor de un secreto — solo si existe.
- *  - testIntegration(key): bajo demanda (botón "Probar"), hace UNA llamada en vivo
- *    con timeout para confirmar que la credencial de verdad funciona.
+ *  - getIntegrationStatuses(): estado por presencia de config. Una credencial
+ *    "está" si se guardó cifrada en la base (connection_credentials) O si existe
+ *    su variable de entorno de fallback. NUNCA devuelve el valor de un secreto.
+ *  - testIntegration(key): bajo demanda ("Probar"), hace una llamada real con
+ *    timeout usando el valor efectivo (DB o env) para confirmar que funciona.
  *
- * Todo es server-only: los secretos jamás cruzan al cliente.
+ * Todo server-only: los secretos jamás cruzan al cliente.
  */
 
 export type IntegrationKey =
@@ -27,76 +28,40 @@ export type IntegrationStatus = "connected" | "partial" | "none" | "soon"
 
 export type IntegrationHealth = {
   status: IntegrationStatus
-  /** Pista corta NO secreta (ej. "Falta STRIPE_WEBHOOK_SECRET"). */
+  /** Pista corta NO secreta (ej. "Falta: Webhook secret"). */
   detail: string
 }
 
 const has = (v: string | undefined | null) => typeof v === "string" && v.trim().length > 0
 
-/** Estado por presencia de config (sin llamadas externas). */
-export function getIntegrationStatuses(): Record<IntegrationKey, IntegrationHealth> {
-  const e = process.env
+/** Estado por presencia de config (DB cifrada + fallback env). Sin llamadas externas. */
+export async function getIntegrationStatuses(): Promise<Record<IntegrationKey, IntegrationHealth>> {
+  const stored = await getAllStoredFieldKeys()
 
-  // Stripe: llave secreta + secreto de webhook.
-  const stripeKey = has(e.STRIPE_SECRET_KEY)
-  const stripeHook = has(e.STRIPE_WEBHOOK_SECRET)
-  const stripe: IntegrationHealth = stripeKey && stripeHook
-    ? { status: "connected", detail: "Llave y webhook configurados" }
-    : stripeKey || stripeHook
-      ? { status: "partial", detail: stripeKey ? "Falta el secreto de webhook" : "Falta la llave secreta" }
-      : { status: "none", detail: "Sin configurar" }
+  const present = (provider: IntegrationKey, envName: string, fieldKey: string): boolean =>
+    (stored.get(provider)?.has(fieldKey) ?? false) || has(process.env[envName])
 
-  // Square: access token + firma de webhook.
-  const sqTok = has(e.SQUARE_ACCESS_TOKEN)
-  const sqHook = has(e.SQUARE_WEBHOOK_SIGNATURE_KEY)
-  const square: IntegrationHealth = sqTok && sqHook
-    ? { status: "connected", detail: "Token y webhook configurados" }
-    : sqTok || sqHook
-      ? { status: "partial", detail: sqTok ? "Falta la firma de webhook" : "Falta el access token" }
-      : { status: "none", detail: "Sin configurar" }
+  function fromConnector(provider: IntegrationKey): IntegrationHealth {
+    const c = CONNECTORS[provider]
+    if (!c) return { status: "none", detail: "Sin configurar" }
+    const missing = c.fields.filter((f) => !present(provider, f.env, f.key))
+    if (missing.length === 0) return { status: "connected", detail: "Configurado" }
+    if (missing.length < c.fields.length) {
+      return { status: "partial", detail: `Falta: ${missing.map((f) => f.label).join(", ")}` }
+    }
+    return { status: "none", detail: "Sin configurar" }
+  }
 
-  // Meta / Facebook (Lead Ads): page access token.
-  const meta: IntegrationHealth = has(e.META_PAGE_ACCESS_TOKEN)
-    ? { status: "connected", detail: "Token de página configurado" }
-    : { status: "none", detail: "Sin configurar" }
-
-  // 800.com: api key + company id + secreto de webhook.
-  const e8Key = has(e.EIGHTHUNDRED_API_KEY)
-  const e8Co = has(e.EIGHTHUNDRED_COMPANY_ID)
-  const e8Hook = has(e.EIGHTHUNDRED_WEBHOOK_SECRET)
-  const eighthundred: IntegrationHealth = e8Key && e8Co && e8Hook
-    ? { status: "connected", detail: "API y webhook configurados" }
-    : e8Key || e8Co || e8Hook
-      ? { status: "partial", detail: "Configuración incompleta" }
-      : { status: "none", detail: "Sin configurar" }
-
-  // Practice Better: client id + secret (OAuth2).
-  const pbId = has(e.PRACTICE_BETTER_CLIENT_ID)
-  const pbSec = has(e.PRACTICE_BETTER_CLIENT_SECRET)
-  const practicebetter: IntegrationHealth = pbId && pbSec
-    ? { status: "connected", detail: "Credenciales OAuth configuradas" }
-    : pbId || pbSec
-      ? { status: "partial", detail: "Credencial incompleta" }
-      : { status: "none", detail: "Sin configurar" }
-
-  // Twilio: SMS/WhatsApp/voz. Credenciales de cuenta (el envío es Fase 3).
-  const twSid = has(e.TWILIO_ACCOUNT_SID)
-  const twTok = has(e.TWILIO_AUTH_TOKEN)
-  const twilio: IntegrationHealth = twSid && twTok
-    ? { status: "connected", detail: "Credenciales de cuenta configuradas" }
-    : twSid || twTok
-      ? { status: "partial", detail: "Falta SID o Auth Token" }
-      : { status: "none", detail: "Sin configurar" }
-
-  // WhatsApp: aún no implementado (solo env comentadas).
-  const whatsapp: IntegrationHealth = has(e.WHATSAPP_BSP_API_KEY) && has(e.WHATSAPP_BSP_PHONE_ID)
-    ? { status: "partial", detail: "Credenciales presentes, envío no implementado" }
-    : { status: "soon", detail: "Próximamente" }
-
-  // Hermes del VPS: puente externo aún no construido.
-  const hermes_vps: IntegrationHealth = { status: "soon", detail: "Puente al VPS pendiente" }
-
-  return { stripe, square, meta, eighthundred, practicebetter, twilio, whatsapp, hermes_vps }
+  return {
+    stripe: fromConnector("stripe"),
+    square: fromConnector("square"),
+    meta: fromConnector("meta"),
+    eighthundred: fromConnector("eighthundred"),
+    practicebetter: fromConnector("practicebetter"),
+    twilio: fromConnector("twilio"),
+    whatsapp: { status: "soon", detail: "Próximamente" },
+    hermes_vps: { status: "soon", detail: "Puente al VPS pendiente" },
+  }
 }
 
 // ── Prueba en vivo (bajo demanda) ────────────────────────────────────────────
@@ -104,12 +69,9 @@ export function getIntegrationStatuses(): Record<IntegrationKey, IntegrationHeal
 /**
  * Corre `fn` con un AbortSignal que se cancela a los `ms`. El timer se limpia en
  * `finally` DESPUÉS de que fn termina (incluida la lectura del body), así el
- * timeout cubre toda la operación, no solo la llegada de los headers (Fable #2).
+ * timeout cubre toda la operación, no solo la llegada de los headers.
  */
-async function withTimeout<T>(
-  fn: (signal: AbortSignal) => Promise<T>,
-  ms = 4000,
-): Promise<T> {
+async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms = 4000): Promise<T> {
   const ctrl = new AbortController()
   const id = setTimeout(() => ctrl.abort(), ms)
   try {
@@ -126,7 +88,7 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
   try {
     switch (key) {
       case "stripe": {
-        const k = process.env.STRIPE_SECRET_KEY
+        const k = await getConnectionSecret("stripe", "secret_key")
         if (!k) return { ok: false, detail: "Falta la llave secreta" }
         return await withTimeout(async (signal) => {
           const res = await fetch("https://api.stripe.com/v1/balance", {
@@ -138,7 +100,7 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
         })
       }
       case "square": {
-        const k = process.env.SQUARE_ACCESS_TOKEN
+        const k = await getConnectionSecret("square", "access_token")
         if (!k) return { ok: false, detail: "Falta el access token" }
         const base = process.env.SQUARE_API_BASE_URL ?? "https://connect.squareup.com"
         return await withTimeout(async (signal) => {
@@ -151,9 +113,8 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
         })
       }
       case "meta": {
-        const k = process.env.META_PAGE_ACCESS_TOKEN
+        const k = await getConnectionSecret("meta", "page_access_token")
         if (!k) return { ok: false, detail: "Falta el token de página" }
-        // Token por header (no en la URL) para no dejarlo en logs de proxy (Fable #3).
         return await withTimeout(async (signal) => {
           const res = await fetch("https://graph.facebook.com/v25.0/me?fields=id,name", {
             headers: { Authorization: `Bearer ${k}` }, signal,
@@ -164,10 +125,8 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
         })
       }
       case "practicebetter": {
-        // Token POST en vivo con timeout (no reutilizamos getPbAccessToken porque
-        // no tiene timeout y cachea → daría un "OK" falso, Fable #1 y #4).
-        const id = process.env.PRACTICE_BETTER_CLIENT_ID
-        const sec = process.env.PRACTICE_BETTER_CLIENT_SECRET
+        const id = await getConnectionSecret("practicebetter", "client_id")
+        const sec = await getConnectionSecret("practicebetter", "client_secret")
         if (!id || !sec) return { ok: false, detail: "Credenciales no configuradas" }
         const base = process.env.PRACTICE_BETTER_BASE_URL ?? "https://api.practicebetter.io"
         return await withTimeout(async (signal) => {
@@ -175,10 +134,7 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
-              grant_type: "client_credentials",
-              client_id: id,
-              client_secret: sec,
-              scope: "read write",
+              grant_type: "client_credentials", client_id: id, client_secret: sec, scope: "read write",
             }).toString(),
             signal,
           })
@@ -187,17 +143,10 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
             : { ok: false, detail: `Practice Better respondió ${res.status}` }
         })
       }
-      case "eighthundred": {
-        const k = process.env.EIGHTHUNDRED_API_KEY
-        const co = process.env.EIGHTHUNDRED_COMPANY_ID
-        if (!k || !co) return { ok: false, detail: "Falta API key o company id" }
-        return { ok: true, detail: "Configuración presente (usa /admin para verificar el webhook)" }
-      }
       case "twilio": {
-        const sid = process.env.TWILIO_ACCOUNT_SID
-        const tok = process.env.TWILIO_AUTH_TOKEN
+        const sid = await getConnectionSecret("twilio", "account_sid")
+        const tok = await getConnectionSecret("twilio", "auth_token")
         if (!sid || !tok) return { ok: false, detail: "Faltan SID / Auth Token" }
-        // Verifica las credenciales leyendo la cuenta (Basic auth; token por header).
         return await withTimeout(async (signal) => {
           const auth = Buffer.from(`${sid}:${tok}`).toString("base64")
           const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
@@ -208,6 +157,12 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
             : { ok: false, detail: `Twilio respondió ${res.status}` }
         })
       }
+      case "eighthundred": {
+        const k = await getConnectionSecret("eighthundred", "api_key")
+        const co = await getConnectionSecret("eighthundred", "company_id")
+        if (!k || !co) return { ok: false, detail: "Falta API key o company id" }
+        return { ok: true, detail: "Configuración presente (usa /admin para verificar el webhook)" }
+      }
       default:
         return { ok: false, detail: "Este servicio aún no se puede probar" }
     }
@@ -215,7 +170,9 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
     if (e instanceof Error && e.name === "AbortError") {
       return { ok: false, detail: "Tiempo de espera agotado" }
     }
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, detail: msg.slice(0, 120) }
+    // Mensaje genérico a la UI; el detalle crudo solo al log del server (evita que
+    // un futuro `case` filtre una credencial dentro de un error, Fable #4).
+    console.error("[health] test threw:", e instanceof Error ? e.message : String(e))
+    return { ok: false, detail: "No se pudo probar la conexión" }
   }
 }

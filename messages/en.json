@@ -948,7 +948,16 @@
       "hermes_vpsLabel": "Hermes (VPS)",
       "hermes_vpsDesc": "Bridge to your VPS Hermes agent (to be built).",
       "twilioLabel": "Twilio",
-      "twilioDesc": "SMS, WhatsApp and voice via Twilio."
+      "twilioDesc": "SMS, WhatsApp and voice via Twilio.",
+      "connect": "Connect",
+      "connectTitle": "Connect {name}",
+      "connectHint": "Paste the credentials. They are stored ENCRYPTED and only the server uses them. Leave a field blank to keep it unchanged.",
+      "save": "Save",
+      "disconnect": "Disconnect",
+      "connectedCount": "{n} of {total} connected",
+      "reconnect": "Reconnect",
+      "comingSoon": "Coming soon",
+      "encryptedNote": "Stored encrypted (AES-256); only the server uses them."
     }
   },
   "externalUnlinked": {
