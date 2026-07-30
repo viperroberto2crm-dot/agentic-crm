@@ -15,7 +15,7 @@ async function isAdmin(): Promise<boolean> {
 }
 
 const KeySchema = z.enum([
-  "stripe", "square", "meta", "eighthundred", "practicebetter", "whatsapp", "hermes_vps",
+  "stripe", "square", "meta", "eighthundred", "practicebetter", "twilio", "whatsapp", "hermes_vps",
 ])
 
 /** Prueba en vivo la conexión de un servicio. Solo admin. Nunca expone secretos. */

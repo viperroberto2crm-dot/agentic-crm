@@ -946,7 +946,9 @@
       "whatsappLabel": "WhatsApp",
       "whatsappDesc": "Patient messaging (to be built).",
       "hermes_vpsLabel": "Hermes (VPS)",
-      "hermes_vpsDesc": "Bridge to your VPS Hermes agent (to be built)."
+      "hermes_vpsDesc": "Bridge to your VPS Hermes agent (to be built).",
+      "twilioLabel": "Twilio",
+      "twilioDesc": "SMS, WhatsApp and voice via Twilio."
     }
   },
   "externalUnlinked": {

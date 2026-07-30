@@ -19,6 +19,7 @@ export type IntegrationKey =
   | "meta"
   | "eighthundred"
   | "practicebetter"
+  | "twilio"
   | "whatsapp"
   | "hermes_vps"
 
@@ -78,6 +79,15 @@ export function getIntegrationStatuses(): Record<IntegrationKey, IntegrationHeal
       ? { status: "partial", detail: "Credencial incompleta" }
       : { status: "none", detail: "Sin configurar" }
 
+  // Twilio: SMS/WhatsApp/voz. Credenciales de cuenta (el envío es Fase 3).
+  const twSid = has(e.TWILIO_ACCOUNT_SID)
+  const twTok = has(e.TWILIO_AUTH_TOKEN)
+  const twilio: IntegrationHealth = twSid && twTok
+    ? { status: "connected", detail: "Credenciales de cuenta configuradas" }
+    : twSid || twTok
+      ? { status: "partial", detail: "Falta SID o Auth Token" }
+      : { status: "none", detail: "Sin configurar" }
+
   // WhatsApp: aún no implementado (solo env comentadas).
   const whatsapp: IntegrationHealth = has(e.WHATSAPP_BSP_API_KEY) && has(e.WHATSAPP_BSP_PHONE_ID)
     ? { status: "partial", detail: "Credenciales presentes, envío no implementado" }
@@ -86,7 +96,7 @@ export function getIntegrationStatuses(): Record<IntegrationKey, IntegrationHeal
   // Hermes del VPS: puente externo aún no construido.
   const hermes_vps: IntegrationHealth = { status: "soon", detail: "Puente al VPS pendiente" }
 
-  return { stripe, square, meta, eighthundred, practicebetter, whatsapp, hermes_vps }
+  return { stripe, square, meta, eighthundred, practicebetter, twilio, whatsapp, hermes_vps }
 }
 
 // ── Prueba en vivo (bajo demanda) ────────────────────────────────────────────
@@ -182,6 +192,21 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
         const co = process.env.EIGHTHUNDRED_COMPANY_ID
         if (!k || !co) return { ok: false, detail: "Falta API key o company id" }
         return { ok: true, detail: "Configuración presente (usa /admin para verificar el webhook)" }
+      }
+      case "twilio": {
+        const sid = process.env.TWILIO_ACCOUNT_SID
+        const tok = process.env.TWILIO_AUTH_TOKEN
+        if (!sid || !tok) return { ok: false, detail: "Faltan SID / Auth Token" }
+        // Verifica las credenciales leyendo la cuenta (Basic auth; token por header).
+        return await withTimeout(async (signal) => {
+          const auth = Buffer.from(`${sid}:${tok}`).toString("base64")
+          const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
+            headers: { Authorization: `Basic ${auth}` }, signal,
+          })
+          return res.ok
+            ? { ok: true, detail: "Conexión con Twilio OK" }
+            : { ok: false, detail: `Twilio respondió ${res.status}` }
+        })
       }
       default:
         return { ok: false, detail: "Este servicio aún no se puede probar" }

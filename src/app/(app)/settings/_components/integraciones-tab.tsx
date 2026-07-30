@@ -26,6 +26,7 @@ const SERVICES: {
   { key: "meta", icon: Megaphone, testable: true },
   { key: "eighthundred", icon: Phone, testable: true, manageHref: "/settings?tab=tracking" },
   { key: "practicebetter", icon: Stethoscope, testable: true, manageHref: "/settings?tab=servicios-pb" },
+  { key: "twilio", icon: MessageCircle, testable: true },
   { key: "whatsapp", icon: MessageCircle, testable: false },
   { key: "hermes_vps", icon: Server, testable: false },
 ]
