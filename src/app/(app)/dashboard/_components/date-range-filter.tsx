@@ -257,7 +257,10 @@ function RangeCalendar({
 
   const cells = useMemo(() => buildMonthGrid(view.year, view.month), [view])
 
-  const canApply = pendingFrom !== null && pendingTo !== null
+  // Un solo día es válido: con el inicio seleccionado ya se puede aplicar
+  // (el fin cae al mismo día). Un segundo clic extiende el rango. Antes exigía
+  // inicio Y fin → parecía forzar 2 días para ver un solo día.
+  const canApply = pendingFrom !== null
 
   const inRange = useCallback(
     (ymd: string): boolean => {
@@ -350,13 +353,13 @@ function RangeCalendar({
         <p className="text-[11px] text-gray-400 tabular-nums">
           {pendingFrom ? formatYmdForDisplay(pendingFrom, locale) : "—"}
           {" – "}
-          {pendingTo ? formatYmdForDisplay(pendingTo, locale) : "—"}
+          {pendingFrom ? formatYmdForDisplay(pendingTo ?? pendingFrom, locale) : "—"}
         </p>
         <button
           type="button"
           disabled={!canApply}
           onClick={() => {
-            if (pendingFrom && pendingTo) onApply(pendingFrom, pendingTo)
+            if (pendingFrom) onApply(pendingFrom, pendingTo ?? pendingFrom)
           }}
           className={cn(
             "h-8 px-3 rounded-md text-xs font-medium transition-colors",
