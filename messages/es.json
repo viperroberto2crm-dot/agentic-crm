@@ -922,6 +922,31 @@
       "durationFromAppt": "de la cita",
       "clickToActivate": "Click para activar",
       "clickToDeactivate": "Click para desactivar"
+    },
+    "tabIntegraciones": "Integraciones",
+    "integrations": {
+      "subtitle": "Conecta y revisa el estado de los servicios externos del CRM. El estado se calcula por la configuración presente; usa \"Probar\" para verificar en vivo.",
+      "stConnected": "Conectado",
+      "stPartial": "Parcial",
+      "stNone": "No conectado",
+      "stSoon": "Próximamente",
+      "manage": "Gestionar",
+      "test": "Probar",
+      "testing": "Probando…",
+      "stripeLabel": "Stripe",
+      "stripeDesc": "Cobros con tarjeta y links de pago.",
+      "squareLabel": "Square",
+      "squareDesc": "Cobros y citas de Square.",
+      "metaLabel": "Meta / Facebook",
+      "metaDesc": "Leads de Facebook e Instagram (Lead Ads).",
+      "eighthundredLabel": "800.com",
+      "eighthundredDesc": "Llamadas y números de tracking.",
+      "practicebetterLabel": "Practice Better",
+      "practicebetterDesc": "Sincroniza pacientes, pagos y citas.",
+      "whatsappLabel": "WhatsApp",
+      "whatsappDesc": "Mensajes a pacientes (por construir).",
+      "hermes_vpsLabel": "Hermes (VPS)",
+      "hermes_vpsDesc": "Puente a tu agente Hermes del VPS (por construir)."
     }
   },
   "externalUnlinked": {

@@ -23,6 +23,8 @@ import {
 } from "./_components/offer-brand-map-tab"
 import { PbServiceMapTab } from "./_components/pb-service-map-tab"
 import type { ServiceMapRow } from "./_actions/pb-service-map-actions"
+import { IntegracionesTab } from "./_components/integraciones-tab"
+import { getIntegrationStatuses } from "@/lib/integrations/health"
 import { getTranslations } from "next-intl/server"
 
 type TypedClient = SupabaseClient<Database>
@@ -63,6 +65,10 @@ export default async function SettingsPage({
   if (role !== "admin" && tab === "tracking") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "ofertas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "servicios-pb") redirect("/settings?tab=perfil")
+  if (role !== "admin" && tab === "integraciones") redirect("/settings?tab=perfil")
+
+  // Estado de integraciones (solo presencia de config, sin llamadas externas).
+  const integrationStatuses = role === "admin" ? getIntegrationStatuses() : null
 
   type BrandData = { id: string; name: string; brand_color: string | null; logo_url: string | null }
   let brand: BrandData | null = null
@@ -229,6 +235,7 @@ export default async function SettingsPage({
         { value: "tracking", label: t("tabTracking") },
         { value: "ofertas", label: t("tabOfertas") },
         { value: "servicios-pb", label: t("tabServiciosPb") },
+        { value: "integraciones", label: t("tabIntegraciones") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -310,6 +317,9 @@ export default async function SettingsPage({
         )}
         {tab === "servicios-pb" && role === "admin" && (
           <PbServiceMapTab serviceMaps={serviceMaps} />
+        )}
+        {tab === "integraciones" && role === "admin" && integrationStatuses && (
+          <IntegracionesTab statuses={integrationStatuses} />
         )}
         {tab === "usuarios" && role === "admin" && (
           brandId

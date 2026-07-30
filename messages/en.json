@@ -922,6 +922,31 @@
       "durationFromAppt": "from appt",
       "clickToActivate": "Click to activate",
       "clickToDeactivate": "Click to deactivate"
+    },
+    "tabIntegraciones": "Integrations",
+    "integrations": {
+      "subtitle": "Connect and check the status of the CRM’s external services. Status is based on the config present; use \"Test\" to verify live.",
+      "stConnected": "Connected",
+      "stPartial": "Partial",
+      "stNone": "Not connected",
+      "stSoon": "Coming soon",
+      "manage": "Manage",
+      "test": "Test",
+      "testing": "Testing…",
+      "stripeLabel": "Stripe",
+      "stripeDesc": "Card charges and payment links.",
+      "squareLabel": "Square",
+      "squareDesc": "Square payments and bookings.",
+      "metaLabel": "Meta / Facebook",
+      "metaDesc": "Facebook & Instagram leads (Lead Ads).",
+      "eighthundredLabel": "800.com",
+      "eighthundredDesc": "Calls and tracking numbers.",
+      "practicebetterLabel": "Practice Better",
+      "practicebetterDesc": "Syncs patients, payments and appointments.",
+      "whatsappLabel": "WhatsApp",
+      "whatsappDesc": "Patient messaging (to be built).",
+      "hermes_vpsLabel": "Hermes (VPS)",
+      "hermes_vpsDesc": "Bridge to your VPS Hermes agent (to be built)."
     }
   },
   "externalUnlinked": {
