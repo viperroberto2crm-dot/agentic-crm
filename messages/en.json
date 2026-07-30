@@ -545,7 +545,7 @@
       "cadenceAnnual": "Annual"
     },
     "charge": "Charge",
-    "chargeSubtitle": "Generate a Stripe payment link for the patient to pay. The charge is logged automatically on their profile.",
+    "chargeSubtitle": "Generate a payment link (Stripe or Square) for the patient to pay. The charge is logged automatically on their profile.",
     "pickOffer": "Offer to charge",
     "pickOfferPlaceholder": "Choose an offer…",
     "generateLink": "Generate payment link",
@@ -555,7 +555,7 @@
     "copied": "Copied!",
     "openLink": "Open",
     "newCharge": "Generate another charge",
-    "noOffersHint": "No Stripe offers for this brand yet. An admin can add them in Settings → Offers.",
+    "noOffersHint": "No offers for this brand yet. An admin can add them in Settings → Offers.",
     "loading": "Loading…"
   },
   "dashboard": {

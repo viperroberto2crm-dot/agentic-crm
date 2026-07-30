@@ -12,6 +12,7 @@ import QRCode from "qrcode"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { createCheckoutSessionForLead } from "@/lib/integrations/stripe-checkout"
+import { createSquarePaymentLinkForLead } from "@/lib/integrations/square-checkout"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -1142,10 +1143,18 @@ async function assertBrandMember(
   return !!data
 }
 
-export type BrandOffer = { offer_key: string; offer_label: string }
+export type ChargeProvider = "stripe" | "square"
+export type BrandOffer = {
+  offer_key: string
+  offer_label: string
+  provider: ChargeProvider
+}
 
-/** Lista las ofertas de Stripe mapeadas a una marca (Configuración → Ofertas). */
-export async function listBrandStripeOffers(
+/**
+ * Lista las ofertas (Stripe + Square) mapeadas a una marca en Configuración →
+ * Ofertas. El vendedor elige una; el provider viaja con la oferta.
+ */
+export async function listBrandOffers(
   brandId: string,
 ): Promise<{ ok: true; offers: BrandOffer[] } | { ok: false; error: string }> {
   try {
@@ -1160,23 +1169,24 @@ export async function listBrandStripeOffers(
     }
 
     // Lectura con admin client (offer_brand_map es admin-only vía RLS); scoped
-    // explícitamente por marca — solo devuelve price ids + etiquetas de esa marca.
+    // explícitamente por marca — solo devuelve keys + etiquetas de esa marca.
     const admin = createAdminClient() as unknown as SupabaseClient<Database>
     const { data, error } = await admin
       .from("offer_brand_map")
-      .select("offer_key, offer_label")
-      .eq("provider", "stripe")
+      .select("offer_key, offer_label, provider")
+      .in("provider", ["stripe", "square"])
       .eq("brand_id", brandId)
       .eq("active", true)
       .order("offer_label", { ascending: true })
 
     if (error) {
-      console.error("[listBrandStripeOffers]", error.message)
+      console.error("[listBrandOffers]", error.message)
       return { ok: false, error: "No se pudieron cargar las ofertas." }
     }
     const offers: BrandOffer[] = (data ?? []).map((r) => ({
       offer_key: r.offer_key,
       offer_label: (r.offer_label && r.offer_label.trim()) || r.offer_key,
+      provider: (r.provider === "square" ? "square" : "stripe") as ChargeProvider,
     }))
     return { ok: true, offers }
   } catch (e) {
@@ -1188,10 +1198,11 @@ const ChargeLinkSchema = z.object({
   lead_id: z.string().uuid(),
   brand_id: z.string().uuid(),
   offer_key: z.string().min(1),
+  provider: z.enum(["stripe", "square"]),
 })
 export type ChargeLinkInput = z.infer<typeof ChargeLinkSchema>
 
-/** Crea un Stripe Checkout Session para el lead y devuelve link + QR. */
+/** Crea un link de cobro (Stripe o Square) para el lead y devuelve link + QR. */
 export async function createChargeLink(
   raw: ChargeLinkInput,
 ): Promise<
@@ -1208,11 +1219,12 @@ export async function createChargeLink(
 
     const admin = createAdminClient() as unknown as SupabaseClient<Database>
 
-    // 1) La oferta debe pertenecer a la marca (no cobrar a nombre de otra clínica).
+    // 1) La oferta debe pertenecer a la marca Y al provider (no cobrar a nombre
+    //    de otra clínica ni cruzar el key de un provider al otro).
     const { data: offer } = await admin
       .from("offer_brand_map")
       .select("offer_key")
-      .eq("provider", "stripe")
+      .eq("provider", input.provider)
       .eq("brand_id", input.brand_id)
       .eq("offer_key", input.offer_key)
       .eq("active", true)
@@ -1238,20 +1250,28 @@ export async function createChargeLink(
     const proto = h.get("x-forwarded-proto") ?? "https"
     const baseUrl = `${proto}://${host}`
 
-    // 4) Crear la sesión de cobro (lleva lead_id/brand_id en metadata).
-    const session = await createCheckoutSessionForLead({
-      priceId: input.offer_key,
-      leadId: input.lead_id,
-      brandId: input.brand_id,
-      email: lead.email,
-      baseUrl,
-    })
-    if (!session.ok) return session
+    // 4) Crear el link de cobro con el provider correcto (lleva lead_id/brand_id).
+    const link =
+      input.provider === "square"
+        ? await createSquarePaymentLinkForLead({
+            variationId: input.offer_key,
+            leadId: input.lead_id,
+            brandId: input.brand_id,
+            baseUrl,
+          })
+        : await createCheckoutSessionForLead({
+            priceId: input.offer_key,
+            leadId: input.lead_id,
+            brandId: input.brand_id,
+            email: lead.email,
+            baseUrl,
+          })
+    if (!link.ok) return { ok: false, error: link.error }
 
     // 5) QR del link para que el paciente escanee y pague en su teléfono.
-    const qrDataUrl = await QRCode.toDataURL(session.url, { margin: 1, width: 220 })
+    const qrDataUrl = await QRCode.toDataURL(link.url, { margin: 1, width: 220 })
 
-    return { ok: true, url: session.url, qrDataUrl }
+    return { ok: true, url: link.url, qrDataUrl }
   } catch (e) {
     if (e instanceof z.ZodError) {
       return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }

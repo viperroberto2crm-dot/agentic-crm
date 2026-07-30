@@ -211,10 +211,10 @@ export async function POST(request: Request) {
       // Fable #1: si el pago YA tiene lead (manual/previo), se conserva; un
       // payment.updated NO debe re-rutear ni borrar el vínculo.
       const prev = await existingLink(sb, "external_payments", payment.id)
-      let match = await resolveLead(sb, c.email, c.phone)
       const p = payment as SquarePayment
 
-      // Productos comprados (membresía/GLP/etc) viven en el order
+      // Productos comprados (membresía/GLP/etc) viven en el order. Lo traemos
+      // ANTES del match porque su metadata da el vínculo determinista del CRM.
       let items: string | null = null
       let orderRaw: unknown = null
       let itemCatalogIds: string[] = []
@@ -224,6 +224,15 @@ export async function POST(request: Request) {
         orderRaw = ord.order
         itemCatalogIds = ord.itemCatalogIds
       }
+
+      // NOTA: el vínculo DETERMINISTA por metadata de la orden (cobros generados
+      // desde el CRM) está pendiente para Square: sus payment links son
+      // reutilizables y sin expiración, así que un link re-pagado por otra persona
+      // se atribuiría al paciente original. Requiere manejo de uso-único (borrar el
+      // link tras el primer pago) + confirmar con un pago de prueba si Square copia
+      // la metadata a la orden de cada checkout. Por ahora Square vincula por
+      // email/teléfono como siempre (seguro). Stripe sí es determinista.
+      let match = await resolveLead(sb, c.email, c.phone)
 
       // Datos para enriquecer el perfil de PB: dirección estructurada + nota con
       // el detalle del pago (el "recibo" de facto, ya que PB no deja crear facturas).

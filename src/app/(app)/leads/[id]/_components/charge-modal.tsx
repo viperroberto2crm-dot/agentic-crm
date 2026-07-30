@@ -9,8 +9,12 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import {
-  listBrandStripeOffers, createChargeLink, type BrandOffer,
+  listBrandOffers, createChargeLink, type BrandOffer,
 } from "../actions"
+
+// value del <select> = "provider:offer_key" para no cruzar keys entre proveedores.
+const offerValue = (o: BrandOffer) => `${o.provider}:${o.offer_key}`
+const providerLabel = (p: BrandOffer["provider"]) => (p === "square" ? "Square" : "Stripe")
 
 type Result = { url: string; qrDataUrl: string }
 
@@ -41,10 +45,10 @@ export function ChargeModal({
     setError(null)
     setResult(null)
     setOfferKey("")
-    listBrandStripeOffers(brandId).then((r) => {
+    listBrandOffers(brandId).then((r) => {
       if (r.ok) {
         setOffers(r.offers)
-        if (r.offers.length === 1) setOfferKey(r.offers[0].offer_key)
+        if (r.offers.length === 1) setOfferKey(offerValue(r.offers[0]))
       } else {
         setOffers([])
         setError(r.error)
@@ -53,12 +57,18 @@ export function ChargeModal({
   }, [open, brandId])
 
   function handleGenerate() {
-    if (!offerKey || submittingRef.current) return
+    const selected = offers?.find((o) => offerValue(o) === offerKey)
+    if (!selected || submittingRef.current) return
     submittingRef.current = true
     setError(null)
     startTransition(async () => {
       try {
-        const r = await createChargeLink({ lead_id: leadId, brand_id: brandId, offer_key: offerKey })
+        const r = await createChargeLink({
+          lead_id: leadId,
+          brand_id: brandId,
+          offer_key: selected.offer_key,
+          provider: selected.provider,
+        })
         if (r.ok) setResult({ url: r.url, qrDataUrl: r.qrDataUrl })
         else setError(r.error)
       } finally {
@@ -114,7 +124,9 @@ export function ChargeModal({
                 >
                   <option value="" disabled>{t("pickOfferPlaceholder")}</option>
                   {offers.map((o) => (
-                    <option key={o.offer_key} value={o.offer_key}>{o.offer_label}</option>
+                    <option key={offerValue(o)} value={offerValue(o)}>
+                      {o.offer_label} · {providerLabel(o.provider)}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -179,7 +191,7 @@ export function ChargeModal({
 
             <button
               type="button"
-              onClick={() => { setResult(null); setOfferKey(offers?.length === 1 ? offers[0].offer_key : "") }}
+              onClick={() => { setResult(null); setOfferKey(offers?.length === 1 ? offerValue(offers[0]) : "") }}
               className="w-full text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer pt-1"
             >
               {t("newCharge")}
