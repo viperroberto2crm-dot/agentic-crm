@@ -1,13 +1,17 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
+import QRCode from "qrcode"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 import { normalizeToE164 } from "@/lib/integrations/800com"
+import { createCheckoutSessionForLead } from "@/lib/integrations/stripe-checkout"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -1110,5 +1114,148 @@ export async function sendLeadToPracticeBetter(
       return { ok: false, error: "Practice Better no está configurado" }
     }
     return { ok: false, error: e instanceof Error ? e.message : "Error al crear en Practice Better" }
+  }
+}
+
+// ── Cobrar desde el CRM (Stripe) ─────────────────────────────────────────────
+// El vendedor genera un link de cobro amarrado al lead. El pago vuelve por el
+// webhook y se vincula solo (metadata.lead_id). NO escribe en `sales`.
+
+/**
+ * ¿El usuario es miembro de la marca? Admin siempre; los demás deben tener fila
+ * en user_brands. Evita que un rep de la clínica A enumere ofertas o cobre a
+ * nombre de la clínica B pasando su UUID directo a la server action.
+ */
+async function assertBrandMember(
+  sb: SupabaseClient<Database>,
+  userId: string,
+  role: string,
+  brandId: string,
+): Promise<boolean> {
+  if (role === "admin") return true
+  const { data } = await sb
+    .from("user_brands")
+    .select("brand_id")
+    .eq("user_id", userId)
+    .eq("brand_id", brandId)
+    .maybeSingle()
+  return !!data
+}
+
+export type BrandOffer = { offer_key: string; offer_label: string }
+
+/** Lista las ofertas de Stripe mapeadas a una marca (Configuración → Ofertas). */
+export async function listBrandStripeOffers(
+  brandId: string,
+): Promise<{ ok: true; offers: BrandOffer[] } | { ok: false; error: string }> {
+  try {
+    if (!z.string().uuid().safeParse(brandId).success) {
+      return { ok: false, error: "Marca inválida" }
+    }
+    const sb = await typedClient()
+    const { userId, role } = await getCurrentRole(sb)
+    assertNotProvider(role)
+    if (!(await assertBrandMember(sb, userId, role, brandId))) {
+      return { ok: false, error: "Sin acceso a esta marca." }
+    }
+
+    // Lectura con admin client (offer_brand_map es admin-only vía RLS); scoped
+    // explícitamente por marca — solo devuelve price ids + etiquetas de esa marca.
+    const admin = createAdminClient() as unknown as SupabaseClient<Database>
+    const { data, error } = await admin
+      .from("offer_brand_map")
+      .select("offer_key, offer_label")
+      .eq("provider", "stripe")
+      .eq("brand_id", brandId)
+      .eq("active", true)
+      .order("offer_label", { ascending: true })
+
+    if (error) {
+      console.error("[listBrandStripeOffers]", error.message)
+      return { ok: false, error: "No se pudieron cargar las ofertas." }
+    }
+    const offers: BrandOffer[] = (data ?? []).map((r) => ({
+      offer_key: r.offer_key,
+      offer_label: (r.offer_label && r.offer_label.trim()) || r.offer_key,
+    }))
+    return { ok: true, offers }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al cargar ofertas" }
+  }
+}
+
+const ChargeLinkSchema = z.object({
+  lead_id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  offer_key: z.string().min(1),
+})
+export type ChargeLinkInput = z.infer<typeof ChargeLinkSchema>
+
+/** Crea un Stripe Checkout Session para el lead y devuelve link + QR. */
+export async function createChargeLink(
+  raw: ChargeLinkInput,
+): Promise<
+  { ok: true; url: string; qrDataUrl: string } | { ok: false; error: string }
+> {
+  try {
+    const input = ChargeLinkSchema.parse(raw)
+    const sb = await typedClient()
+    const { userId, role } = await getCurrentRole(sb)
+    assertNotProvider(role)
+    if (!(await assertBrandMember(sb, userId, role, input.brand_id))) {
+      return { ok: false, error: "Sin acceso a esta marca." }
+    }
+
+    const admin = createAdminClient() as unknown as SupabaseClient<Database>
+
+    // 1) La oferta debe pertenecer a la marca (no cobrar a nombre de otra clínica).
+    const { data: offer } = await admin
+      .from("offer_brand_map")
+      .select("offer_key")
+      .eq("provider", "stripe")
+      .eq("brand_id", input.brand_id)
+      .eq("offer_key", input.offer_key)
+      .eq("active", true)
+      .maybeSingle()
+    if (!offer) {
+      return { ok: false, error: "La oferta no está disponible para esta marca." }
+    }
+
+    // 2) El lead debe existir y pertenecer a la misma marca. Tomamos su email.
+    const { data: lead } = await sb
+      .from("leads")
+      .select("email, brand_id")
+      .eq("id", input.lead_id)
+      .single()
+    if (!lead || lead.brand_id !== input.brand_id) {
+      return { ok: false, error: "El paciente no es válido para esta marca." }
+    }
+
+    // 3) Base URL absoluta (mismo patrón que intake).
+    const h = await headers()
+    const host = h.get("host")
+    if (!host) return { ok: false, error: "No se pudo determinar la URL del sitio." }
+    const proto = h.get("x-forwarded-proto") ?? "https"
+    const baseUrl = `${proto}://${host}`
+
+    // 4) Crear la sesión de cobro (lleva lead_id/brand_id en metadata).
+    const session = await createCheckoutSessionForLead({
+      priceId: input.offer_key,
+      leadId: input.lead_id,
+      brandId: input.brand_id,
+      email: lead.email,
+      baseUrl,
+    })
+    if (!session.ok) return session
+
+    // 5) QR del link para que el paciente escanee y pague en su teléfono.
+    const qrDataUrl = await QRCode.toDataURL(session.url, { margin: 1, width: 220 })
+
+    return { ok: true, url: session.url, qrDataUrl }
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Error al crear el cobro" }
   }
 }

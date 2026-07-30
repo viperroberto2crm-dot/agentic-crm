@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { EditLeadModal } from "./edit-lead-modal"
 import { RegisterSaleButton } from "./register-sale-button"
+import { ChargeButton } from "./charge-button"
 import { ScheduleAppointmentButton } from "./schedule-appointment-button"
 import { deleteLead } from "../actions"
 import type { Database } from "@/types/database"
@@ -88,6 +89,8 @@ export function LeadActions({
     <>
       <div className="flex items-center gap-2">
         <RegisterSaleButton leadId={lead.id} brandId={lead.brand_id} />
+
+        <ChargeButton leadId={lead.id} brandId={lead.brand_id} />
 
         <ScheduleAppointmentButton
           leadId={lead.id}

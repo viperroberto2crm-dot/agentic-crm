@@ -19,6 +19,7 @@ const PUBLIC_PATHS = [
   "/api/leads/public",  // captura de leads desde landing pages externas. Auth via x-api-key.
   "/intake/",  // tablet pública de admisión en clínica /intake/[brand]. El slug se valida contra marcas elegibles. (/intake sin slug = página interna con sesión.)
   "/admision",  // landing pública de selección de clínica (kiosco/tablet). Sin datos sensibles.
+  "/pago/",  // retorno de checkout de Stripe (success_url/cancel_url). El paciente no tiene sesión. Sin datos sensibles.
   "/api/cron/",  // crons internos (auto-link-calls, etc.). Auth via CRON_SECRET/HERMES_SECRET.
   "/auth/confirm",  // verifyOtp de invite/recovery/magic-link: el usuario aún NO tiene sesión.
 ]

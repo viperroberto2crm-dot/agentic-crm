@@ -543,7 +543,20 @@
       "cadenceMonthly": "Mensual",
       "cadenceQuarterly": "Trimestral",
       "cadenceAnnual": "Anual"
-    }
+    },
+    "charge": "Cobrar",
+    "chargeSubtitle": "Genera un link de pago de Stripe para que el paciente pague. El cobro se registra solo en su ficha.",
+    "pickOffer": "Oferta a cobrar",
+    "pickOfferPlaceholder": "Elige una oferta…",
+    "generateLink": "Generar link de pago",
+    "generating": "Generando…",
+    "linkReady": "Link listo. Compártelo o muestra el QR para que el paciente pague.",
+    "copyLink": "Copiar link",
+    "copied": "¡Copiado!",
+    "openLink": "Abrir",
+    "newCharge": "Generar otro cobro",
+    "noOffersHint": "No hay ofertas de Stripe para esta marca. Un admin puede agregarlas en Configuración → Ofertas.",
+    "loading": "Cargando…"
   },
   "dashboard": {
     "title": "Dashboard",

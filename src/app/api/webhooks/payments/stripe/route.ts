@@ -71,6 +71,75 @@ async function resolveLead(sb: DB, email: string | null, phone: string | null): 
   return resolveUnique(cands)
 }
 
+/**
+ * Vínculo DETERMINISTA por metadata: cuando el cobro se generó desde el CRM
+ * (botón "Cobrar"), la sesión lleva metadata.lead_id / metadata.brand_id. Si el
+ * lead existe (y la marca coincide, defensa en profundidad) se enlaza directo,
+ * sin adivinar por email/teléfono → nunca cae en "Pagos sin vincular". La
+ * metadata la fija NUESTRO servidor y el webhook viene firmado por Stripe, así
+ * que es confiable; aun así verificamos que el lead exista.
+ */
+async function resolveLeadFromMetadata(sb: DB, metadata: unknown): Promise<Cand | null> {
+  const m = (metadata ?? {}) as Record<string, unknown>
+  const leadId = typeof m.lead_id === "string" ? m.lead_id : null
+  if (!leadId) return null
+  const { data } = await sb
+    .from("leads")
+    .select("id, brand_id")
+    .eq("id", leadId)
+    .maybeSingle()
+  const lead = data as { id: string; brand_id: string } | null
+  if (!lead) return null
+  const mBrand = typeof m.brand_id === "string" ? m.brand_id : null
+  if (mBrand && lead.brand_id !== mBrand) return null
+  return { leadId: lead.id, brandId: lead.brand_id }
+}
+
+/**
+ * Metadata de la suscripción en un invoice: Stripe NO la copia a inv.metadata,
+ * la expone en subscription_details.metadata (API Basil: bajo `parent`). Sin
+ * esto, las suscripciones creadas desde el CRM caían al match por email.
+ */
+function invoiceSubscriptionMetadata(inv: unknown): unknown {
+  const i = inv as {
+    parent?: { subscription_details?: { metadata?: unknown } }
+    subscription_details?: { metadata?: unknown }
+    metadata?: unknown
+  }
+  return (
+    i.parent?.subscription_details?.metadata ??
+    i.subscription_details?.metadata ??
+    i.metadata
+  )
+}
+
+/**
+ * Reembolso de un cobro generado desde el CRM: hereda el vínculo del pago
+ * ORIGINAL vía payment_intent (guardado en raw.payment_intent de la sesión de
+ * checkout). Sin esto, el reembolso quedaba sin marca y el KPI "Cobros
+ * automáticos" nunca lo restaba → ingreso neto inflado por marca.
+ *
+ * LIMITACIÓN (follow-up): funciona para pagos ÚNICOS (la sesión guarda
+ * payment_intent top-level). Para reembolsos de SUSCRIPCIÓN bajo la API Basil,
+ * el invoice ya no trae payment_intent top-level, así que cae al match por email.
+ * Fix futuro: guardar payment_intent en una columna real al insertar.
+ */
+async function linkByPaymentIntent(sb: DB, piId: string | null): Promise<Cand | null> {
+  if (!piId) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb as any)
+    .from("external_payments")
+    .select("lead_id, brand_id")
+    .eq("provider", "stripe")
+    .not("lead_id", "is", null)
+    .filter("raw->>payment_intent", "eq", piId)
+    .limit(1)
+    .maybeSingle()
+  const r = data as { lead_id: string | null; brand_id: string | null } | null
+  if (r?.lead_id && r?.brand_id) return { leadId: r.lead_id, brandId: r.brand_id }
+  return null
+}
+
 // Inserta/actualiza un pago en external_payments (idempotente por provider+external_id).
 async function upsertPayment(
   sb: DB,
@@ -140,7 +209,10 @@ export async function POST(request: Request) {
       const email = s.customer_details?.email?.trim().toLowerCase() ?? null
       const phone = s.customer_details?.phone ? normalizeToE164(s.customer_details.phone) || null : null
       const prev = await existingLink(sb, s.id)
-      let match = await resolveLead(sb, email, phone)
+      // Cobro generado desde el CRM → vínculo determinista por metadata primero.
+      let match =
+        (await resolveLeadFromMetadata(sb, (s as { metadata?: unknown }).metadata)) ??
+        (await resolveLead(sb, email, phone))
 
       // Ruteo automático: SOLO si no matcheó. Con flags OFF → no-op (null).
       if (!match && !prev) {
@@ -192,7 +264,9 @@ export async function POST(request: Request) {
 
       const email = inv.customer_email?.trim().toLowerCase() ?? null
       const prev = await existingLink(sb, inv.id)
-      let match = await resolveLead(sb, email, null)
+      let match =
+        (await resolveLeadFromMetadata(sb, invoiceSubscriptionMetadata(inv))) ??
+        (await resolveLead(sb, email, null))
 
       // Atribución de PÁGINA: la página de oferta aplica un cupón → el invoice
       // llega CON descuento (total_discount_amounts poblado). Con descuento =
@@ -255,7 +329,11 @@ export async function POST(request: Request) {
 
       const email = ch.billing_details?.email?.trim().toLowerCase() ?? null
       const phone = ch.billing_details?.phone ? normalizeToE164(ch.billing_details.phone) || null : null
-      const match = await resolveLead(sb, email, phone)
+      // Heredar el vínculo del cobro original (por payment_intent) antes de
+      // adivinar por email → el reembolso queda con la misma marca/lead.
+      const match =
+        (await linkByPaymentIntent(sb, (ch as { payment_intent?: string | null }).payment_intent ?? null)) ??
+        (await resolveLead(sb, email, phone))
 
       const row = {
         provider: "stripe",
