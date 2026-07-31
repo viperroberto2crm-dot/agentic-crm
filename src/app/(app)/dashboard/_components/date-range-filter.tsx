@@ -185,7 +185,7 @@ type RangeCalendarProps = {
   onApply: (from: string, to: string) => void
 }
 
-function RangeCalendar({
+export function RangeCalendar({
   initialFrom,
   initialTo,
   timezone,

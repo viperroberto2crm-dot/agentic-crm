@@ -27,6 +27,8 @@ export type LeadsFilters = {
   search?: string | null
   repId?: string | null   // managers/admins only
   leadIds?: string[] | null  // explicit allow-list (used for provider scope)
+  createdFrom?: string   // UTC ISO inclusive (rango de fecha por created_at)
+  createdTo?: string     // UTC ISO exclusivo (fin del rango, exclusivo)
   limit?: number
   offset?: number
 }
@@ -94,6 +96,16 @@ export async function fetchLeads(
 
   if (filters.source) {
     query = query.eq("source", filters.source as Database["public"]["Enums"]["lead_source"])
+  }
+
+  // Rango de fecha por "cuándo entró el paciente" (created_at). start inclusivo,
+  // end exclusivo (dateOnlyRangeToUtc) → gte/lt. El count exacto de la query da
+  // "cuántos pacientes entraron" en ese periodo.
+  if (filters.createdFrom) {
+    query = query.gte("created_at", filters.createdFrom)
+  }
+  if (filters.createdTo) {
+    query = query.lt("created_at", filters.createdTo)
   }
 
   if (filters.search) {

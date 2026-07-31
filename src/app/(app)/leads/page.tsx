@@ -9,7 +9,15 @@ import type { Database } from "@/types/database"
 import { fetchLeads } from "@/lib/queries/leads"
 import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
 import { fetchLeadsStats, type LeadsStats } from "@/lib/queries/leads-stats"
+import {
+  resolveActiveRange,
+  dateOnlyRangeToUtc,
+  isValidYmd,
+  ymdFromDateInTz,
+  type DateRangePreset,
+} from "@/lib/dashboard/date-ranges"
 import { LeadFilterBar } from "./_components/filter-bar"
+import { LeadsDateFilter } from "./_components/leads-date-filter"
 import { LeadsStatStrip } from "./_components/leads-stat-strip"
 import { LeadsTableBulk } from "./_components/leads-table-bulk"
 import { logQuickCall } from "./actions"
@@ -84,10 +92,36 @@ export default async function LeadsPage({
 
   const showCompany = allMode
 
+  const timezone = await fetchTimezone(sb, user.id)
+
+  // Filtro de fecha (opcional) por "cuándo entró el paciente" (created_at). Solo
+  // se aplica si la URL trae from/to válidos; por defecto NO filtra (muestra
+  // todos) para no ocultar pacientes viejos sin querer.
+  const fromParam = typeof sp.from === "string" ? sp.from : null
+  const toParam = typeof sp.to === "string" ? sp.to : null
+  const presetParam = typeof sp.preset === "string" ? sp.preset : null
+  const todayYmd = ymdFromDateInTz(new Date(), timezone)
+  let createdFrom: string | undefined
+  let createdTo: string | undefined
+  let dateFilter: { active: boolean; from: string; to: string; preset: DateRangePreset } = {
+    active: false, from: todayYmd, to: todayYmd, preset: "custom",
+  }
+  if (fromParam && toParam && isValidYmd(fromParam) && isValidYmd(toParam) && fromParam <= toParam) {
+    const range = resolveActiveRange(
+      { from: fromParam, to: toParam, preset: presetParam ?? undefined },
+      timezone,
+    )
+    const utc = dateOnlyRangeToUtc(range.from, range.to, timezone)
+    createdFrom = utc.start
+    createdTo = utc.end
+    dateFilter = { active: true, from: range.from, to: range.to, preset: range.preset }
+  }
+
   const { leads, total } = await fetchLeads(sb, user.id, role, {
     brandId: allMode ? null : brandId,
     brandIds: authorizedBrandIds,
     status, source, search, leadIds: providerLeadIds,
+    createdFrom, createdTo,
     limit: 50, offset,
   })
 
@@ -95,7 +129,6 @@ export default async function LeadsPage({
   // la lista. Revisado con Fable: sin fuga de marca, semana/mes con timezone.
   let leadsStats: LeadsStats | null = null
   if (role !== "provider") {
-    const timezone = await fetchTimezone(sb, user.id)
     leadsStats = await fetchLeadsStats(sb, {
       userId: user.id,
       role,
@@ -135,6 +168,9 @@ export default async function LeadsPage({
   }
 
   const LIMIT = 50
+  const dateQs: Record<string, string> = dateFilter.active
+    ? { from: dateFilter.from, to: dateFilter.to, preset: dateFilter.preset }
+    : {}
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
@@ -188,6 +224,16 @@ export default async function LeadsPage({
         />
       )}
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <LeadsDateFilter
+          active={dateFilter.active}
+          preset={dateFilter.preset}
+          from={dateFilter.from}
+          to={dateFilter.to}
+          timezone={timezone}
+        />
+      </div>
+
       <LeadFilterBar total={total} showRepFilter={role !== "rep"} />
 
       <div className="bg-card border border-[#ECE3D3] rounded-2xl px-4 py-1 shadow-[0_1px_2px_rgba(26,46,40,0.05),0_10px_28px_-14px_rgba(26,46,40,0.12)]">
@@ -231,14 +277,14 @@ export default async function LeadsPage({
           </span>
           <div className="flex gap-2">
             {offset > 0 && (
-              <Link href={`/leads?${new URLSearchParams({ ...(status ? { status } : {}), ...(source ? { source } : {}), ...(search ? { search } : {}), offset: String(offset - LIMIT) })}`}
+              <Link href={`/leads?${new URLSearchParams({ ...(status ? { status } : {}), ...(source ? { source } : {}), ...(search ? { search } : {}), ...dateQs, offset: String(offset - LIMIT) })}`}
                 className="px-3 py-1 border border-gray-200 rounded hover:border-gray-300 transition-colors"
               >
                 ← {tCommon("previous")}
               </Link>
             )}
             {offset + LIMIT < total && (
-              <Link href={`/leads?${new URLSearchParams({ ...(status ? { status } : {}), ...(source ? { source } : {}), ...(search ? { search } : {}), offset: String(offset + LIMIT) })}`}
+              <Link href={`/leads?${new URLSearchParams({ ...(status ? { status } : {}), ...(source ? { source } : {}), ...(search ? { search } : {}), ...dateQs, offset: String(offset + LIMIT) })}`}
                 className="px-3 py-1 border border-gray-200 rounded hover:border-gray-300 transition-colors"
               >
                 {tCommon("next")} →
