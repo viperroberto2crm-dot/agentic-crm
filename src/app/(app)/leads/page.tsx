@@ -209,8 +209,18 @@ export default async function LeadsPage({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
-          <p className="text-[13px] text-[#93A39D] mt-1 leading-snug">
-            {total} {total === 1 ? "lead" : "leads"} · las consultas de la publicidad entran solas 🌿
+          {/* Conteo prominente: es la respuesta a "cuántos pacientes" del filtro. */}
+          <p className="mt-1.5 leading-none flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold text-[#20342C] tabular-nums">{total.toLocaleString()}</span>
+            <span className="text-base font-semibold text-[#5C6F68]">
+              {total === 1 ? "paciente" : "pacientes"}
+            </span>
+            {dateFilter.active && (
+              <span className="text-sm font-medium text-[#EF7B5C]">· {t("dateFiltered")}</span>
+            )}
+          </p>
+          <p className="text-[11px] text-[#B7C2BC] mt-1 leading-snug">
+            las consultas de la publicidad entran solas 🌿
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

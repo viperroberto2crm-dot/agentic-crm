@@ -19,6 +19,7 @@ import { JustCreatedBanner } from "./_components/just-created-banner"
 import { IntakeCard } from "./_components/intake-card"
 import { extractIntakeData } from "./_components/intake-data"
 import { SmsThread, type SmsMessage } from "./_components/sms-thread"
+import { LeadDetailsCard } from "./_components/lead-details-card"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
 
@@ -270,6 +271,29 @@ export default async function LeadDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {role !== "provider" && (
+            <LeadDetailsCard
+              address={{
+                line1: lead.address_line1,
+                line2: lead.address_line2,
+                city: lead.city,
+                state: lead.state,
+                zip: lead.zip,
+              }}
+              phoneAlt={lead.phone_alt}
+              repName={lead.rep?.name ?? null}
+              notes={lead.notes}
+              labels={{
+                title: t("detailsTitle"),
+                address: t("detailAddress"),
+                phoneAlt: t("detailPhoneAlt"),
+                rep: t("detailRep"),
+                notes: t("detailNotes"),
+                none: t("detailNone"),
+              }}
+            />
+          )}
         </div>
 
         <div className="lg:col-span-2">
