@@ -250,23 +250,28 @@ export default async function SettingsPage({
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
 
-      <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
 
-      <div className="flex gap-1 border-b border-border">
-        {tabs.map((tb) => (
-          <Link
-            key={tb.value}
-            href={`/settings?tab=${tb.value}`}
-            className={`px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
-              tab === tb.value
-                ? "border-current text-foreground font-medium"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            style={tab === tb.value ? { borderColor: "var(--brand)" } : undefined}
-          >
-            {tb.label}
-          </Link>
-        ))}
+      {/* Pestañas tipo "pastilla" (mismo lenguaje que los filtros de Leads):
+          envuelven limpio, no se parten a media palabra, y la activa resalta. */}
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tb) => {
+          const active = tab === tb.value
+          return (
+            <Link
+              key={tb.value}
+              href={`/settings?tab=${tb.value}`}
+              className={
+                "h-9 inline-flex items-center px-3.5 rounded-full text-[13px] font-medium border transition-colors whitespace-nowrap cursor-pointer " +
+                (active
+                  ? "bg-[#12483B] text-white border-[#12483B] shadow-[0_4px_12px_-4px_rgba(18,72,59,0.45)]"
+                  : "bg-white text-[#5C6F68] border-[#ECE3D3] hover:border-[#12483B]/40 hover:text-[#20342C]")
+              }
+            >
+              {tb.label}
+            </Link>
+          )
+        })}
       </div>
 
       <div className="pt-2">
