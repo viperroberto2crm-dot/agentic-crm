@@ -17,6 +17,7 @@ import {
   type DateRangePreset,
 } from "@/lib/dashboard/date-ranges"
 import { computeCoverageForLeads } from "@/lib/coverage/coverage"
+import { activeLeadIdsInRange } from "@/lib/queries/active-leads"
 import { LeadFilterBar } from "./_components/filter-bar"
 import { LeadsDateFilter } from "./_components/leads-date-filter"
 import type { CoverageCell } from "./_components/leads-table-bulk"
@@ -106,34 +107,43 @@ export default async function LeadsPage({
 
   const timezone = await fetchTimezone(sb, user.id)
 
-  // Filtro de fecha (opcional) por "cuándo entró el paciente" (created_at). Solo
-  // se aplica si la URL trae from/to válidos; por defecto NO filtra (muestra
-  // todos) para no ocultar pacientes viejos sin querer.
+  // Filtro de fecha (opcional). Muestra a los pacientes con ACTIVIDAD en el
+  // periodo — entró (lead nuevo), pagó/venta, cita o llamada — no solo a los
+  // creados ese día. Por defecto NO filtra (muestra todos).
   const fromParam = typeof sp.from === "string" ? sp.from : null
   const toParam = typeof sp.to === "string" ? sp.to : null
   const presetParam = typeof sp.preset === "string" ? sp.preset : null
   const todayYmd = ymdFromDateInTz(new Date(), timezone)
-  let createdFrom: string | undefined
-  let createdTo: string | undefined
   let dateFilter: { active: boolean; from: string; to: string; preset: DateRangePreset } = {
     active: false, from: todayYmd, to: todayYmd, preset: "custom",
   }
+  let activeIds: string[] | null = null // ids con actividad en el periodo
   if (fromParam && toParam && isValidYmd(fromParam) && isValidYmd(toParam) && fromParam <= toParam) {
     const range = resolveActiveRange(
       { from: fromParam, to: toParam, preset: presetParam ?? undefined },
       timezone,
     )
     const utc = dateOnlyRangeToUtc(range.from, range.to, timezone)
-    createdFrom = utc.start
-    createdTo = utc.end
     dateFilter = { active: true, from: range.from, to: range.to, preset: range.preset }
+    activeIds = await activeLeadIdsInRange(sb, utc.start, utc.end)
+  }
+
+  // leadIds efectivos = allow-list de provider ∩ actividad-en-periodo (si aplica).
+  let leadIdsFilter: string[] | null = providerLeadIds
+  if (activeIds) {
+    if (providerLeadIds) {
+      const set = new Set(activeIds)
+      leadIdsFilter = providerLeadIds.filter((id) => set.has(id))
+    } else {
+      leadIdsFilter = activeIds
+    }
   }
 
   const { leads, total } = await fetchLeads(sb, user.id, role, {
     brandId: allMode ? null : brandId,
     brandIds: authorizedBrandIds,
-    status, source, search, leadIds: providerLeadIds,
-    createdFrom, createdTo,
+    status, source, search,
+    leadIds: leadIdsFilter,
     limit: 50, offset,
   })
 
