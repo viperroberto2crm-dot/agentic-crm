@@ -104,15 +104,16 @@ function CoverageChip({
   cov: CoverageCell
   labels: { covered: string; unknown: string; none: string }
 }) {
-  // Prospecto que nunca pagó → sin chip (no ensuciar la lista de rojo).
-  if (cov.state === "none" && !cov.hadPayment) return null
+  // "cobertura" = PLAN de prepago activo, NO "pagó". Un paciente que paga por
+  // visita (one-time) y no debe nada NO se marca en rojo "Sin cobertura" (se leía
+  // como "no pagó" → confusión). Solo mostramos 🟢 Cubierto y 🟡 Por confirmar.
+  // "Quién debe" se resuelve aparte con un badge "Debe $X" (saldo pendiente).
+  if (cov.state === "none") return null
   const c = COVERAGE_CHIP[cov.state]
   const text =
     cov.state === "covered"
       ? `${labels.covered}${cov.until ? ` · ${cov.until}` : ""}`
-      : cov.state === "unknown"
-        ? labels.unknown
-        : labels.none
+      : labels.unknown
   return (
     <span
       className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[11px] font-semibold whitespace-nowrap mt-1"
