@@ -28,9 +28,19 @@ export type OfferMapRow = {
   offer_key: string
   offer_label: string | null
   brand_id: string
+  cadence: string | null
   active: boolean
   created_at: string | null
   updated_at: string | null
+}
+
+// Etiqueta legible del plan (cadencia) para la tabla del mapa.
+const CADENCE_LABEL: Record<string, string> = {
+  weekly: "Semanal",
+  monthly: "Mensual",
+  quarterly: "Trimestral",
+  annual: "Anual",
+  one_time: "Único",
 }
 
 export type BrandOption = {
@@ -412,6 +422,9 @@ export function OfferBrandMapTab({ offerMaps, brands, defaultBrandId }: Props) {
                   {t("colBrand")}
                 </th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                  Plan
+                </th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">
                   {t("colStatus")}
                 </th>
                 <th className="px-3 py-2 w-8" />
@@ -440,6 +453,15 @@ export function OfferBrandMapTab({ offerMaps, brands, defaultBrandId }: Props) {
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground">
                     {brandMap.get(o.brand_id) ?? (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {o.cadence ? (
+                      <span className="inline-flex items-center text-[11px] bg-secondary text-muted-foreground border border-border rounded-full px-2 py-0.5 font-medium">
+                        {CADENCE_LABEL[o.cadence] ?? o.cadence}
+                      </span>
+                    ) : (
                       <span className="text-muted-foreground/50">—</span>
                     )}
                   </td>

@@ -16,8 +16,10 @@ import {
   ymdFromDateInTz,
   type DateRangePreset,
 } from "@/lib/dashboard/date-ranges"
+import { computeCoverageForLeads } from "@/lib/coverage/coverage"
 import { LeadFilterBar } from "./_components/filter-bar"
 import { LeadsDateFilter } from "./_components/leads-date-filter"
+import type { CoverageCell } from "./_components/leads-table-bulk"
 import { LeadsStatStrip } from "./_components/leads-stat-strip"
 import { LeadsTableBulk } from "./_components/leads-table-bulk"
 import { logQuickCall } from "./actions"
@@ -25,6 +27,16 @@ import { getTranslations } from "next-intl/server"
 import { ExportButton } from "@/components/exports/export-button"
 
 type TypedClient = SupabaseClient<Database>
+
+// Fecha corta para la etiqueta "Cubierto · 15 ago". Se formatea en la MISMA
+// timezone con la que se decidió la cobertura, para que no discrepen por un día.
+function fmtCoverageDate(iso: string, timezone: string): string {
+  return new Intl.DateTimeFormat("es-US", {
+    timeZone: timezone,
+    day: "numeric",
+    month: "short",
+  }).format(new Date(iso))
+}
 
 export default async function LeadsPage({
   searchParams,
@@ -138,6 +150,26 @@ export default async function LeadsPage({
     })
   }
 
+  // Cobertura de prepago (etiqueta 🟢/🟡/🔴). Solo no-provider. Se calcula solo
+  // para los pacientes visibles en esta página (≤50). Los leadIds ya vienen con
+  // el alcance de marca del usuario (fetchLeads) → el admin client de coverage
+  // no amplía visibilidad, solo lee pagos de pacientes que el usuario YA ve.
+  let coverageById: Record<string, CoverageCell> | undefined
+  if (role !== "provider" && leads.length > 0) {
+    const cov = await computeCoverageForLeads(leads.map((l) => l.id), timezone)
+    coverageById = {}
+    for (const l of leads) {
+      const c = cov.get(l.id)
+      if (c) {
+        coverageById[l.id] = {
+          state: c.state,
+          until: c.coveredUntil ? fmtCoverageDate(c.coveredUntil, timezone) : null,
+          hadPayment: c.hadPayment,
+        }
+      }
+    }
+  }
+
   // Reps disponibles para reasignar bulk (admin/manager only).
   // En modo "todas las compañías" se omite: la reasignación bulk necesita un
   // solo brand, así que se pasa brandReps=[] (bulk delete sigue funcionando).
@@ -243,6 +275,12 @@ export default async function LeadsPage({
           brandReps={brandReps}
           showCompany={showCompany}
           logQuickCall={logQuickCall}
+          coverageById={coverageById}
+          coverageLabels={{
+            covered: t("coverageCovered"),
+            unknown: t("coverageUnknown"),
+            none: t("coverageNone"),
+          }}
           statusLabels={{
             new: ts("new"),
             contacted: ts("contacted"),

@@ -40,6 +40,12 @@ export type BulkLeadRow = {
   rep: { id: string; name: string } | null
 }
 
+export type CoverageCell = {
+  state: "covered" | "unknown" | "none"
+  until: string | null
+  hadPayment: boolean
+}
+
 type Props = {
   leads: BulkLeadRow[]
   canBulkDelete: boolean
@@ -47,6 +53,8 @@ type Props = {
   showCompany?: boolean
   logQuickCall: (leadId: string, fd: FormData) => Promise<void>
   statusLabels: Record<LeadStatus, string>
+  coverageById?: Record<string, CoverageCell>
+  coverageLabels?: { covered: string; unknown: string; none: string }
   labels: {
     noLeadsFilter: string
     createNew: string
@@ -79,6 +87,41 @@ const STATUS_CHIP: Record<LeadStatus, { bg: string; text: string; dot: string }>
   lost:            { bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
   on_hold:         { bg: "#F0EBE0", text: "#7C7259", dot: "#C7B48A" },
   not_interested:  { bg: "#EFEBE4", text: "#7C8B80", dot: "#A8B0A2" },
+}
+
+// Chip de cobertura de prepago: verde (cubierto) / ámbar (por confirmar) / rojo
+// (sin cobertura, solo si YA pagó antes). Mismos tonos que los chips de status.
+const COVERAGE_CHIP: Record<"covered" | "unknown" | "none", { bg: string; text: string; dot: string }> = {
+  covered: { bg: "#E6F3EC", text: "#2E7E5B", dot: "#3FA278" },
+  unknown: { bg: "#FBF1DD", text: "#B67C22", dot: "#D79A3E" },
+  none:    { bg: "#FAEBEA", text: "#B85D5B", dot: "#D5807E" },
+}
+
+function CoverageChip({
+  cov,
+  labels,
+}: {
+  cov: CoverageCell
+  labels: { covered: string; unknown: string; none: string }
+}) {
+  // Prospecto que nunca pagó → sin chip (no ensuciar la lista de rojo).
+  if (cov.state === "none" && !cov.hadPayment) return null
+  const c = COVERAGE_CHIP[cov.state]
+  const text =
+    cov.state === "covered"
+      ? `${labels.covered}${cov.until ? ` · ${cov.until}` : ""}`
+      : cov.state === "unknown"
+        ? labels.unknown
+        : labels.none
+  return (
+    <span
+      className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[11px] font-semibold whitespace-nowrap mt-1"
+      style={{ backgroundColor: c.bg, color: c.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.dot }} />
+      {text}
+    </span>
+  )
 }
 
 // Degradados para el avatar; se elige de forma estable por el nombre del lead.
@@ -146,6 +189,8 @@ export function LeadsTableBulk({
   showCompany = false,
   logQuickCall,
   statusLabels,
+  coverageById,
+  coverageLabels,
   labels,
 }: Props) {
   const tc = useTranslations("common")
@@ -368,6 +413,11 @@ export function LeadsTableBulk({
                           {lead.first_name} {lead.last_name ?? ""}
                         </Link>
                         <span className="text-[11.5px] text-[#93A39D] tabular-nums">{lead.phone}</span>
+                        {coverageById && coverageLabels && coverageById[lead.id] && (
+                          <div className="leading-none">
+                            <CoverageChip cov={coverageById[lead.id]} labels={coverageLabels} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

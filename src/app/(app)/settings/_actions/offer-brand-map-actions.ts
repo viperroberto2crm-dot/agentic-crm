@@ -41,6 +41,13 @@ const OfferMapSchema = z.object({
     .nullable()
     .transform((v) => (v && v.trim() ? v.trim() : null)),
   brand_id: z.string().uuid("Marca requerida"),
+  // Cadencia del plan de esta oferta (para calcular cobertura de prepago).
+  // Vacío = sin definir (null). Mismos valores que products.cadence.
+  cadence: z
+    .enum(["weekly", "monthly", "quarterly", "annual", "one_time"])
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   active: z.boolean().default(true),
 })
 
@@ -55,13 +62,16 @@ export async function createOfferMap(
     if (!guard.ok) return guard
 
     const admin = createAdminClient() as unknown as TypedClient
-    const { data, error } = await admin
+    // `cadence` es columna nueva (no en los tipos generados) → insert sin tipar.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (admin as any)
       .from("offer_brand_map")
       .insert({
         provider: input.provider,
         offer_key: input.offer_key,
         offer_label: input.offer_label,
         brand_id: input.brand_id,
+        cadence: input.cadence,
         active: input.active,
       })
       .select("id")
@@ -96,13 +106,16 @@ export async function updateOfferMap(
     if (!guard.ok) return guard
 
     const admin = createAdminClient() as unknown as TypedClient
-    const { error } = await admin
+    // `cadence` es columna nueva (no en los tipos generados) → update sin tipar.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (admin as any)
       .from("offer_brand_map")
       .update({
         provider: input.provider,
         offer_key: input.offer_key,
         offer_label: input.offer_label,
         brand_id: input.brand_id,
+        cadence: input.cadence,
         active: input.active,
         updated_at: new Date().toISOString(),
       })

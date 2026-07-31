@@ -30,6 +30,15 @@ import type { OfferMapRow, BrandOption } from "./offer-brand-map-tab"
 
 type Mode = "create" | "edit"
 type Provider = "square" | "stripe"
+type Cadence = "weekly" | "monthly" | "quarterly" | "annual" | "one_time"
+
+const CADENCE_OPTIONS: { value: Cadence; label: string }[] = [
+  { value: "weekly", label: "Semanal (7 días)" },
+  { value: "monthly", label: "Mensual (30 días)" },
+  { value: "quarterly", label: "Trimestral (90 días)" },
+  { value: "annual", label: "Anual (365 días)" },
+  { value: "one_time", label: "Pago único (sin cobertura)" },
+]
 
 type Props = {
   mode: Mode
@@ -48,7 +57,16 @@ type FormState = {
   offer_key: string
   offer_label: string
   brand_id: string
+  cadence: "none" | Cadence
   active: boolean
+}
+
+function normCadence(v: string | null | undefined): "none" | Cadence {
+  const c = (v ?? "").trim().toLowerCase()
+  if (c === "weekly" || c === "monthly" || c === "quarterly" || c === "annual" || c === "one_time") {
+    return c
+  }
+  return "none"
 }
 
 function defaultForm(
@@ -65,6 +83,7 @@ function defaultForm(
       offer_key: presetOfferKey ?? "",
       offer_label: presetOfferLabel ?? "",
       brand_id: defaultBrandId ?? brands[0]?.id ?? "",
+      cadence: "none",
       active: true,
     }
   }
@@ -73,6 +92,7 @@ function defaultForm(
     offer_key: om.offer_key ?? "",
     offer_label: om.offer_label ?? "",
     brand_id: om.brand_id,
+    cadence: normCadence(om.cadence),
     active: om.active,
   }
 }
@@ -125,6 +145,7 @@ export function OfferBrandMapDialog({
         offer_key: form.offer_key.trim(),
         offer_label: form.offer_label.trim() || null,
         brand_id: form.brand_id,
+        cadence: form.cadence === "none" ? null : form.cadence,
         active: form.active,
       }
       const result =
@@ -218,6 +239,25 @@ export function OfferBrandMapDialog({
                 {brands.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Plan (para cobertura de prepago)">
+            <Select
+              value={form.cadence}
+              onValueChange={(v) => set("cadence", v as "none" | Cadence)}
+            >
+              <SelectTrigger className={inputCls}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin plan (no calcula cobertura)</SelectItem>
+                {CADENCE_OPTIONS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
                   </SelectItem>
                 ))}
               </SelectContent>

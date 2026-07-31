@@ -170,7 +170,7 @@ export default async function SettingsPage({
         .order("active", { ascending: false })
         .order("created_at", { ascending: false })
       if (omErr) console.error("[settings] offer_brand_map query error:", omErr.message)
-      offerMaps = (omData ?? []) as OfferMapRow[]
+      offerMaps = (omData ?? []) as unknown as OfferMapRow[]
       // Solo marcas activas para asignar ofertas nuevas.
       offerBrands = (allBrands ?? [])
         .filter((b) => b.active !== false)
