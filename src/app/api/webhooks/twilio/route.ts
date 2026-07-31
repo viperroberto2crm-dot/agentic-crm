@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { verifyTwilioSignature } from "@/lib/integrations/twilio"
 import { getConnectionSecret } from "@/lib/integrations/connections"
+import { resolveBrandByTwilioNumber } from "@/lib/integrations/brand-numbers"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -69,6 +70,15 @@ export async function POST(request: Request) {
   try {
     const match = e164 ? await matchLead(sb, e164) : null
 
+    // Marca del mensaje: la del lead si se pudo vincular; si no, la marca dueña
+    // del número NUESTRO que lo recibió (params.To) — así el texto de alguien que
+    // aún no es lead cae en la marca/canal correctos (medición de publicidad).
+    let brandId = match?.brandId ?? null
+    if (!brandId) {
+      const toE164 = params.To ? normalizeToE164(params.To) || null : null
+      if (toE164) brandId = await resolveBrandByTwilioNumber(toE164)
+    }
+
     // STOP / START: el consentimiento pertenece al NÚMERO, no a un lead. Se
     // aplica a TODOS los leads con ese teléfono (aunque haya duplicados o esté en
     // 2 marcas), independientemente de si la atribución del mensaje fue única.
@@ -86,7 +96,7 @@ export async function POST(request: Request) {
     const { error } = await (sb as any).from("messages").upsert(
       {
         provider: "twilio",
-        brand_id: match?.brandId ?? null,
+        brand_id: brandId,
         lead_id: match?.leadId ?? null,
         direction: "in",
         channel: "sms",

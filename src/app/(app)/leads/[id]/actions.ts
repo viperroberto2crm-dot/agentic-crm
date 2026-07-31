@@ -15,6 +15,7 @@ import { createCheckoutSessionForLead, createStripeCustomCheckout } from "@/lib/
 import { createSquarePaymentLinkForLead, createSquareCustomLink } from "@/lib/integrations/square-checkout"
 import { sendTwilioSms } from "@/lib/integrations/twilio"
 import { getConnectionSecret } from "@/lib/integrations/connections"
+import { resolveBrandTwilioFrom, resolveBrandByTwilioNumber } from "@/lib/integrations/brand-numbers"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -1401,11 +1402,28 @@ export async function sendSms(
       return { ok: false, error: "El paciente no tiene un teléfono válido (formato +1…)." }
     }
 
-    const [sid, token, from] = await Promise.all([
+    const [sid, token, globalFrom, brandFrom] = await Promise.all([
       getConnectionSecret("twilio", "account_sid"),
       getConnectionSecret("twilio", "auth_token"),
       getConnectionSecret("twilio", "from_number"),
+      // Número de ENVÍO de la marca (tracking_numbers, provider Twilio). Si la
+      // marca no tiene número propio, cae al from_number global.
+      resolveBrandTwilioFrom(input.brand_id, input.lead_id),
     ])
+    let from = brandFrom
+    if (!from && globalFrom) {
+      // Respaldo global — pero NO si ese número está registrado como el de OTRA
+      // marca (evitaría que esta marca envíe desde el número ajeno y que las
+      // respuestas se atribuyan a la otra marca). Fail-closed (Fable #2).
+      const globalOwner = await resolveBrandByTwilioNumber(globalFrom)
+      if (globalOwner && globalOwner !== input.brand_id) {
+        return {
+          ok: false,
+          error: "Esta marca no tiene número de envío propio. Agrega su número Twilio en Configuración → Números de rastreo.",
+        }
+      }
+      from = globalFrom
+    }
     if (!sid || !token || !from) {
       return { ok: false, error: "Twilio no está conectado (falta SID, token o número de envío)." }
     }
