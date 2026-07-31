@@ -71,6 +71,7 @@ export const CONNECTORS: Partial<Record<IntegrationKey, Connector>> = {
     fields: [
       { key: "account_sid", label: "Account SID", env: "TWILIO_ACCOUNT_SID", masked: false },
       { key: "auth_token", label: "Auth token", env: "TWILIO_AUTH_TOKEN", masked: true },
+      { key: "from_number", label: "Número de envío (From, ej. +1310…)", env: "TWILIO_FROM_NUMBER", masked: false },
     ],
   },
 }

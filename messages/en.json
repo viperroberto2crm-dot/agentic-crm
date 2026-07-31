@@ -1221,5 +1221,12 @@
       "errorGeneric": "Could not generate report. Try again.",
       "rangeRequired": "Set a range or check 'Full history'"
     }
+  },
+  "sms": {
+    "title": "SMS messages",
+    "empty": "No messages with this patient yet.",
+    "placeholder": "Type a message…",
+    "send": "Send",
+    "noPhone": "This patient has no valid phone for SMS."
   }
 }

@@ -18,6 +18,7 @@ import {
 import { JustCreatedBanner } from "./_components/just-created-banner"
 import { IntakeCard } from "./_components/intake-card"
 import { extractIntakeData } from "./_components/intake-data"
+import { SmsThread, type SmsMessage } from "./_components/sms-thread"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
 
@@ -41,7 +42,7 @@ export default async function LeadDetailPage({
   const sb = supabase as unknown as TypedClient
   const t = await getTranslations("leads")
 
-  const [lead, profileRes, callsRes, apptsRes, salesRes, pbApptsRes, pbPayRes, extPayRes, extApptRes] = await Promise.all([
+  const [lead, profileRes, callsRes, apptsRes, salesRes, pbApptsRes, pbPayRes, extPayRes, extApptRes, msgsRes] = await Promise.all([
     fetchLeadById(sb, id),
     sb.from("users").select("role").eq("id", user.id).single(),
     sb.from("calls")
@@ -68,12 +69,18 @@ export default async function LeadDetailPage({
     sb.from("external_appointments")
       .select("id, provider, status, service, service_name, staff, staff_name, starts_at, ends_at")
       .eq("lead_id", id).order("starts_at", { ascending: false }).limit(20),
+    // messages (SMS) — tabla nueva, sin tipos generados → cast
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb as any).from("messages")
+      .select("id, direction, body, status, created_at")
+      .eq("lead_id", id).order("created_at", { ascending: true }).limit(100),
   ])
 
   const pbAppointments = (pbApptsRes?.data ?? []) as PbAppt[]
   const pbPayments = (pbPayRes?.data ?? []) as PbPayment[]
   const externalPayments = (extPayRes?.data ?? []) as ExternalPayment[]
   const externalAppointments = (extApptRes?.data ?? []) as ExternalAppointment[]
+  const messages = (msgsRes?.data ?? []) as SmsMessage[]
 
   let clinicsForModal: {
     id: string
@@ -338,6 +345,15 @@ export default async function LeadDetailPage({
             </CardContent>
           </Card>
         )}
+
+      {role !== "provider" && (
+        <SmsThread
+          leadId={lead.id}
+          brandId={lead.brand_id}
+          phone={lead.phone}
+          initial={messages}
+        />
+      )}
     </div>
   )
 }

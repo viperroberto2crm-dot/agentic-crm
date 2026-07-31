@@ -13,6 +13,8 @@ import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { createCheckoutSessionForLead, createStripeCustomCheckout } from "@/lib/integrations/stripe-checkout"
 import { createSquarePaymentLinkForLead, createSquareCustomLink } from "@/lib/integrations/square-checkout"
+import { sendTwilioSms } from "@/lib/integrations/twilio"
+import { getConnectionSecret } from "@/lib/integrations/connections"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -1351,5 +1353,94 @@ export async function createCustomChargeLink(
       return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
     }
     return { ok: false, error: e instanceof Error ? e.message : "Error al crear el cobro" }
+  }
+}
+
+// ── Enviar SMS al paciente (Twilio) ──────────────────────────────────────────
+
+const SendSmsSchema = z.object({
+  lead_id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  body: z.string().trim().min(1, "Escribe un mensaje").max(1000),
+})
+export type SendSmsInput = z.infer<typeof SendSmsSchema>
+
+/**
+ * Envía un SMS al paciente vía Twilio y lo registra en `messages`. Guard de rol +
+ * membresía de marca; respeta el opt-out (STOP). Usa las credenciales guardadas
+ * (cifradas) de Twilio. No escribe en `sales`.
+ */
+export async function sendSms(
+  raw: SendSmsInput,
+): Promise<{ ok: true; warning?: string } | { ok: false; error: string }> {
+  try {
+    const input = SendSmsSchema.parse(raw)
+    const sb = await typedClient()
+    const { userId, role } = await getCurrentRole(sb)
+    assertNotProvider(role)
+    if (!(await assertBrandMember(sb, userId, role, input.brand_id))) {
+      return { ok: false, error: "Sin acceso a esta marca." }
+    }
+
+    // `sms_opt_out` es columna nueva (no en los tipos generados) → lectura sin tipar.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadRaw } = await (sb as any)
+      .from("leads")
+      .select("phone, brand_id, sms_opt_out")
+      .eq("id", input.lead_id)
+      .single()
+    const lead = leadRaw as { phone: string | null; brand_id: string; sms_opt_out: boolean | null } | null
+    if (!lead || lead.brand_id !== input.brand_id) {
+      return { ok: false, error: "El paciente no es válido para esta marca." }
+    }
+    if (lead.sms_opt_out) {
+      return { ok: false, error: "El paciente pidió no recibir mensajes (respondió STOP)." }
+    }
+    const to = lead.phone
+    if (!to || !to.startsWith("+")) {
+      return { ok: false, error: "El paciente no tiene un teléfono válido (formato +1…)." }
+    }
+
+    const [sid, token, from] = await Promise.all([
+      getConnectionSecret("twilio", "account_sid"),
+      getConnectionSecret("twilio", "auth_token"),
+      getConnectionSecret("twilio", "from_number"),
+    ])
+    if (!sid || !token || !from) {
+      return { ok: false, error: "Twilio no está conectado (falta SID, token o número de envío)." }
+    }
+
+    const sent = await sendTwilioSms({ sid, token, from, to, body: input.body })
+    if (!sent.ok) return sent
+
+    // Registrar el saliente (messages es service-role para escribir).
+    const admin = createAdminClient() as unknown as SupabaseClient<Database>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: insErr } = await (admin as any).from("messages").insert({
+      provider: "twilio",
+      brand_id: input.brand_id,
+      lead_id: input.lead_id,
+      direction: "out",
+      channel: "sms",
+      body: input.body,
+      from_number: from,
+      to_number: to,
+      external_id: sent.sid || null,
+      status: "sent",
+      created_by: userId,
+    })
+    revalidatePath(`/leads/${input.lead_id}`)
+    if (insErr) {
+      // El SMS SÍ se envió; solo no se registró en el hilo. Avisar para que el
+      // vendedor no lo reenvíe (Fable #4).
+      console.error("[sendSms] registro:", insErr.message)
+      return { ok: true, warning: "El SMS se envió, pero no se pudo registrar en el hilo (no lo reenvíes)." }
+    }
+    return { ok: true }
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Error al enviar el SMS" }
   }
 }

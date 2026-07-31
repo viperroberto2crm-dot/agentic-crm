@@ -1221,5 +1221,12 @@
       "errorGeneric": "No se pudo generar el reporte. Reintentá.",
       "rangeRequired": "Definí un rango o marcá 'Todo el histórico'"
     }
+  },
+  "sms": {
+    "title": "Mensajes SMS",
+    "empty": "Aún no hay mensajes con este paciente.",
+    "placeholder": "Escribe un mensaje…",
+    "send": "Enviar",
+    "noPhone": "Este paciente no tiene un teléfono válido para SMS."
   }
 }
