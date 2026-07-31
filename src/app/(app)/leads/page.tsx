@@ -6,7 +6,7 @@ import { Plus, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
-import { fetchLeads } from "@/lib/queries/leads"
+import { fetchLeads, fetchLeadsByActivity } from "@/lib/queries/leads"
 import { getBrandIdBySlug, fetchTimezone } from "@/lib/queries/dashboard"
 import { fetchLeadsStats, type LeadsStats } from "@/lib/queries/leads-stats"
 import {
@@ -17,6 +17,7 @@ import {
   type DateRangePreset,
 } from "@/lib/dashboard/date-ranges"
 import { computeCoverageForLeads } from "@/lib/coverage/coverage"
+import { computeOwedForLeads, owedLeadIdsInScope } from "@/lib/coverage/owed"
 import { activeLeadIdsInRange } from "@/lib/queries/active-leads"
 import { LeadFilterBar } from "./_components/filter-bar"
 import { LeadsDateFilter } from "./_components/leads-date-filter"
@@ -37,6 +38,16 @@ function fmtCoverageDate(iso: string, timezone: string): string {
     day: "numeric",
     month: "short",
   }).format(new Date(iso))
+}
+
+// Monto para la etiqueta "Debe $75" (sin centavos si es entero).
+function fmtMoney(cents: number): string {
+  const dollars = cents / 100
+  return dollars.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: dollars % 1 === 0 ? 0 : 2,
+  })
 }
 
 export default async function LeadsPage({
@@ -128,24 +139,33 @@ export default async function LeadsPage({
     activeIds = await activeLeadIdsInRange(sb, utc.start, utc.end)
   }
 
-  // leadIds efectivos = allow-list de provider ∩ actividad-en-periodo (si aplica).
-  let leadIdsFilter: string[] | null = providerLeadIds
-  if (activeIds) {
-    if (providerLeadIds) {
-      const set = new Set(activeIds)
-      leadIdsFilter = providerLeadIds.filter((id) => set.has(id))
-    } else {
-      leadIdsFilter = activeIds
-    }
+  // Filtro "Debe" (saldo pendiente > 0).
+  const debeActive = sp.debe === "1"
+
+  // Set de restricción por actividad-en-periodo y/o deuda. El scope de provider
+  // va como allow-list normal (filters.leadIds), NO en este set.
+  let constraintSet: Set<string> | null = null
+  if (activeIds) constraintSet = new Set(activeIds)
+  if (debeActive) {
+    const owedSet = new Set(await owedLeadIdsInScope(sb))
+    constraintSet = constraintSet
+      ? new Set([...constraintSet].filter((id) => owedSet.has(id)))
+      : owedSet
   }
 
-  const { leads, total } = await fetchLeads(sb, user.id, role, {
+  const baseFilters = {
     brandId: allMode ? null : brandId,
     brandIds: authorizedBrandIds,
-    status, source, search,
-    leadIds: leadIdsFilter,
-    limit: 50, offset,
-  })
+    status,
+    source,
+    search,
+    leadIds: providerLeadIds,
+    limit: 50,
+    offset,
+  }
+  const { leads, total } = constraintSet
+    ? await fetchLeadsByActivity(sb, user.id, role, baseFilters, constraintSet)
+    : await fetchLeads(sb, user.id, role, baseFilters)
 
   // Tira de stats (arriba de la tabla). Solo no-provider. Scope idéntico al de
   // la lista. Revisado con Fable: sin fuga de marca, semana/mes con timezone.
@@ -166,16 +186,20 @@ export default async function LeadsPage({
   // no amplía visibilidad, solo lee pagos de pacientes que el usuario YA ve.
   let coverageById: Record<string, CoverageCell> | undefined
   if (role !== "provider" && leads.length > 0) {
-    const cov = await computeCoverageForLeads(leads.map((l) => l.id), timezone)
+    const leadIdList = leads.map((l) => l.id)
+    const [cov, owed] = await Promise.all([
+      computeCoverageForLeads(leadIdList, timezone),
+      computeOwedForLeads(leadIdList),
+    ])
     coverageById = {}
     for (const l of leads) {
       const c = cov.get(l.id)
-      if (c) {
-        coverageById[l.id] = {
-          state: c.state,
-          until: c.coveredUntil ? fmtCoverageDate(c.coveredUntil, timezone) : null,
-          hadPayment: c.hadPayment,
-        }
+      const owedCents = owed.get(l.id) ?? 0
+      coverageById[l.id] = {
+        state: c?.state ?? "none",
+        until: c?.coveredUntil ? fmtCoverageDate(c.coveredUntil, timezone) : null,
+        hadPayment: c?.hadPayment ?? false,
+        owed: owedCents > 0 ? fmtMoney(owedCents) : null,
       }
     }
   }
@@ -210,9 +234,12 @@ export default async function LeadsPage({
   }
 
   const LIMIT = 50
-  const dateQs: Record<string, string> = dateFilter.active
-    ? { from: dateFilter.from, to: dateFilter.to, preset: dateFilter.preset }
-    : {}
+  const dateQs: Record<string, string> = {
+    ...(dateFilter.active
+      ? { from: dateFilter.from, to: dateFilter.to, preset: dateFilter.preset }
+      : {}),
+    ...(debeActive ? { debe: "1" } : {}),
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
@@ -234,10 +261,18 @@ export default async function LeadsPage({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ExportButton
-            entity="leads"
-            extraParams={{ status, source, search }}
-          />
+          {role !== "provider" && (
+            <ExportButton
+              entity="leads"
+              extraParams={{
+                status,
+                source,
+                search,
+                ...(dateFilter.active ? { from: dateFilter.from, to: dateFilter.to } : {}),
+                ...(debeActive ? { debe: "1" } : {}),
+              }}
+            />
+          )}
           {role !== "rep" && role !== "provider" && (
             <>
               <Button asChild size="sm" variant="outline"
@@ -299,7 +334,7 @@ export default async function LeadsPage({
           coverageLabels={{
             covered: t("coverageCovered"),
             unknown: t("coverageUnknown"),
-            none: t("coverageNone"),
+            debt: t("coverageDebt"),
           }}
           statusLabels={{
             new: ts("new"),

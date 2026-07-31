@@ -44,6 +44,7 @@ export type CoverageCell = {
   state: "covered" | "unknown" | "none"
   until: string | null
   hadPayment: boolean
+  owed: string | null // monto formateado ("$75") si debe; null si no debe
 }
 
 type Props = {
@@ -54,7 +55,7 @@ type Props = {
   logQuickCall: (leadId: string, fd: FormData) => Promise<void>
   statusLabels: Record<LeadStatus, string>
   coverageById?: Record<string, CoverageCell>
-  coverageLabels?: { covered: string; unknown: string; none: string }
+  coverageLabels?: { covered: string; unknown: string; debt: string }
   labels: {
     noLeadsFilter: string
     createNew: string
@@ -102,18 +103,26 @@ function CoverageChip({
   labels,
 }: {
   cov: CoverageCell
-  labels: { covered: string; unknown: string; none: string }
+  labels: { covered: string; unknown: string; debt: string }
 }) {
-  // "cobertura" = PLAN de prepago activo, NO "pagó". Un paciente que paga por
-  // visita (one-time) y no debe nada NO se marca en rojo "Sin cobertura" (se leía
-  // como "no pagó" → confusión). Solo mostramos 🟢 Cubierto y 🟡 Por confirmar.
-  // "Quién debe" se resuelve aparte con un badge "Debe $X" (saldo pendiente).
-  if (cov.state === "none") return null
-  const c = COVERAGE_CHIP[cov.state]
-  const text =
-    cov.state === "covered"
-      ? `${labels.covered}${cov.until ? ` · ${cov.until}` : ""}`
-      : labels.unknown
+  // Prioridad: DEBE (rojo, saldo pendiente real) > Cubierto (verde, prepago) >
+  // Por confirmar (ámbar). "cobertura" = PLAN de prepago, NO "pagó": un paciente
+  // que paga por visita y no debe nada queda SIN chip (no se marca rojo por error).
+  let key: "debt" | "covered" | "unknown"
+  let text: string
+  if (cov.owed) {
+    key = "debt"
+    text = `${labels.debt} ${cov.owed}`
+  } else if (cov.state === "covered") {
+    key = "covered"
+    text = `${labels.covered}${cov.until ? ` · ${cov.until}` : ""}`
+  } else if (cov.state === "unknown") {
+    key = "unknown"
+    text = labels.unknown
+  } else {
+    return null
+  }
+  const c = COVERAGE_CHIP[key === "debt" ? "none" : key]
   return (
     <span
       className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[11px] font-semibold whitespace-nowrap mt-1"

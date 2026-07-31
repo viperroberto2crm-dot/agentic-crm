@@ -491,7 +491,18 @@ export default async function SalesPage({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-semibold tracking-tight text-[#20342C]">{t("title")}</h1>
-          <p className="text-[13px] text-[#93A39D] mt-1">
+          {/* Conteo prominente: pacientes (vista por paciente) o ventas (por venta). */}
+          <p className="mt-1.5 leading-none flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold text-[#20342C] tabular-nums">
+              {(groupBy === "patient" ? patientGroups.length : count ?? sales.length).toLocaleString()}
+            </span>
+            <span className="text-base font-semibold text-[#5C6F68]">
+              {groupBy === "patient"
+                ? patientGroups.length === 1 ? "paciente" : "pacientes"
+                : tc("records")}
+            </span>
+          </p>
+          <p className="text-[11px] text-[#B7C2BC] mt-1">
             {tFilters("showing", {
               from: formatYmdForDisplay(active.from, locale),
               to: formatYmdForDisplay(active.to, locale),
@@ -505,7 +516,6 @@ export default async function SalesPage({
             to={active.to}
             timezone={timezone}
           />
-          <p className="text-[13px] text-[#93A39D] tabular-nums">{count ?? sales.length} {tc("records")}</p>
           <ReportExportButton defaultBrand={brandSlug ?? ""} />
           <ExportButton entity="sales" extraParams={{ status: statusFilter }} />
         </div>

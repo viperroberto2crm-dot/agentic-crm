@@ -144,6 +144,8 @@
     "coverageCovered": "Cubierto",
     "coverageUnknown": "Por confirmar",
     "coverageNone": "Sin cobertura",
+    "coverageDebt": "Debe",
+    "filterDebt": "Debe",
     "allReps": "Todos los reps",
     "clearFilters": "Limpiar",
     "name": "Nombre",

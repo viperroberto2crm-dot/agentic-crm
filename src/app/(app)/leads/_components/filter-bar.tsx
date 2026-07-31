@@ -72,7 +72,8 @@ export function LeadFilterBar({
   const search = params.get("search") ?? ""
   const status = params.get("status") ?? "all"
   const source = params.get("source") ?? "all"
-  const hasFilters = search || status !== "all" || source !== "all"
+  const debe = params.get("debe") === "1"
+  const hasFilters = search || status !== "all" || source !== "all" || debe
 
   // Input controlado con debounce 400ms + ref para evitar race con sync de URL.
   // Sin esto, cada keystroke triggea router.replace inmediato (sin debounce) y
@@ -143,6 +144,20 @@ export function LeadFilterBar({
             ))}
           </SelectContent>
         </Select>
+
+        <button
+          type="button"
+          onClick={() => update("debe", debe ? null : "1")}
+          className={
+            "h-9 px-3.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer whitespace-nowrap shrink-0 " +
+            (debe
+              ? "bg-[#B85D5B] text-white border-[#B85D5B]"
+              : "bg-card text-[#5C6F68] border-[#ECE3D3] hover:border-[#D8CDB5] hover:text-[#20342C]")
+          }
+          title={t("filterDebt")}
+        >
+          {t("filterDebt")}
+        </button>
 
         {hasFilters && (
           <button
