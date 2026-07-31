@@ -112,7 +112,7 @@ export function LeadsDateFilter({ active, preset, from, to, timezone }: Props) {
   )
 
   const triggerLabel = useMemo(() => {
-    if (!active) return t("allDates")
+    if (!active) return t("dateFilterCta")
     if (preset !== "custom") return tf(preset)
     if (from === to) return formatYmdForDisplay(from, locale)
     return `${formatYmdForDisplay(from, locale)} – ${formatYmdForDisplay(to, locale)}`

@@ -133,6 +133,7 @@
     "allStatus": "Todos los status",
     "allSources": "Todas las fuentes",
     "allDates": "Todas las fechas",
+    "dateFilterCta": "Filtrar por fecha",
     "coverageCovered": "Cubierto",
     "coverageUnknown": "Por confirmar",
     "coverageNone": "Sin cobertura",
