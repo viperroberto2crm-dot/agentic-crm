@@ -24,6 +24,62 @@ function randomPassword() {
   return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
 }
 
+// Permisos reales de cada rol (verificados en el código). Se muestran al elegir
+// el rol para que quede claro qué puede y qué NO puede hacer cada quien.
+const ROLE_INFO: Record<
+  "rep" | "manager" | "provider" | "admin",
+  { title: string; can: string[]; cant: string[] }
+> = {
+  rep: {
+    title: "Vendedor — solo lo suyo",
+    can: [
+      "Ve y trabaja SOLO sus leads asignados",
+      "Registra ventas y cobra (Cobrar) en sus leads",
+      "Manda SMS a sus pacientes; ve Productos (solo lectura)",
+    ],
+    cant: [
+      "NO reasigna ni borra leads",
+      "NO ve leads de otros vendedores",
+      "NO entra a Configuración (marcas, usuarios, integraciones…)",
+    ],
+  },
+  manager: {
+    title: "Manager — controla la operación, no la configuración",
+    can: [
+      "Ve TODOS los leads de sus marcas",
+      "Registra ventas, cobra y ve todo el dinero / dashboard",
+      "Reasigna y borra leads (incluso en bloque)",
+      "Aprueba envíos y manda SMS",
+    ],
+    cant: [
+      "NO administra usuarios",
+      "NO toca marcas, clínicas, ofertas, integraciones ni tracking",
+      "NO entra a las pantallas de admin",
+    ],
+  },
+  provider: {
+    title: "Proveedor (médico) — solo lo clínico de SUS citas",
+    can: [
+      "Ve solo los pacientes de SUS citas",
+      "Aprueba sus citas para envío y deja notas clínicas",
+    ],
+    cant: [
+      "NO ve ni toca dinero (ventas, cobros, dashboard)",
+      "NO manda SMS a pacientes",
+      "NO ve otros pacientes ni la Configuración",
+    ],
+  },
+  admin: {
+    title: "Admin — acceso total",
+    can: [
+      "Todo lo del Manager, y además:",
+      "Administra usuarios, marcas, clínicas, ofertas e integraciones",
+      "Ve todas las marcas y toda la configuración",
+    ],
+    cant: [],
+  },
+}
+
 export function InviteUserDialog({ open, onClose, brandId }: Props) {
   const t = useTranslations("settings")
   const tc = useTranslations("common")
@@ -145,6 +201,30 @@ export function InviteUserDialog({ open, onClose, brandId }: Props) {
                   <SelectItem value="admin" className="text-foreground">{t("adminRole")}</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Permisos del rol elegido (qué puede / qué NO puede). */}
+              {(() => {
+                const info = ROLE_INFO[form.role]
+                return (
+                  <div className="mt-2 rounded-lg border border-[#E8E4DC] bg-[#FBFAF7] px-3 py-2.5">
+                    <p className="text-xs font-semibold text-[#20342C] mb-1.5">{info.title}</p>
+                    <ul className="space-y-1">
+                      {info.can.map((c, i) => (
+                        <li key={`c${i}`} className="flex gap-1.5 text-[11.5px] leading-snug text-[#3B4E49]">
+                          <span className="text-[#2E8B6F] font-bold shrink-0">✓</span>
+                          <span>{c}</span>
+                        </li>
+                      ))}
+                      {info.cant.map((c, i) => (
+                        <li key={`x${i}`} className="flex gap-1.5 text-[11.5px] leading-snug text-[#93A39D]">
+                          <span className="text-[#C86B5A] font-bold shrink-0">✕</span>
+                          <span>{c}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })()}
             </Field>
 
             <label className="flex items-start gap-2 cursor-pointer select-none rounded-md border border-border bg-gray-50/60 px-3 py-2">
