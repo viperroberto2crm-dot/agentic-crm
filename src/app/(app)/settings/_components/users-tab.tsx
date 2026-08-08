@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { UserPlus, Pencil } from "lucide-react"
 import { InviteUserDialog } from "./invite-user-dialog"
 import { EditUserDialog } from "./edit-user-dialog"
+import { RolePermissionsReference } from "./role-permissions-reference"
 
 export type UserRow = {
   id: string
@@ -59,6 +60,8 @@ export function UsersTab({ users, brandId, currentUserId }: Props) {
           {t("inviteUser")}
         </Button>
       </div>
+
+      <RolePermissionsReference />
 
       {users.length === 0 ? (
         <div className="text-center py-12 text-sm text-muted-foreground border border-dashed border-border rounded-lg">
