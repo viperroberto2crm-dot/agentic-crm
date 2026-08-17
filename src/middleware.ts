@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/api/admin/800com/",
   "/api/hermes/",  // Hermes bot: tick + futuros endpoints. Usa HERMES_SECRET/CRON_SECRET en lugar de session.
   "/api/webhooks/",  // todos los webhooks (800com, twilio futuro, etc.)
+  "/api/voice/",  // herramientas del bot de voz (Retell). Auth via RETELL_WEBHOOK_SECRET (Bearer), no session.
   "/api/leads/public",  // captura de leads desde landing pages externas. Auth via x-api-key.
   "/intake/",  // tablet pública de admisión en clínica /intake/[brand]. El slug se valida contra marcas elegibles. (/intake sin slug = página interna con sesión.)
   "/admision",  // landing pública de selección de clínica (kiosco/tablet). Sin datos sensibles.
