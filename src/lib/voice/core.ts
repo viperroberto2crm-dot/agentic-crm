@@ -20,6 +20,9 @@ import { resolveBrandTwilioFrom } from "@/lib/integrations/brand-numbers"
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentic-crm-sigma.vercel.app"
 const BRAND_SLUG = "si-se-pierde"
+// Evaluación médica única ($39.99) que se suma SOLO al plan semanal en el 1er pago.
+// El mensual/trimestral ya la incluyen. Overridable por env; default = price actual.
+const SCREENING_PRICE_ID = process.env.STRIPE_SCREENING_PRICE_ID ?? "price_1TYrDhDH6stKoTqxVZk2f1z2"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any
@@ -211,13 +214,15 @@ export async function sendPaymentLink(input: {
   if (!to || !to.startsWith("+")) return { ok: false, error: "El paciente no tiene teléfono válido" }
 
   // Ofertas activas de la marca (offer_brand_map). Si no se especifica, la primera.
-  const { data: offers } = await sb
+  // `cadence` es columna nueva (no en los tipos generados) → query sin tipar.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: offers } = await (sb as any)
     .from("offer_brand_map")
-    .select("offer_key, offer_label, provider")
+    .select("offer_key, offer_label, provider, cadence")
     .in("provider", ["stripe", "square"])
     .eq("brand_id", bId)
     .eq("active", true)
-  const offerRows = (offers ?? []) as { offer_key: string; offer_label: string | null; provider: string }[]
+  const offerRows = (offers ?? []) as { offer_key: string; offer_label: string | null; provider: string; cadence: string | null }[]
   if (offerRows.length === 0) return { ok: false, error: "No hay ofertas configuradas para cobrar" }
   // Exigir el plan explícito: NUNCA adivinar (Fable) — mandar el link del plan
   // equivocado sería un cobro erróneo. Si falta, devolver las opciones.
@@ -228,6 +233,15 @@ export async function sendPaymentLink(input: {
   const chosen = offerRows.find((o) => o.offer_key === input.offer_key)
   if (!chosen) return { ok: false, error: "Oferta no encontrada para esta marca" }
 
+  // El plan SEMANAL suma la evaluación única de $39.99 (el mensual/trimestral la
+  // incluyen). Detecta por cadence='weekly' o por la etiqueta ("semanal"/"weekly").
+  const isWeekly =
+    chosen.cadence === "weekly" || /semanal|weekly/i.test(chosen.offer_label ?? "")
+  const addonPriceId =
+    chosen.provider === "stripe" && isWeekly && SCREENING_PRICE_ID
+      ? SCREENING_PRICE_ID
+      : undefined
+
   // Link de pago (el builder embebe metadata lead/brand → el webhook concilia).
   const res =
     chosen.provider === "stripe"
@@ -237,6 +251,7 @@ export async function sendPaymentLink(input: {
           brandId: bId,
           email: lead.email ?? undefined,
           baseUrl: SITE_URL,
+          addonPriceId,
         })
       : await createSquarePaymentLinkForLead({
           variationId: chosen.offer_key,

@@ -23,6 +23,11 @@ type CreateArgs = {
   email?: string | null
   /** Base absoluta del sitio, ej. https://agentic-crm-sigma.vercel.app */
   baseUrl: string
+  /**
+   * Price id de un cargo ÚNICO adicional (ej. evaluación $39.99 del plan semanal).
+   * Se agrega como 2º line_item; en modo subscription Stripe lo suma a la 1ª factura.
+   */
+  addonPriceId?: string
 }
 
 type CreateResult =
@@ -69,12 +74,19 @@ async function postCheckoutSession(
   mode: "payment" | "subscription",
   setLineItem: (p: URLSearchParams) => void,
   args: SessionCore,
+  addonPriceId?: string,
 ): Promise<CreateResult> {
   try {
     const params = new URLSearchParams()
     params.set("mode", mode)
     setLineItem(params)
     params.set("line_items[0][quantity]", "1")
+    // Cargo único adicional (ej. evaluación del semanal): 2º line_item. En modo
+    // subscription Stripe lo cobra en la 1ª factura; en payment se suma al total.
+    if (addonPriceId) {
+      params.set("line_items[1][price]", addonPriceId)
+      params.set("line_items[1][quantity]", "1")
+    }
     // Solo tarjeta: evita métodos diferidos (OXXO, débito bancario) cuyo cobro
     // se confirma en un evento aparte que este webhook no maneja → dinero real
     // que quedaría "unpaid" para siempre. Las wallets (Apple/Google Pay) siguen
@@ -141,6 +153,7 @@ export async function createCheckoutSessionForLead(
       mode,
       (p) => p.set("line_items[0][price]", args.priceId),
       args,
+      args.addonPriceId,
     )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
