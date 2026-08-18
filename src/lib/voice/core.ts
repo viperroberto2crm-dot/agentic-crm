@@ -129,6 +129,11 @@ export async function bookAppointment(input: {
   if (!bId) return { ok: false, error: "Marca no encontrada" }
   const when = new Date(input.when_iso)
   if (isNaN(when.getTime())) return { ok: false, error: "Fecha/hora inválida" }
+  // No agendar en el pasado (el bot a veces calcula mal la fecha si no sabe el día
+  // de hoy). Rechaza y pide reconfirmar en vez de crear una cita vieja.
+  if (when.getTime() < Date.now() - 5 * 60 * 1000) {
+    return { ok: false, error: "Esa fecha ya pasó. Confirma con el paciente el día y la hora correctos (usa la fecha de HOY como referencia) e intenta de nuevo." }
+  }
 
   const { data: lead } = await sb
     .from("leads").select("id, brand_id, status, assigned_rep_id").eq("id", input.lead_id).maybeSingle()
