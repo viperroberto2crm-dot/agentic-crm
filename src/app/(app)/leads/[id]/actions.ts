@@ -1462,3 +1462,78 @@ export async function sendSms(
     return { ok: false, error: e instanceof Error ? e.message : "Error al enviar el SMS" }
   }
 }
+
+// ── Llamar al paciente con el bot de voz (Retell, outbound) ──────────────────
+
+const StartBotCallSchema = z.object({
+  lead_id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+})
+
+/**
+ * Dispara una llamada saliente del bot de voz (Retell) al paciente. Mismos guards
+ * que sendSms (rol no-provider + membresía de marca + lead de la marca). Requiere
+ * RETELL_API_KEY / RETELL_AGENT_ID / RETELL_FROM_NUMBER en env. El bot usa las
+ * herramientas de /api/voice/* para agendar y mandar el link de pago.
+ */
+export async function startBotCall(
+  raw: z.infer<typeof StartBotCallSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = StartBotCallSchema.parse(raw)
+    const sb = await typedClient()
+    const { userId, role } = await getCurrentRole(sb)
+    assertNotProvider(role)
+    if (!(await assertBrandMember(sb, userId, role, input.brand_id))) {
+      return { ok: false, error: "Sin acceso a esta marca." }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadRaw } = await (sb as any)
+      .from("leads")
+      .select("phone, brand_id, first_name, last_name")
+      .eq("id", input.lead_id)
+      .single()
+    const lead = leadRaw as {
+      phone: string | null; brand_id: string; first_name: string; last_name: string | null
+    } | null
+    if (!lead || lead.brand_id !== input.brand_id) {
+      return { ok: false, error: "El paciente no es válido para esta marca." }
+    }
+    const to = lead.phone
+    if (!to || !to.startsWith("+")) {
+      return { ok: false, error: "El paciente no tiene un teléfono válido (formato +1…)." }
+    }
+
+    const apiKey = process.env.RETELL_API_KEY
+    const agentId = process.env.RETELL_AGENT_ID
+    const from = process.env.RETELL_FROM_NUMBER
+    if (!apiKey || !agentId || !from) {
+      return { ok: false, error: "Falta configurar Retell (RETELL_API_KEY, RETELL_AGENT_ID y RETELL_FROM_NUMBER en Vercel)." }
+    }
+
+    const res = await fetch("https://api.retellai.com/v2/create-phone-call", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from_number: from,
+        to_number: to,
+        override_agent_id: agentId,
+        retell_llm_dynamic_variables: {
+          patient_name: `${lead.first_name} ${lead.last_name ?? ""}`.trim(),
+          lead_id: input.lead_id,
+        },
+        metadata: { lead_id: input.lead_id, brand_id: input.brand_id },
+      }),
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "")
+      console.error("[startBotCall] retell:", res.status, txt.slice(0, 200))
+      return { ok: false, error: `No se pudo iniciar la llamada (Retell ${res.status}).` }
+    }
+    return { ok: true }
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
+    return { ok: false, error: e instanceof Error ? e.message : "Error al iniciar la llamada" }
+  }
+}

@@ -16,6 +16,7 @@ import { EditLeadModal } from "./edit-lead-modal"
 import { RegisterSaleButton } from "./register-sale-button"
 import { ChargeButton } from "./charge-button"
 import { ScheduleAppointmentButton } from "./schedule-appointment-button"
+import { BotCallButton } from "./bot-call-button"
 import { deleteLead } from "../actions"
 import type { Database } from "@/types/database"
 
@@ -104,6 +105,12 @@ export function LeadActions({
           }}
           clinics={clinics}
           onEditLead={() => setEditOpen(true)}
+        />
+
+        <BotCallButton
+          leadId={lead.id}
+          brandId={lead.brand_id}
+          name={`${lead.first_name} ${lead.last_name ?? ""}`.trim()}
         />
 
         <Button
