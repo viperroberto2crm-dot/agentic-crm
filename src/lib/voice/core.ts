@@ -30,6 +30,23 @@ export function asStr(v: unknown): string | undefined {
   return typeof v === "string" ? v : String(v)
 }
 
+/**
+ * Fecha de HOY en hora de California. El servidor SIEMPRE sabe el día; el LLM no.
+ * Se la devolvemos al bot en la 1a herramienta para que no invente el día y
+ * calcule "mañana"/"próximo lunes" bien (en entrantes, salientes y test por igual).
+ */
+export function pacificToday(): { iso: string; human: string } {
+  const now = new Date()
+  // en-CA formatea como YYYY-MM-DD, ideal para construir fechas ISO.
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now)
+  const human = new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Los_Angeles", weekday: "long", year: "numeric", month: "long", day: "numeric",
+  }).format(now)
+  return { iso, human }
+}
+
 /** Verifica el secreto compartido (Bearer o x-voice-secret) en tiempo constante. */
 export function verifyVoiceSecret(req: Request): boolean {
   const expected = process.env.RETELL_WEBHOOK_SECRET
@@ -76,12 +93,18 @@ export async function getOrCreatePatient(input: {
   first_name?: string
   last_name?: string
   email?: string
-}): Promise<{ ok: true; lead_id: string; name: string; is_new: boolean } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; lead_id: string; name: string; is_new: boolean; today: string; today_iso: string }
+  | { ok: false; error: string }
+> {
   const sb = admin()
   const phone = input.phone ? normalizeToE164(input.phone) || "" : ""
   if (!phone) return { ok: false, error: "Teléfono inválido" }
   const bId = await brandId(sb)
   if (!bId) return { ok: false, error: "Marca no encontrada" }
+
+  // Fecha de hoy (California) — se la damos al bot para que agende bien.
+  const t = pacificToday()
 
   const email = input.email?.trim().toLowerCase() || null
   // Buscar por teléfono (y email) en la marca.
@@ -94,7 +117,7 @@ export async function getOrCreatePatient(input: {
     .maybeSingle()
   const ex = existing as { id: string; first_name: string; last_name: string | null } | null
   if (ex) {
-    return { ok: true, lead_id: ex.id, name: `${ex.first_name} ${ex.last_name ?? ""}`.trim(), is_new: false }
+    return { ok: true, lead_id: ex.id, name: `${ex.first_name} ${ex.last_name ?? ""}`.trim(), is_new: false, today: t.human, today_iso: t.iso }
   }
 
   const first = input.first_name?.trim() || phone
@@ -114,7 +137,7 @@ export async function getOrCreatePatient(input: {
     .select("id")
     .single()
   if (error || !created) return { ok: false, error: error?.message ?? "No se pudo crear el paciente" }
-  return { ok: true, lead_id: (created as { id: string }).id, name: `${first} ${last ?? ""}`.trim(), is_new: true }
+  return { ok: true, lead_id: (created as { id: string }).id, name: `${first} ${last ?? ""}`.trim(), is_new: true, today: t.human, today_iso: t.iso }
 }
 
 // ── 2) Agendar cita ──────────────────────────────────────────────────────────
@@ -132,7 +155,13 @@ export async function bookAppointment(input: {
   // No agendar en el pasado (el bot a veces calcula mal la fecha si no sabe el día
   // de hoy). Rechaza y pide reconfirmar en vez de crear una cita vieja.
   if (when.getTime() < Date.now() - 5 * 60 * 1000) {
-    return { ok: false, error: "Esa fecha ya pasó. Confirma con el paciente el día y la hora correctos (usa la fecha de HOY como referencia) e intenta de nuevo." }
+    const t = pacificToday()
+    return { ok: false, error: `Esa fecha ya pasó. HOY es ${t.human} (${t.iso}). Recalcula el día correcto desde HOY (mañana = HOY + 1 día) y reintenta.` }
+  }
+  // El bot a veces alucina un año/mes lejano. Rechazar citas a más de 120 días.
+  if (when.getTime() > Date.now() + 120 * 24 * 60 * 60 * 1000) {
+    const t = pacificToday()
+    return { ok: false, error: `Esa fecha está demasiado lejos. HOY es ${t.human} (${t.iso}). Confirma el día correcto con el paciente y reintenta.` }
   }
 
   const { data: lead } = await sb
