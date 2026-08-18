@@ -1512,6 +1512,14 @@ export async function startBotCall(
       return { ok: false, error: "Falta configurar Retell (RETELL_API_KEY, RETELL_AGENT_ID y RETELL_FROM_NUMBER en Vercel)." }
     }
 
+    // El LLM no conoce la fecha de hoy → calcula "mañana"/"próximo lunes" mal y
+    // agendar_cita rechaza fechas pasadas. Le pasamos la fecha de HOY en hora de
+    // California para que el guion la use como referencia. (E164 ya validado arriba.)
+    const currentDatePacific = new Intl.DateTimeFormat("es-MX", {
+      timeZone: "America/Los_Angeles",
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    }).format(new Date())
+
     const res = await fetch("https://api.retellai.com/v2/create-phone-call", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -1522,6 +1530,8 @@ export async function startBotCall(
         retell_llm_dynamic_variables: {
           patient_name: `${lead.first_name} ${lead.last_name ?? ""}`.trim(),
           lead_id: input.lead_id,
+          patient_phone: to,
+          current_date: currentDatePacific,
         },
         metadata: { lead_id: input.lead_id, brand_id: input.brand_id },
       }),
