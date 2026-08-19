@@ -11,12 +11,13 @@ export async function POST(req: Request) {
   let body: any = {}
   try { body = await req.json() } catch { /* vacío */ }
   const args = body?.args ?? body ?? {}
+  const brand = asStr(args.brand) ?? new URL(req.url).searchParams.get("brand") ?? undefined
   const r = await bookAppointment({
     lead_id: asStr(args.lead_id) ?? "",
     when_iso: asStr(args.when_iso ?? args.datetime ?? args.when) ?? "",
     service: asStr(args.service),
     notes: asStr(args.notes),
-    brand: asStr(args.brand),
+    brand: brand ?? undefined,
   })
   return NextResponse.json(r)
 }

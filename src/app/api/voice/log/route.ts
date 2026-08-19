@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   let body: any = {}
   try { body = await req.json() } catch { /* vacío */ }
   const args = body?.args ?? body ?? {}
+  const brand = asStr(args.brand) ?? new URL(req.url).searchParams.get("brand") ?? undefined
   const r = await logCall({
     phone: asStr(args.phone),
     lead_id: asStr(args.lead_id),
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     summary: asStr(args.summary),
     transcript: asStr(args.transcript),
     recording_url: asStr(args.recording_url),
-    brand: asStr(args.brand),
+    brand: brand ?? undefined,
   })
   return NextResponse.json(r)
 }

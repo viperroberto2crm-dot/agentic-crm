@@ -11,12 +11,14 @@ export async function POST(req: Request) {
   let body: any = {}
   try { body = await req.json() } catch { /* vacío */ }
   const args = body?.args ?? body ?? {}
+  // La marca puede venir en los args del bot o en la URL (?brand=la-esperanza).
+  const brand = asStr(args.brand) ?? new URL(req.url).searchParams.get("brand") ?? undefined
   const r = await getOrCreatePatient({
     phone: asStr(args.phone) ?? "",
     first_name: asStr(args.first_name),
     last_name: asStr(args.last_name),
     email: asStr(args.email),
-    brand: asStr(args.brand),
+    brand: brand ?? undefined,
   })
   return NextResponse.json(r)
 }

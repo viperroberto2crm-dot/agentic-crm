@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   let body: any = {}
   try { body = await req.json() } catch { /* vacío */ }
   const args = body?.args ?? body ?? {}
-  const r = await sendPaymentLink({ lead_id: asStr(args.lead_id) ?? "", offer_key: asStr(args.offer_key), brand: asStr(args.brand) })
+  const brand = asStr(args.brand) ?? new URL(req.url).searchParams.get("brand") ?? undefined
+  const r = await sendPaymentLink({ lead_id: asStr(args.lead_id) ?? "", offer_key: asStr(args.offer_key), brand: brand ?? undefined })
   return NextResponse.json(r)
 }
