@@ -292,6 +292,64 @@ export async function sendPaymentLink(input: {
   return { ok: true, sent: true }
 }
 
+// ── 4b) Captura de RESPALDO desde el webhook de Retell (call_ended) ───────────
+// Garantiza que TODO el que llame quede en el CRM, aunque cuelgue antes de que
+// el bot alcanzara a llamar buscar_o_crear_paciente / registrar_llamada.
+// Idempotente: si el bot ya registró la llamada de este lead (últimos 30 min),
+// no duplica; solo asegura que el lead exista.
+export async function recordCallFromWebhook(call: {
+  from_number?: string
+  to_number?: string
+  direction?: string
+  transcript?: string
+  disconnection_reason?: string
+  recording_url?: string
+  metadata?: { lead_id?: string; brand_id?: string } | null
+}): Promise<{ ok: true; created_lead: boolean; logged: boolean } | { ok: false; error: string }> {
+  const sb = admin()
+  const bId = await brandId(sb)
+  if (!bId) return { ok: false, error: "Marca no encontrada" }
+
+  const dir: "inbound" | "outbound" = call.direction === "outbound" ? "outbound" : "inbound"
+  // El teléfono del PACIENTE es el "from" en entrantes y el "to" en salientes.
+  const patientRaw = dir === "outbound" ? call.to_number : call.from_number
+  const phone = patientRaw ? normalizeToE164(patientRaw) || null : null
+  if (!phone) return { ok: false, error: "Sin número de paciente" }
+
+  // 1) Asegurar el lead (idempotente: busca por teléfono, crea si no existe).
+  let leadId = call.metadata?.lead_id ?? null
+  let createdLead = false
+  if (!leadId) {
+    const r = await getOrCreatePatient({ phone })
+    if (!r.ok) return { ok: false, error: r.error }
+    leadId = r.lead_id
+    createdLead = r.is_new
+  }
+
+  // 2) Dedup: si ya hay una llamada de este lead en los últimos 30 min (el bot
+  //    ya la registró con registrar_llamada), no duplicar.
+  if (leadId) {
+    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (sb as any)
+      .from("calls").select("id").eq("lead_id", leadId).gte("called_at", since).limit(1).maybeSingle()
+    if (existing?.id) return { ok: true, created_lead: createdLead, logged: false }
+  }
+
+  // 3) Registrar la llamada (respaldo). Motivo de colgado → outcome básico.
+  const outcome = call.disconnection_reason === "user_hangup" ? "connected" : undefined
+  const res = await logCall({
+    phone,
+    lead_id: leadId ?? undefined,
+    direction: dir,
+    outcome,
+    transcript: call.transcript,
+    recording_url: call.recording_url,
+  })
+  if (!res.ok) return { ok: false, error: res.error }
+  return { ok: true, created_lead: createdLead, logged: true }
+}
+
 // ── 4) Registrar el resultado de la llamada ──────────────────────────────────
 const CALL_OUTCOMES = new Set([
   "no_answer", "voicemail", "connected", "appointment_set",
