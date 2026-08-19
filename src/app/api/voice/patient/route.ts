@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     first_name: asStr(args.first_name),
     last_name: asStr(args.last_name),
     email: asStr(args.email),
+    brand: asStr(args.brand),
   })
   return NextResponse.json(r)
 }

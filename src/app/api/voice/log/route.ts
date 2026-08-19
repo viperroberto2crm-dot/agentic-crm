@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     summary: asStr(args.summary),
     transcript: asStr(args.transcript),
     recording_url: asStr(args.recording_url),
+    brand: asStr(args.brand),
   })
   return NextResponse.json(r)
 }

@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     when_iso: asStr(args.when_iso ?? args.datetime ?? args.when) ?? "",
     service: asStr(args.service),
     notes: asStr(args.notes),
+    brand: asStr(args.brand),
   })
   return NextResponse.json(r)
 }

@@ -68,8 +68,12 @@ export function admin(): SupabaseClient<Database> {
   return createAdminClient() as unknown as SupabaseClient<Database>
 }
 
-async function brandId(sb: Admin): Promise<string | null> {
-  const { data } = await sb.from("brands").select("id").eq("slug", BRAND_SLUG).maybeSingle()
+// Resuelve el id de la marca por slug. Default = Si Se Pierde (compatibilidad).
+// El bot de cada clínica pasa su `brand` (ej. "la-esperanza") para que sus
+// leads/citas caigan en la marca correcta (multi-clínica).
+async function brandId(sb: Admin, slug?: string): Promise<string | null> {
+  const s = (slug && slug.trim()) || BRAND_SLUG
+  const { data } = await sb.from("brands").select("id").eq("slug", s).maybeSingle()
   return (data as { id: string } | null)?.id ?? null
 }
 
@@ -96,6 +100,7 @@ export async function getOrCreatePatient(input: {
   first_name?: string
   last_name?: string
   email?: string
+  brand?: string
 }): Promise<
   | { ok: true; lead_id: string; name: string; is_new: boolean; today: string; today_iso: string }
   | { ok: false; error: string }
@@ -103,7 +108,7 @@ export async function getOrCreatePatient(input: {
   const sb = admin()
   const phone = input.phone ? normalizeToE164(input.phone) || "" : ""
   if (!phone) return { ok: false, error: "Teléfono inválido" }
-  const bId = await brandId(sb)
+  const bId = await brandId(sb, input.brand)
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   // Fecha de hoy (California) — se la damos al bot para que agende bien.
@@ -149,9 +154,10 @@ export async function bookAppointment(input: {
   when_iso: string
   service?: string
   notes?: string
+  brand?: string
 }): Promise<{ ok: true; when: string } | { ok: false; error: string }> {
   const sb = admin()
-  const bId = await brandId(sb)
+  const bId = await brandId(sb, input.brand)
   if (!bId) return { ok: false, error: "Marca no encontrada" }
   const when = new Date(input.when_iso)
   if (isNaN(when.getTime())) return { ok: false, error: "Fecha/hora inválida" }
@@ -199,9 +205,10 @@ export async function bookAppointment(input: {
 export async function sendPaymentLink(input: {
   lead_id: string
   offer_key?: string
+  brand?: string
 }): Promise<{ ok: true; sent: boolean } | { ok: false; error: string }> {
   const sb = admin()
-  const bId = await brandId(sb)
+  const bId = await brandId(sb, input.brand)
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -305,9 +312,10 @@ export async function recordCallFromWebhook(call: {
   disconnection_reason?: string
   recording_url?: string
   metadata?: { lead_id?: string; brand_id?: string } | null
+  brand?: string
 }): Promise<{ ok: true; created_lead: boolean; logged: boolean } | { ok: false; error: string }> {
   const sb = admin()
-  const bId = await brandId(sb)
+  const bId = await brandId(sb, call.brand)
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   const dir: "inbound" | "outbound" = call.direction === "outbound" ? "outbound" : "inbound"
@@ -320,7 +328,7 @@ export async function recordCallFromWebhook(call: {
   let leadId = call.metadata?.lead_id ?? null
   let createdLead = false
   if (!leadId) {
-    const r = await getOrCreatePatient({ phone })
+    const r = await getOrCreatePatient({ phone, brand: call.brand })
     if (!r.ok) return { ok: false, error: r.error }
     leadId = r.lead_id
     createdLead = r.is_new
@@ -345,6 +353,7 @@ export async function recordCallFromWebhook(call: {
     outcome,
     transcript: call.transcript,
     recording_url: call.recording_url,
+    brand: call.brand,
   })
   if (!res.ok) return { ok: false, error: res.error }
   return { ok: true, created_lead: createdLead, logged: true }
@@ -363,9 +372,10 @@ export async function logCall(input: {
   summary?: string
   transcript?: string
   recording_url?: string
+  brand?: string
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const sb = admin()
-  const bId = await brandId(sb)
+  const bId = await brandId(sb, input.brand)
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   let leadId = input.lead_id ?? null

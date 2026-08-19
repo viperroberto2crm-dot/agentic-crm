@@ -35,6 +35,11 @@ export async function POST(req: Request) {
   }
 
   const call = body?.call ?? {}
+  // La marca puede venir en la URL (?brand=la-esperanza) o en la metadata de la
+  // llamada. Default = Si Se Pierde (lo resuelve brandId).
+  const brand =
+    new URL(req.url).searchParams.get("brand") ?? call?.metadata?.brand ?? undefined
+
   const r = await recordCallFromWebhook({
     from_number: call.from_number,
     to_number: call.to_number,
@@ -43,6 +48,7 @@ export async function POST(req: Request) {
     disconnection_reason: call.disconnection_reason,
     recording_url: call.recording_url,
     metadata: call.metadata ?? null,
+    brand: typeof brand === "string" ? brand : undefined,
   })
   // Siempre 200 para que Retell no reintente en bucle por un fallo nuestro.
   return NextResponse.json(r)
