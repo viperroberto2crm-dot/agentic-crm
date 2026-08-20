@@ -101,6 +101,8 @@ export async function getOrCreatePatient(input: {
   last_name?: string
   email?: string
   brand?: string
+  /** Segundo número (ej. el de la llamada) si el paciente dio otro como principal. */
+  phone_alt?: string
 }): Promise<
   | { ok: true; lead_id: string; name: string; is_new: boolean; today: string; today_iso: string }
   | { ok: false; error: string }
@@ -130,6 +132,8 @@ export async function getOrCreatePatient(input: {
 
   const first = input.first_name?.trim() || phone
   const last = input.last_name?.trim() || null
+  // Segundo número (el de la llamada) si dieron otro como principal, y es distinto.
+  const phoneAlt = input.phone_alt ? normalizeToE164(input.phone_alt) || null : null
   const { data: created, error } = await sb
     .from("leads")
     .insert({
@@ -137,6 +141,7 @@ export async function getOrCreatePatient(input: {
       first_name: first,
       last_name: last,
       phone,
+      phone_alt: phoneAlt && phoneAlt !== phone ? phoneAlt : null,
       email,
       status: "new",
       source: "inbound_call",

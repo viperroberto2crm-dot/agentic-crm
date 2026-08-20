@@ -14,18 +14,24 @@ export async function POST(req: Request) {
   // La marca puede venir en los args del bot o en la URL (?brand=la-esperanza).
   const brand = asStr(args.brand) ?? new URL(req.url).searchParams.get("brand") ?? undefined
 
-  // Teléfono ROBUSTO: si el LLM manda el placeholder sin sustituir ("{{from_number}}")
-  // o algo inválido, usa el número REAL que Retell manda en el payload de la llamada
-  // (from_number en entrantes, to_number en salientes). Evita leads con teléfono basura.
+  // Número REAL capturado por Twilio/Retell (from_number entrantes, to_number salientes).
+  const call = body?.call ?? {}
+  const callerId = asStr(call.direction === "outbound" ? call.to_number : call.from_number) ?? ""
+
+  // Teléfono principal: el que dio el bot si es válido; si mandó el placeholder sin
+  // sustituir o algo inválido, cae al número real de la llamada.
   let phone = asStr(args.phone) ?? ""
-  if (!phone || phone.includes("{{") || phone.toLowerCase().includes("from_number") || phone.toLowerCase().includes("patient_phone")) {
-    const call = body?.call ?? {}
-    const real = call.direction === "outbound" ? call.to_number : call.from_number
-    phone = asStr(real) ?? ""
-  }
+  const botGaveValid =
+    !!phone && !phone.includes("{{") && !phone.toLowerCase().includes("from_number") && !phone.toLowerCase().includes("patient_phone")
+  if (!botGaveValid) phone = callerId
+
+  // Si el paciente dio un número DISTINTO al de la llamada, guarda el de la llamada
+  // como alterno (así no se pierde ninguno).
+  const phoneAlt = botGaveValid && callerId && callerId !== phone ? callerId : undefined
 
   const r = await getOrCreatePatient({
     phone,
+    phone_alt: phoneAlt,
     first_name: asStr(args.first_name),
     last_name: asStr(args.last_name),
     email: asStr(args.email),
