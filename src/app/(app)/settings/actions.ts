@@ -263,6 +263,63 @@ export async function updateUser(
   }
 }
 
+const ResetUserPasswordSchema = z.object({
+  id: z.string().uuid(),
+  brand_id: z.string().uuid(),
+  newPassword: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+})
+
+export type ResetUserPasswordInput = z.infer<typeof ResetUserPasswordSchema>
+
+/**
+ * Restablece la contraseña de OTRO usuario (solo admin, misma marca).
+ * Usa el service role para setearla de inmediato — no depende de emails/SMTP,
+ * igual que inviteUser(). El admin le pasa la contraseña temporal al usuario
+ * y ese la cambia después en Ajustes → Perfil.
+ */
+export async function resetUserPassword(
+  raw: ResetUserPasswordInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const input = ResetUserPasswordSchema.parse(raw)
+    const supabase = await typedClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: "No autenticado" }
+
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    if (profile?.role !== "admin") {
+      return { ok: false, error: "Solo admins pueden restablecer contraseñas" }
+    }
+
+    // Mismo guard que updateUser/deleteUser: evita escalación entre marcas.
+    const { data: membership } = await supabase
+      .from("user_brands")
+      .select("user_id")
+      .eq("user_id", input.id)
+      .eq("brand_id", input.brand_id)
+      .maybeSingle()
+    if (!membership) return { ok: false, error: "El usuario no pertenece a esta marca" }
+
+    const admin = createAdminClient()
+    const { error } = await admin.auth.admin.updateUserById(input.id, {
+      password: input.newPassword,
+    })
+    if (error) {
+      console.error("[resetUserPassword]", error.message)
+      return { ok: false, error: error.message }
+    }
+
+    return { ok: true }
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
+    }
+    const msg = e instanceof Error ? e.message : "Error desconocido"
+    console.error("[resetUserPassword] unhandled:", msg, e)
+    return { ok: false, error: msg }
+  }
+}
+
 export async function deleteUser(
   userId: string,
   brandId: string,
