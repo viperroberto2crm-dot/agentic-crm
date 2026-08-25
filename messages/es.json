@@ -20,7 +20,8 @@
     "examplePrompt1": "¿Quién está bajando esta semana?",
     "examplePrompt2": "¿Cuántas citas tengo hoy?",
     "examplePrompt3": "Mostrame los leads sin tocar hace más de 3 días",
-    "examplePrompt4": "¿Cuál es mi tasa de conversión este mes?"
+    "examplePrompt4": "¿Cuál es mi tasa de conversión este mes?",
+    "mensajes": "Mensajes"
   },
   "intake": {
     "pageTitle": "Admisión en clínica",
@@ -1261,5 +1262,33 @@
     "waParam": "Dato {n}",
     "waSendTemplate": "Enviar plantilla",
     "waFillParams": "Llena todos los datos de la plantilla."
+  },
+  "inbox": {
+    "title": "Mensajes",
+    "subtitle": "Todas las conversaciones de SMS y WhatsApp, incluidas las de quien todavía no es paciente.",
+    "search": "Buscar por nombre, número o texto…",
+    "filterAll": "Todos",
+    "filterSms": "SMS",
+    "filterWhatsapp": "WhatsApp",
+    "onlyUnread": "Sin leer",
+    "truncated": "Hay conversaciones más viejas que no se listaron (se muestran los últimos 90 días).",
+    "empty": "No hay conversaciones que coincidan.",
+    "unknown": "Desconocido",
+    "noBrand": "Sin marca",
+    "notALead": "No es paciente",
+    "pickOne": "Elige una conversación.",
+    "back": "Volver",
+    "openLead": "Abrir ficha",
+    "emptyThread": "Esta conversación está vacía.",
+    "createLeadHelp": "Esta persona todavía no es paciente. Créala para poder responderle y guardar su historial.",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "pickBrand": "Marca…",
+    "createLead": "Crear paciente",
+    "needName": "Escribe al menos el nombre.",
+    "needBrand": "Elige la marca.",
+    "adminOnlyNoBrand": "Este mensaje llegó a un número que ninguna marca reclama. Asigna el número a una marca en Configuración.",
+    "waNotConnected": "WhatsApp no está conectado. Configúralo en Configuración → Integraciones.",
+    "noBrandCantReply": "Esta conversación no tiene marca, así que no se puede responder desde aquí."
   }
 }

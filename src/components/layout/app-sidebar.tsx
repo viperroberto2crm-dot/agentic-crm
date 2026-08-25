@@ -20,6 +20,7 @@ import {
   Sunrise,
   ClipboardList,
   Inbox,
+  MessagesSquare,
   Receipt,
   type LucideIcon,
 } from "lucide-react"
@@ -55,6 +56,7 @@ export type AppSidebarProps = {
   onMobileClose: () => void
   leadCount: number
   taskCount: number
+  messagesUnreadCount: number
   shippingPendingCount: number
   unlinkedCount: number
   urgentTasks: boolean
@@ -82,6 +84,7 @@ const NAV_HREFS = [
   { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
   { key: "leads", href: "/leads", icon: Users, hasBadge: true },
   { key: "intake", href: "/intake", icon: ClipboardList },
+  { key: "mensajes", href: "/mensajes", icon: MessagesSquare, hasBadge: true },
   { key: "calls", href: "/calls", icon: Phone },
   { key: "appointments", href: "/appointments", icon: CalendarDays },
   { key: "shipping", href: "/shipping", icon: Package, hasBadge: true },
@@ -189,6 +192,7 @@ function SidebarContent({
   collapsed,
   leadCount,
   taskCount,
+  messagesUnreadCount,
   shippingPendingCount,
   unlinkedCount,
   urgentTasks,
@@ -208,6 +212,8 @@ function SidebarContent({
     count:
       item.href === "/leads" && leadCount > 0
         ? leadCount
+        : item.href === "/mensajes" && messagesUnreadCount > 0
+        ? messagesUnreadCount
         : item.href === "/tasks" && taskCount > 0
         ? taskCount
         : item.href === "/shipping" && shippingPendingCount > 0

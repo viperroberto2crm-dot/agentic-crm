@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { AppShell } from "@/components/layout/app-shell"
+import { countUnread } from "@/lib/queries/messages"
 import type { Tables } from "@/types/database"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
@@ -82,6 +83,13 @@ export default async function AppLayout({
         .is("read_at", null),
     ])
 
+  // Mensajes sin leer de la bandeja (/mensajes). Con el cliente de sesión: la
+  // RLS por marca decide qué cuenta este usuario. Un provider no ve la bandeja.
+  const messagesUnreadCount =
+    profile.role === "provider"
+      ? 0
+      : await countUnread(supabase as unknown as SupabaseClient<Database>)
+
   const tasks = (taskResult.data ?? []) as Array<{ priority: string }>
   const taskCount = tasks.length
   const urgentTasks = tasks.some(
@@ -159,6 +167,7 @@ export default async function AppLayout({
       }}
       leadCount={leadCount ?? 0}
       taskCount={taskCount}
+      messagesUnreadCount={messagesUnreadCount}
       shippingPendingCount={shippingPendingCount}
       unlinkedCount={unlinkedCount}
       urgentTasks={urgentTasks}

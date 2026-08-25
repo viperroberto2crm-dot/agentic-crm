@@ -20,7 +20,8 @@
     "examplePrompt1": "Who's losing weight this week?",
     "examplePrompt2": "How many appointments do I have today?",
     "examplePrompt3": "Show me leads I haven't touched in over 3 days",
-    "examplePrompt4": "What's my conversion rate this month?"
+    "examplePrompt4": "What's my conversion rate this month?",
+    "mensajes": "Messages"
   },
   "intake": {
     "pageTitle": "In-clinic intake",
@@ -1261,5 +1262,33 @@
     "waParam": "Value {n}",
     "waSendTemplate": "Send template",
     "waFillParams": "Fill in every template value."
+  },
+  "inbox": {
+    "title": "Messages",
+    "subtitle": "Every SMS and WhatsApp conversation, including people who aren't patients yet.",
+    "search": "Search by name, number or text…",
+    "filterAll": "All",
+    "filterSms": "SMS",
+    "filterWhatsapp": "WhatsApp",
+    "onlyUnread": "Unread",
+    "truncated": "Older conversations were not listed (showing the last 90 days).",
+    "empty": "No conversations match.",
+    "unknown": "Unknown",
+    "noBrand": "No brand",
+    "notALead": "Not a patient",
+    "pickOne": "Pick a conversation.",
+    "back": "Back",
+    "openLead": "Open record",
+    "emptyThread": "This conversation is empty.",
+    "createLeadHelp": "This person isn't a patient yet. Create them to reply and keep their history.",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "pickBrand": "Brand…",
+    "createLead": "Create patient",
+    "needName": "Type at least a first name.",
+    "needBrand": "Pick a brand.",
+    "adminOnlyNoBrand": "This message arrived at a number no brand claims. Assign the number to a brand in Settings.",
+    "waNotConnected": "WhatsApp is not connected. Set it up in Settings → Integrations.",
+    "noBrandCantReply": "This conversation has no brand, so it can't be replied to from here."
   }
 }
