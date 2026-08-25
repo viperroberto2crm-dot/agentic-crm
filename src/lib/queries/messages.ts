@@ -100,6 +100,12 @@ export type ThreadsResult = {
   threads: ThreadSummary[]
   /** true si la consulta se topó con el tope → hay conversaciones más viejas sin listar. */
   truncated: boolean
+  /**
+   * Mensaje de error si la consulta falló. Existe para NO mentirle al usuario:
+   * si falta correr la migración (`read_at`), sin esto la bandeja se vería
+   * simplemente "vacía" y parecería rota en vez de decir qué falta.
+   */
+  error?: string
 }
 
 /**
@@ -136,7 +142,14 @@ export async function fetchThreads(
   const { data, error } = await q
   if (error) {
     console.error("[messages] fetchThreads:", error.message)
-    return { threads: [], truncated: false }
+    const falta = /read_at|column .* does not exist/i.test(error.message)
+    return {
+      threads: [],
+      truncated: false,
+      error: falta
+        ? "Falta correr docs/sql/2026-08-25-bandeja.sql en Supabase (la columna read_at todavía no existe)."
+        : "No se pudieron cargar las conversaciones.",
+    }
   }
   const rows = (data ?? []) as RawRow[]
 

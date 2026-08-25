@@ -48,7 +48,7 @@ export default async function MensajesPage() {
     .filter((b): b is { id: string; name: string } => !!b)
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  const [{ threads, truncated }, waEnabled] = await Promise.all([
+  const [{ threads, truncated, error: threadsError }, waEnabled] = await Promise.all([
     fetchThreads(sb, { brandId }),
     isWhatsAppConfigured(),
   ])
@@ -73,6 +73,7 @@ export default async function MensajesPage() {
         unbranded={unbranded}
         brands={brands}
         truncated={truncated}
+        loadError={threadsError ?? null}
         waEnabled={waEnabled}
         isAdmin={role === "admin"}
       />

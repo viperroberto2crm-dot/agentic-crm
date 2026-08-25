@@ -16,6 +16,8 @@ type Props = {
   unbranded: ThreadSummary[]
   brands: { id: string; name: string }[]
   truncated: boolean
+  /** Falla de carga (p.ej. migración pendiente). Se muestra tal cual. */
+  loadError: string | null
   waEnabled: boolean
   isAdmin: boolean
 }
@@ -29,7 +31,7 @@ function fmtTime(iso: string): string {
   })
 }
 
-export function Inbox({ threads, unbranded, brands, truncated, waEnabled, isAdmin }: Props) {
+export function Inbox({ threads, unbranded, brands, truncated, loadError, waEnabled, isAdmin }: Props) {
   const t = useTranslations("inbox")
   const router = useRouter()
 
@@ -230,6 +232,13 @@ export function Inbox({ threads, unbranded, brands, truncated, waEnabled, isAdmi
           {t("onlyUnread")}{totalUnread > 0 ? ` (${totalUnread})` : ""}
         </button>
       </div>
+
+      {loadError && (
+        <p className="flex items-start gap-2 px-4 py-2 text-xs text-red-700 bg-red-50 border-b border-red-200">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          {loadError}
+        </p>
+      )}
 
       {truncated && (
         <p className="flex items-start gap-2 px-4 py-2 text-xs text-amber-800 bg-amber-50 border-b border-amber-200">
