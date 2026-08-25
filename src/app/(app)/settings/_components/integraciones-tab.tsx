@@ -36,7 +36,7 @@ const SERVICES: ServiceDef[] = [
   { key: "eighthundred", icon: Phone, color: "#0EA5E9", testable: true, manageHref: "/settings?tab=tracking" },
   { key: "practicebetter", icon: Stethoscope, color: "#16A34A", testable: true, manageHref: "/settings?tab=servicios-pb" },
   { key: "twilio", icon: MessageCircle, color: "#F22F46", testable: true },
-  { key: "whatsapp", icon: MessageCircle, color: "#25D366", testable: false },
+  { key: "whatsapp", icon: MessageCircle, color: "#25D366", testable: true },
   { key: "hermes_vps", icon: Server, color: "#6366F1", testable: false },
 ]
 

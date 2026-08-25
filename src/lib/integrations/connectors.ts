@@ -65,6 +65,17 @@ export const CONNECTORS: Partial<Record<IntegrationKey, Connector>> = {
       { key: "client_secret", label: "Client secret", env: "PRACTICE_BETTER_CLIENT_SECRET", masked: true },
     ],
   },
+  whatsapp: {
+    provider: "whatsapp",
+    connectable: true,
+    fields: [
+      { key: "phone_number_id", label: "Phone Number ID (el que envía)", env: "WHATSAPP_PHONE_NUMBER_ID", masked: false },
+      { key: "access_token", label: "Access token permanente (System User)", env: "WHATSAPP_ACCESS_TOKEN", masked: true },
+      { key: "verify_token", label: "Verify token del webhook (lo inventas tú)", env: "WHATSAPP_VERIFY_TOKEN", masked: true },
+      { key: "app_secret", label: "App Secret (firma el webhook)", env: "WHATSAPP_APP_SECRET", masked: true },
+      { key: "waba_id", label: "WhatsApp Business Account ID (para plantillas)", env: "WHATSAPP_WABA_ID", masked: false },
+    ],
+  },
   twilio: {
     provider: "twilio",
     connectable: true,

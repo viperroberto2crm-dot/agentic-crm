@@ -1245,10 +1245,21 @@
     }
   },
   "sms": {
-    "title": "Mensajes SMS",
+    "title": "Mensajes",
     "empty": "Aún no hay mensajes con este paciente.",
     "placeholder": "Escribe un mensaje…",
     "send": "Enviar",
-    "noPhone": "Este paciente no tiene un teléfono válido para SMS."
+    "noPhone": "Este paciente no tiene un teléfono válido para SMS.",
+    "tabSms": "SMS",
+    "tabWhatsapp": "WhatsApp",
+    "waNotConnected": "WhatsApp no está conectado. Configúralo en Configuración → Integraciones.",
+    "waWindowClosed": "Pasaron más de 24h desde el último mensaje del paciente. WhatsApp solo permite reabrir la conversación con una plantilla aprobada.",
+    "waWindowOpen": "Puedes escribir libremente hasta el {time}.",
+    "waLoadTemplates": "Ver plantillas",
+    "waNoTemplates": "No hay plantillas aprobadas en esta cuenta de WhatsApp.",
+    "waPickTemplate": "Elige una plantilla…",
+    "waParam": "Dato {n}",
+    "waSendTemplate": "Enviar plantilla",
+    "waFillParams": "Llena todos los datos de la plantilla."
   }
 }

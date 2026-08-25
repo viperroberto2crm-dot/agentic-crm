@@ -59,7 +59,7 @@ export async function getIntegrationStatuses(): Promise<Record<IntegrationKey, I
     eighthundred: fromConnector("eighthundred"),
     practicebetter: fromConnector("practicebetter"),
     twilio: fromConnector("twilio"),
-    whatsapp: { status: "soon", detail: "Próximamente" },
+    whatsapp: fromConnector("whatsapp"),
     hermes_vps: { status: "soon", detail: "Puente al VPS pendiente" },
   }
 }
@@ -155,6 +155,24 @@ export async function testIntegration(key: IntegrationKey): Promise<TestResult> 
           return res.ok
             ? { ok: true, detail: "Conexión con Twilio OK" }
             : { ok: false, detail: `Twilio respondió ${res.status}` }
+        })
+      }
+      case "whatsapp": {
+        const id = await getConnectionSecret("whatsapp", "phone_number_id")
+        const tok = await getConnectionSecret("whatsapp", "access_token")
+        if (!id || !tok) return { ok: false, detail: "Faltan Phone Number ID / access token" }
+        return await withTimeout(async (signal) => {
+          const v = process.env.WHATSAPP_GRAPH_VERSION?.trim() || "v25.0"
+          const res = await fetch(
+            `https://graph.facebook.com/${v}/${encodeURIComponent(id)}?fields=display_phone_number,verified_name,quality_rating`,
+            { headers: { Authorization: `Bearer ${tok}` }, signal },
+          )
+          if (!res.ok) {
+            return { ok: false, detail: `WhatsApp respondió ${res.status} (¿token vencido o Phone Number ID equivocado?)` }
+          }
+          const j = (await res.json()) as { display_phone_number?: string; verified_name?: string }
+          const who = [j.verified_name, j.display_phone_number].filter(Boolean).join(" · ")
+          return { ok: true, detail: `Conexión con WhatsApp OK${who ? ` (${who})` : ""}` }
         })
       }
       case "eighthundred": {

@@ -18,7 +18,8 @@ import {
 import { JustCreatedBanner } from "./_components/just-created-banner"
 import { IntakeCard } from "./_components/intake-card"
 import { extractIntakeData } from "./_components/intake-data"
-import { SmsThread, type SmsMessage } from "./_components/sms-thread"
+import { MessageThread, type ThreadMessage } from "./_components/message-thread"
+import { isWhatsAppConfigured } from "@/lib/integrations/whatsapp"
 import { LeadDetailsCard } from "./_components/lead-details-card"
 import { fetchPaymentPlans } from "./actions"
 import { getTranslations } from "next-intl/server"
@@ -70,10 +71,10 @@ export default async function LeadDetailPage({
     sb.from("external_appointments")
       .select("id, provider, status, service, service_name, staff, staff_name, starts_at, ends_at")
       .eq("lead_id", id).order("starts_at", { ascending: false }).limit(20),
-    // messages (SMS) — tabla nueva, sin tipos generados → cast
+    // messages (SMS + WhatsApp) — tabla nueva, sin tipos generados → cast
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (sb as any).from("messages")
-      .select("id, direction, body, status, created_at")
+      .select("id, direction, body, status, created_at, channel")
       .eq("lead_id", id).order("created_at", { ascending: true }).limit(100),
   ])
 
@@ -81,7 +82,8 @@ export default async function LeadDetailPage({
   const pbPayments = (pbPayRes?.data ?? []) as PbPayment[]
   const externalPayments = (extPayRes?.data ?? []) as ExternalPayment[]
   const externalAppointments = (extApptRes?.data ?? []) as ExternalAppointment[]
-  const messages = (msgsRes?.data ?? []) as SmsMessage[]
+  const messages = (msgsRes?.data ?? []) as ThreadMessage[]
+  const waEnabled = await isWhatsAppConfigured()
 
   let clinicsForModal: {
     id: string
@@ -371,11 +373,12 @@ export default async function LeadDetailPage({
         )}
 
       {role !== "provider" && (
-        <SmsThread
+        <MessageThread
           leadId={lead.id}
           brandId={lead.brand_id}
           phone={lead.phone}
           initial={messages}
+          waEnabled={waEnabled}
         />
       )}
     </div>

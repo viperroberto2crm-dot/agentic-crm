@@ -84,3 +84,48 @@ export async function resolveBrandByTwilioNumber(
   if (rows.length !== 1) return null
   return rows[0].brand_id ?? null
 }
+
+// ── WhatsApp (Meta Cloud API) ────────────────────────────────────────────────
+//
+// Mismo principio que arriba, pero la fuente es `brands`, no `tracking_numbers`:
+// el remitente de WhatsApp no es un teléfono suelto sino el `phone_number_id` de
+// la WABA, y hoy hay UNO solo. `brands.whatsapp_phone_number_id` permite que
+// mañana cada clínica tenga el suyo sin tocar código.
+
+/**
+ * Resuelve el `phone_number_id` de ENVÍO de una marca. null si la marca no tiene
+ * el suyo → el llamador cae al phone_number_id global de Integraciones.
+ */
+export async function resolveBrandWhatsAppSender(brandId: string): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data } = await sb
+    .from("brands")
+    .select("whatsapp_phone_number_id")
+    .eq("id", brandId)
+    .maybeSingle()
+  const id = (data as { whatsapp_phone_number_id: string | null } | null)?.whatsapp_phone_number_id
+  return id && id.trim() ? id.trim() : null
+}
+
+/**
+ * Resuelve la marca dueña del `phone_number_id` que RECIBIÓ un mensaje. Sirve
+ * para atribuir a marca/canal los WhatsApp de gente que aún no es lead. null si
+ * ninguna marca lo reclama (el índice único de la migración impide el empate).
+ */
+export async function resolveBrandByWhatsAppPhoneId(
+  phoneNumberId: string,
+): Promise<string | null> {
+  if (!phoneNumberId) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data } = await sb
+    .from("brands")
+    .select("id")
+    .eq("whatsapp_phone_number_id", phoneNumberId)
+    .limit(2)
+  const rows = (data ?? []) as { id: string }[]
+  // Fail-closed igual que en Twilio: ante ambigüedad NO se atribuye.
+  if (rows.length !== 1) return null
+  return rows[0].id
+}
