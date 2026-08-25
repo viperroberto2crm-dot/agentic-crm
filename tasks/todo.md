@@ -46,4 +46,38 @@ Decisión de número (Roberto, 2026-08-25): el WhatsApp del CRM **no** es el
 - [x] 14. `tsc` + build + volver a probar los dos canales vivos.
 
 ## Review
-(pendiente)
+
+**HECHO y desplegado.** Commits `9fc988c` (bandeja), `c906f29` (canales) + el aviso
+de migracion. Vivo en agentic-crm-sigma.vercel.app.
+
+### Lo que se gano
+Antes: 2 rutas de webhook y 2 acciones de envio con la misma logica copiada.
+Ahora: `lib/channels/` con un contrato, un manejador de entrantes y un camino de
+salida. **Instagram DM / Messenger / Email = 1 archivo en `adapters/` + 1 linea en
+`registry.ts`.** Ni ruta, ni pantalla, ni accion nuevas.
+
+Y la bandeja saca a la luz lo que se perdia: los mensajes de quien todavia no es
+paciente ahora se ven y se pueden convertir en lead de un clic.
+
+### Verificacion en PRODUCCION (no solo build)
+| endpoint | respuesta | que prueba |
+|---|---|---|
+| `POST /api/webhooks/twilio` sin firma | `403 invalid signature` | el canal VIVO sigue leyendo su token y verificando |
+| `POST /api/webhooks/sms` (alias nuevo) | `403 invalid signature` | la ruta dinamica despacha al mismo adaptador |
+| `GET /api/webhooks/sms` | `405` | SMS no usa handshake, y lo dice bien |
+| `GET`/`POST /api/webhooks/whatsapp` | `503 not configured` | fail-closed mientras no haya credenciales |
+| `GET /api/webhooks/telegram` | `404 unknown channel` | no hay canales fantasma |
+
+`tsc --noEmit` exit 0 y `npm run build` exit 0 en cada paso.
+
+### LO QUE NO PUDE PROBAR — decirlo claro
+El camino de **firma VALIDA** de Twilio no se probo en vivo: hacerlo requiere el
+Auth Token, que esta cifrado en la base. Lo que sostiene que sigue bien es que
+`verifyTwilioSignature` y la reconstruccion de la URL firmada se movieron
+**verbatim**, sin tocar una linea. Aun asi, **la prueba definitiva es un SMS real
+al numero de rastreo** — vale la pena mandarse uno y confirmar que aparece.
+
+### Falta correr (manual)
+1. `docs/sql/2026-08-25-bandeja.sql` — sin esto /mensajes avisa que falta y se ve vacia.
+2. `docs/sql/2026-08-25-whatsapp.sql` — sin esto no se puede ENVIAR WhatsApp.
+
