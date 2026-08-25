@@ -13,15 +13,9 @@ import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
 import { normalizeToE164 } from "@/lib/integrations/800com"
 import { createCheckoutSessionForLead, createStripeCustomCheckout } from "@/lib/integrations/stripe-checkout"
 import { createSquarePaymentLinkForLead, createSquareCustomLink } from "@/lib/integrations/square-checkout"
-import { sendTwilioSms } from "@/lib/integrations/twilio"
-import {
-  sendWhatsAppText, sendWhatsAppTemplate, listWhatsAppTemplates,
-  type WaTemplate, type WaSendResult,
-} from "@/lib/integrations/whatsapp"
+import { listWhatsAppTemplates, type WaTemplate } from "@/lib/integrations/whatsapp"
+import { sendChannelMessage } from "@/lib/channels/send"
 import { getConnectionSecret } from "@/lib/integrations/connections"
-import {
-  resolveBrandTwilioFrom, resolveBrandByTwilioNumber, resolveBrandWhatsAppSender,
-} from "@/lib/integrations/brand-numbers"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
 
@@ -1363,7 +1357,11 @@ export async function createCustomChargeLink(
   }
 }
 
-// ── Enviar SMS al paciente (Twilio) ──────────────────────────────────────────
+// ── Enviar mensajes al paciente (Centro de Canales) ──────────────────────────
+//
+// Los guards (rol, membresía de marca, lead de la marca, opt-out) y la política
+// de cada canal (la ventana de 24h de Meta) viven UNA sola vez, en
+// `lib/channels/send.ts`. Aquí solo quedan las firmas que usa la UI.
 
 const SendSmsSchema = z.object({
   lead_id: z.string().uuid(),
@@ -1372,95 +1370,20 @@ const SendSmsSchema = z.object({
 })
 export type SendSmsInput = z.infer<typeof SendSmsSchema>
 
-/**
- * Envía un SMS al paciente vía Twilio y lo registra en `messages`. Guard de rol +
- * membresía de marca; respeta el opt-out (STOP). Usa las credenciales guardadas
- * (cifradas) de Twilio. No escribe en `sales`.
- */
+/** Envía un SMS al paciente vía Twilio y lo registra en `messages`. */
 export async function sendSms(
   raw: SendSmsInput,
 ): Promise<{ ok: true; warning?: string } | { ok: false; error: string }> {
   try {
     const input = SendSmsSchema.parse(raw)
-    const sb = await typedClient()
-    const { userId, role } = await getCurrentRole(sb)
-    assertNotProvider(role)
-    if (!(await assertBrandMember(sb, userId, role, input.brand_id))) {
-      return { ok: false, error: "Sin acceso a esta marca." }
-    }
-
-    // `sms_opt_out` es columna nueva (no en los tipos generados) → lectura sin tipar.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadRaw } = await (sb as any)
-      .from("leads")
-      .select("phone, brand_id, sms_opt_out")
-      .eq("id", input.lead_id)
-      .single()
-    const lead = leadRaw as { phone: string | null; brand_id: string; sms_opt_out: boolean | null } | null
-    if (!lead || lead.brand_id !== input.brand_id) {
-      return { ok: false, error: "El paciente no es válido para esta marca." }
-    }
-    if (lead.sms_opt_out) {
-      return { ok: false, error: "El paciente pidió no recibir mensajes (respondió STOP)." }
-    }
-    const to = lead.phone
-    if (!to || !to.startsWith("+")) {
-      return { ok: false, error: "El paciente no tiene un teléfono válido (formato +1…)." }
-    }
-
-    const [sid, token, globalFrom, brandFrom] = await Promise.all([
-      getConnectionSecret("twilio", "account_sid"),
-      getConnectionSecret("twilio", "auth_token"),
-      getConnectionSecret("twilio", "from_number"),
-      // Número de ENVÍO de la marca (tracking_numbers, provider Twilio). Si la
-      // marca no tiene número propio, cae al from_number global.
-      resolveBrandTwilioFrom(input.brand_id, input.lead_id),
-    ])
-    let from = brandFrom
-    if (!from && globalFrom) {
-      // Respaldo global — pero NO si ese número está registrado como el de OTRA
-      // marca (evitaría que esta marca envíe desde el número ajeno y que las
-      // respuestas se atribuyan a la otra marca). Fail-closed (Fable #2).
-      const globalOwner = await resolveBrandByTwilioNumber(globalFrom)
-      if (globalOwner && globalOwner !== input.brand_id) {
-        return {
-          ok: false,
-          error: "Esta marca no tiene número de envío propio. Agrega su número Twilio en Configuración → Números de rastreo.",
-        }
-      }
-      from = globalFrom
-    }
-    if (!sid || !token || !from) {
-      return { ok: false, error: "Twilio no está conectado (falta SID, token o número de envío)." }
-    }
-
-    const sent = await sendTwilioSms({ sid, token, from, to, body: input.body })
-    if (!sent.ok) return sent
-
-    // Registrar el saliente (messages es service-role para escribir).
-    const admin = createAdminClient() as unknown as SupabaseClient<Database>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: insErr } = await (admin as any).from("messages").insert({
-      provider: "twilio",
-      brand_id: input.brand_id,
-      lead_id: input.lead_id,
-      direction: "out",
+    const r = await sendChannelMessage({
       channel: "sms",
+      leadId: input.lead_id,
+      brandId: input.brand_id,
       body: input.body,
-      from_number: from,
-      to_number: to,
-      external_id: sent.sid || null,
-      status: "sent",
-      created_by: userId,
     })
-    revalidatePath(`/leads/${input.lead_id}`)
-    if (insErr) {
-      // El SMS SÍ se envió; solo no se registró en el hilo. Avisar para que el
-      // vendedor no lo reenvíe (Fable #4).
-      console.error("[sendSms] registro:", insErr.message)
-      return { ok: true, warning: "El SMS se envió, pero no se pudo registrar en el hilo (no lo reenvíes)." }
-    }
-    return { ok: true }
+    if (r.ok) revalidatePath(`/leads/${input.lead_id}`)
+    return r
   } catch (e) {
     if (e instanceof z.ZodError) {
       return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
@@ -1472,39 +1395,8 @@ export async function sendSms(
 // ── WhatsApp (Meta Cloud API) ────────────────────────────────────────────────
 
 /**
- * Ventana de servicio al cliente de Meta: 24h desde el ÚLTIMO mensaje entrante
- * del paciente. Dentro se puede mandar texto libre; fuera, solo plantilla
- * aprobada. Meta rechaza el texto libre fuera de la ventana, así que lo
- * validamos aquí para dar un error entendible en vez del error crudo de Meta.
- */
-const WA_WINDOW_MS = 24 * 60 * 60 * 1000
-
-/** Timestamp del último WhatsApp entrante del paciente, o null si nunca escribió. */
-async function lastInboundWhatsAppAt(leadId: string): Promise<number | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any
-  const { data } = await admin
-    .from("messages")
-    .select("created_at")
-    .eq("lead_id", leadId)
-    .eq("channel", "whatsapp")
-    .eq("direction", "in")
-    .order("created_at", { ascending: false })
-    .limit(1)
-  const row = ((data ?? []) as { created_at: string }[])[0]
-  if (!row) return null
-  const t = new Date(row.created_at).getTime()
-  return Number.isFinite(t) ? t : null
-}
-
-/** Sustituye {{1}}, {{2}}… del cuerpo de la plantilla para guardarlo en el hilo. */
-function fillTemplateBody(bodyText: string, params: string[]): string {
-  return bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n: string) => params[Number(n) - 1] ?? `{{${n}}}`)
-}
-
-/**
- * Carga las plantillas APROBADAS de la WABA para el selector de la ficha.
- * Mismo guard de rol que el envío: un provider no manda mensajes.
+ * Carga las plantillas APROBADAS de la WABA para el selector de la ficha y de
+ * la bandeja. Mismo guard de rol que el envío: un provider no manda mensajes.
  */
 export async function getWhatsAppTemplates(): Promise<
   { ok: true; templates: WaTemplate[] } | { ok: false; error: string }
@@ -1519,7 +1411,11 @@ export async function getWhatsAppTemplates(): Promise<
       getConnectionSecret("whatsapp", "access_token"),
     ])
     if (!wabaId || !token) {
-      return { ok: false, error: "Falta el WhatsApp Business Account ID o el access token en Configuración → Integraciones." }
+      return {
+        ok: false,
+        error:
+          "Falta el WhatsApp Business Account ID o el access token en Configuración → Integraciones.",
+      }
     }
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 8000)
@@ -1553,122 +1449,21 @@ const SendWhatsAppSchema = z
   })
 export type SendWhatsAppInput = z.infer<typeof SendWhatsAppSchema>
 
-/**
- * Envía un WhatsApp al paciente vía Meta Cloud API y lo registra en `messages`
- * (mismo hilo que el SMS, channel='whatsapp'). Mismos guards que sendSms: rol
- * no-provider + membresía de marca + el lead debe ser de esa marca. Respeta
- * `wa_opt_out` y la ventana de 24h de Meta, validada EN EL SERVIDOR (el cliente
- * la calcula solo para pintar la UI; aquí es donde manda).
- */
+/** Envía un WhatsApp al paciente vía Meta Cloud API y lo registra en `messages`. */
 export async function sendWhatsApp(
   raw: SendWhatsAppInput,
 ): Promise<{ ok: true; warning?: string } | { ok: false; error: string }> {
   try {
     const input = SendWhatsAppSchema.parse(raw)
-    const sb = await typedClient()
-    const { userId, role } = await getCurrentRole(sb)
-    assertNotProvider(role)
-    if (!(await assertBrandMember(sb, userId, role, input.brand_id))) {
-      return { ok: false, error: "Sin acceso a esta marca." }
-    }
-
-    // `wa_opt_out` es columna nueva (no en los tipos generados) → lectura sin tipar.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadRaw } = await (sb as any)
-      .from("leads")
-      .select("phone, brand_id, wa_opt_out")
-      .eq("id", input.lead_id)
-      .single()
-    const lead = leadRaw as { phone: string | null; brand_id: string; wa_opt_out: boolean | null } | null
-    if (!lead || lead.brand_id !== input.brand_id) {
-      return { ok: false, error: "El paciente no es válido para esta marca." }
-    }
-    if (lead.wa_opt_out) {
-      return { ok: false, error: "El paciente pidió no recibir WhatsApp (respondió STOP/BAJA)." }
-    }
-    const to = lead.phone
-    if (!to || !to.startsWith("+")) {
-      return { ok: false, error: "El paciente no tiene un teléfono válido (formato +1…)." }
-    }
-
-    const [globalPhoneId, token, brandPhoneId, lastIn] = await Promise.all([
-      getConnectionSecret("whatsapp", "phone_number_id"),
-      getConnectionSecret("whatsapp", "access_token"),
-      // Remitente propio de la marca; null → cae al global.
-      resolveBrandWhatsAppSender(input.brand_id),
-      lastInboundWhatsAppAt(input.lead_id),
-    ])
-    const phoneNumberId = brandPhoneId ?? globalPhoneId
-    if (!phoneNumberId || !token) {
-      return { ok: false, error: "WhatsApp no está conectado (falta Phone Number ID o access token)." }
-    }
-
-    const windowOpen = lastIn !== null && Date.now() - lastIn < WA_WINDOW_MS
-
-    // Decidir qué se manda. Fuera de la ventana, Meta SOLO acepta plantilla.
-    let sent: WaSendResult
-    let threadBody: string
-    if (input.template) {
-      const params = input.template.params ?? []
-      sent = await sendWhatsAppTemplate({
-        phoneNumberId,
-        token,
-        to,
-        name: input.template.name,
-        language: input.template.language,
-        bodyParams: params.length ? params : undefined,
-      })
-      // Para el hilo, guardamos el texto REAL que le llegó al paciente. Si no se
-      // puede leer la plantilla, guardamos una referencia clara en vez de nada.
-      threadBody = `[plantilla: ${input.template.name}]${params.length ? ` ${params.join(" · ")}` : ""}`
-      const wabaId = await getConnectionSecret("whatsapp", "waba_id")
-      if (wabaId) {
-        const list = await listWhatsAppTemplates({ wabaId, token })
-        if (list.ok) {
-          const tpl = list.templates.find(
-            (t) => t.name === input.template!.name && t.language === input.template!.language,
-          )
-          if (tpl?.bodyText) threadBody = fillTemplateBody(tpl.bodyText, params)
-        }
-      }
-    } else {
-      if (!windowOpen) {
-        return {
-          ok: false,
-          error:
-            "Pasaron más de 24h desde el último mensaje del paciente. WhatsApp solo permite reabrir la conversación con una plantilla aprobada.",
-        }
-      }
-      threadBody = input.body as string
-      sent = await sendWhatsAppText({ phoneNumberId, token, to, body: threadBody })
-    }
-    if (!sent.ok) return sent
-
-    // Registrar el saliente (messages es service-role para escribir).
-    const admin = createAdminClient() as unknown as SupabaseClient<Database>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: insErr } = await (admin as any).from("messages").insert({
-      provider: "whatsapp",
-      brand_id: input.brand_id,
-      lead_id: input.lead_id,
-      direction: "out",
+    const r = await sendChannelMessage({
       channel: "whatsapp",
-      body: threadBody,
-      from_number: phoneNumberId,
-      to_number: to,
-      external_id: sent.wamid || null,
-      status: "sent",
-      created_by: userId,
-      ...(input.template ? { raw: { template: input.template } } : {}),
+      leadId: input.lead_id,
+      brandId: input.brand_id,
+      body: input.body,
+      template: input.template,
     })
-    revalidatePath(`/leads/${input.lead_id}`)
-    if (insErr) {
-      // El WhatsApp SÍ se envió; solo no quedó en el hilo. Avisar para que el
-      // vendedor no lo reenvíe (mismo criterio que sendSms).
-      console.error("[sendWhatsApp] registro:", insErr.message)
-      return { ok: true, warning: "El WhatsApp se envió, pero no se pudo registrar en el hilo (no lo reenvíes)." }
-    }
-    return { ok: true }
+    if (r.ok) revalidatePath(`/leads/${input.lead_id}`)
+    return r
   } catch (e) {
     if (e instanceof z.ZodError) {
       return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
@@ -1676,6 +1471,7 @@ export async function sendWhatsApp(
     return { ok: false, error: e instanceof Error ? e.message : "Error al enviar el WhatsApp" }
   }
 }
+
 
 // ── Llamar al paciente con el bot de voz (Retell, outbound) ──────────────────
 

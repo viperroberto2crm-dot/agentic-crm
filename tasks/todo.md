@@ -34,16 +34,16 @@ Decisión de número (Roberto, 2026-08-25): el WhatsApp del CRM **no** es el
 
 ## FASE 2 — Registro + adaptadores
 
-- [ ] 10. `src/lib/channels/types.ts` — contrato `ChannelAdapter`
+- [x] 10. `src/lib/channels/types.ts` — contrato `ChannelAdapter`
       (`verifyWebhook`, `parseInbound`, `send`, `capabilities`).
-- [ ] 11. `registry.ts` + `adapters/twilio-sms.ts` + `adapters/whatsapp-cloud.ts`
+- [x] 11. `registry.ts` + `adapters/twilio-sms.ts` + `adapters/whatsapp-cloud.ts`
       (mover la lógica que hoy vive suelta en las rutas).
-- [ ] 12. `api/webhooks/[channel]/route.ts` — UNA ruta que despacha.
+- [x] 12. `api/webhooks/[channel]/route.ts` — UNA ruta que despacha.
       **Las rutas viejas se quedan** delegando: `/api/webhooks/twilio` y
       `/api/webhooks/whatsapp` YA están registradas con Twilio y Meta; romper
       esas URLs tira los canales en vivo.
-- [ ] 13. `sendSms`/`sendWhatsApp` pasan a una sola `sendMessage(channel, …)`.
-- [ ] 14. `tsc` + build + volver a probar los dos canales vivos.
+- [x] 13. `sendSms`/`sendWhatsApp` pasan a una sola `sendMessage(channel, …)`.
+- [x] 14. `tsc` + build + volver a probar los dos canales vivos.
 
 ## Review
 (pendiente)
