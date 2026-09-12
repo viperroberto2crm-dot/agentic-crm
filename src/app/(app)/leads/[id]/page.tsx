@@ -48,10 +48,10 @@ export default async function LeadDetailPage({
     fetchLeadById(sb, id),
     sb.from("users").select("role").eq("id", user.id).single(),
     sb.from("calls")
-      .select("id, called_at, direction, outcome, duration_seconds, notes, source")
+      .select("id, called_at, direction, outcome, duration_seconds, notes, ai_summary, source")
       .eq("lead_id", id).order("called_at", { ascending: false }).limit(50),
     sb.from("appointments")
-      .select("id, scheduled_at, type, status, service")
+      .select("id, scheduled_at, type, status, service, notes")
       .eq("lead_id", id).order("scheduled_at", { ascending: false }).limit(20),
     sb.from("sales")
       .select("id, created_at, paid_at, amount_cents, payment_status, payment_method")
@@ -150,7 +150,7 @@ export default async function LeadDetailPage({
     id: string; called_at: string
     direction: Database["public"]["Enums"]["call_direction"]
     outcome: Database["public"]["Enums"]["call_outcome"] | null
-    duration_seconds: number | null; notes: string | null; source: string
+    duration_seconds: number | null; notes: string | null; ai_summary: string | null; source: string
   }>
 
   const appointments = (apptsRes.data ?? []) as Array<{
@@ -158,6 +158,7 @@ export default async function LeadDetailPage({
     type: Database["public"]["Enums"]["appointment_type"]
     status: Database["public"]["Enums"]["appointment_status"]
     service: string | null
+    notes: string | null
   }>
 
   const sales = (salesRes.data ?? []) as Array<{

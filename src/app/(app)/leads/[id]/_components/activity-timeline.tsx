@@ -28,6 +28,8 @@ type CallRow = {
   outcome: Database["public"]["Enums"]["call_outcome"] | null
   duration_seconds: number | null
   notes: string | null
+  /** Resumen que Retell genera al terminar la llamada (evento call_analyzed). */
+  ai_summary: string | null
   source: string
 }
 
@@ -37,6 +39,7 @@ type ApptRow = {
   type: Database["public"]["Enums"]["appointment_type"]
   status: Database["public"]["Enums"]["appointment_status"]
   service: string | null
+  notes: string | null
 }
 
 type SaleRow = {
@@ -146,6 +149,9 @@ export async function ActivityTimeline({
                   )}
                 </div>
                 {c.notes && <p className="text-xs text-gray-400 mt-0.5">{c.notes}</p>}
+                {c.ai_summary && c.ai_summary !== c.notes && (
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">{c.ai_summary}</p>
+                )}
                 <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(c.called_at)}</p>
               </div>
             </div>
@@ -169,6 +175,7 @@ export async function ActivityTimeline({
                   </span>
                 </div>
                 {a.service && <p className="text-xs text-gray-400 mt-0.5">{a.service}</p>}
+                {a.notes && <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{a.notes}</p>}
                 <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(a.scheduled_at)}</p>
               </div>
               {leadId && leadAddress && (

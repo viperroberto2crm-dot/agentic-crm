@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { timingSafeEqual } from "crypto"
-import { recordCallFromWebhook } from "@/lib/voice/core"
+import { recordCallFromWebhook, saveCallAnalysis } from "@/lib/voice/core"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -29,8 +29,9 @@ export async function POST(req: Request) {
   let body: any = {}
   try { body = await req.json() } catch { /* vacío */ }
 
-  // Solo actuar al terminar la llamada. call_started/call_analyzed se ignoran.
-  if (body?.event !== "call_ended") {
+  // Nos interesan dos eventos: call_ended (respaldo del registro) y call_analyzed
+  // (el resumen que Retell genera DESPUES de colgar). call_started se ignora.
+  if (body?.event !== "call_ended" && body?.event !== "call_analyzed") {
     return NextResponse.json({ ok: true, skipped: true })
   }
 
@@ -39,6 +40,21 @@ export async function POST(req: Request) {
   // llamada. Default = Si Se Pierde (lo resuelve brandId).
   const brand =
     new URL(req.url).searchParams.get("brand") ?? call?.metadata?.brand ?? undefined
+
+  if (body.event === "call_analyzed") {
+    const a = await saveCallAnalysis({
+      from_number: call.from_number,
+      to_number: call.to_number,
+      direction: call.direction,
+      summary: call?.call_analysis?.call_summary,
+      transcript: call.transcript,
+      recording_url: call.recording_url,
+      metadata: call.metadata ?? null,
+      brand: typeof brand === "string" ? brand : undefined,
+    })
+    // Siempre 200: si falla, Retell no debe reintentar en bucle.
+    return NextResponse.json(a)
+  }
 
   const r = await recordCallFromWebhook({
     from_number: call.from_number,

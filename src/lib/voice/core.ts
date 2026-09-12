@@ -417,3 +417,101 @@ export async function logCall(input: {
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
+// ── 5) Resumen post-llamada de Retell (evento call_analyzed) ─────────────────
+/**
+ * Retell manda el resumen de la llamada DESPUES de colgar, en el evento
+ * `call_analyzed` (no en `call_ended`). Antes lo tirabamos. Aqui lo guardamos en
+ * `calls.ai_summary` de la llamada que ya se registro, y lo agregamos al campo
+ * `notes` del lead para que se vea de entrada en la ficha.
+ */
+export async function saveCallAnalysis(input: {
+  from_number?: string
+  to_number?: string
+  direction?: string
+  summary?: string
+  transcript?: string
+  recording_url?: string
+  metadata?: { lead_id?: string; brand_id?: string } | null
+  brand?: string
+}): Promise<{ ok: true; call_updated: boolean; lead_noted: boolean } | { ok: false; error: string }> {
+  const sb = admin()
+  const summary = input.summary?.trim()
+  if (!summary) return { ok: false, error: "Sin resumen" }
+
+  const bId = await brandId(sb, input.brand)
+  if (!bId) return { ok: false, error: "Marca no encontrada" }
+
+  const dir: "inbound" | "outbound" = input.direction === "outbound" ? "outbound" : "inbound"
+  const patientRaw = dir === "outbound" ? input.to_number : input.from_number
+  const phone = patientRaw ? normalizeToE164(patientRaw) || null : null
+
+  // 1) Ubicar el lead (por metadata o por telefono).
+  let leadId = input.metadata?.lead_id ?? null
+  if (!leadId && phone) {
+    const { data } = await sb
+      .from("leads").select("id").eq("brand_id", bId)
+      .or(`phone.eq.${phone},phone_alt.eq.${phone}`).limit(1).maybeSingle()
+    leadId = (data as { id: string } | null)?.id ?? null
+  }
+  if (!leadId) return { ok: false, error: "Lead no encontrado" }
+
+  // 2) La llamada ya registrada (por el bot o por el webhook de call_ended).
+  //    Ventana de 6 h: el analisis llega segundos despues, nunca al dia siguiente.
+  const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rows } = await (sb as any)
+    .from("calls").select("id, ai_summary, transcript_text, recording_url")
+    .eq("lead_id", leadId).gte("called_at", since)
+    .order("called_at", { ascending: false }).limit(1)
+  const row = (rows ?? [])[0] as
+    { id: string; ai_summary: string | null; transcript_text: string | null; recording_url: string | null } | undefined
+
+  const rec =
+    typeof input.recording_url === "string" && input.recording_url.startsWith("https://")
+      ? input.recording_url
+      : null
+
+  let callUpdated = false
+  if (row) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const patch: any = { ai_summary: summary }
+    if (input.transcript && !row.transcript_text) patch.transcript_text = input.transcript
+    if (rec && !row.recording_url) patch.recording_url = rec
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb as any).from("calls").update(patch).eq("id", row.id)
+    if (error) return { ok: false, error: error.message }
+    callUpdated = true
+  } else {
+    // No hubo registro (colgo antes de que el bot llamara a registrar_llamada):
+    // dejamos la llamada con el resumen para no perderla.
+    const r = await logCall({
+      phone: phone ?? undefined,
+      lead_id: leadId,
+      direction: dir,
+      summary,
+      transcript: input.transcript,
+      recording_url: input.recording_url,
+      brand: input.brand,
+    })
+    if (!r.ok) return { ok: false, error: r.error }
+  }
+
+  const leadNoted = await appendLeadNote(sb, leadId, summary)
+  return { ok: true, call_updated: callUpdated, lead_noted: leadNoted }
+}
+
+/**
+ * Agrega una linea al campo `notes` del lead SIN borrar lo que ya haya escrito
+ * una persona. Si el mismo texto ya esta, no lo repite (Retell puede reenviar el
+ * webhook).
+ */
+async function appendLeadNote(sb: Admin, leadId: string, text: string): Promise<boolean> {
+  const { data } = await sb.from("leads").select("notes").eq("id", leadId).maybeSingle()
+  const prev = ((data as { notes: string | null } | null)?.notes ?? "").trim()
+  if (prev.includes(text)) return false
+  const stamp = pacificToday().iso
+  const linea = `[${stamp}] Bot: ${text}`
+  const next = [prev, linea].filter(Boolean).join("\n\n")
+  const { error } = await sb.from("leads").update({ notes: next }).eq("id", leadId)
+  return !error
+}
