@@ -206,6 +206,74 @@ export async function bookAppointment(input: {
   return { ok: true, when: when.toISOString() }
 }
 
+// ── 2b) Cancelar cita ────────────────────────────────────────────────────────
+// Se usa cuando el paciente pide cancelar, y al REAGENDAR: `bookAppointment`
+// siempre crea una cita nueva (no mueve la anterior), así que el bot cancela la
+// vieja antes de agendar la nueva; si no, quedan dos citas vivas.
+// Solo toca citas activas (scheduled/confirmed) y futuras del lead en su marca.
+// Si hay varias y el bot no dice cuál, NO cancela ninguna: nunca adivina.
+function pacificWhen(iso: string): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Los_Angeles", weekday: "long", day: "numeric", month: "long",
+    hour: "numeric", minute: "2-digit",
+  }).format(new Date(iso))
+}
+
+export async function cancelAppointment(input: {
+  lead_id: string
+  when_iso?: string
+  reason?: string
+  brand?: string
+}): Promise<{ ok: true; cancelled: string[] } | { ok: false; error: string }> {
+  const sb = admin()
+  const bId = await brandId(sb, input.brand)
+  if (!bId) return { ok: false, error: "Marca no encontrada" }
+  if (!input.lead_id) return { ok: false, error: "Falta lead_id: primero llama buscar_o_crear_paciente" }
+
+  const { data: lead } = await sb
+    .from("leads").select("id, brand_id").eq("id", input.lead_id).maybeSingle()
+  const l = lead as { id: string; brand_id: string } | null
+  if (!l || l.brand_id !== bId) return { ok: false, error: "Paciente no válido para esta marca" }
+
+  // Margen de 1 h hacia atrás: una cita de hace un rato todavía se puede cancelar.
+  const { data: appts, error: qErr } = await sb
+    .from("appointments")
+    .select("id, scheduled_at, notes")
+    .eq("lead_id", l.id)
+    .eq("brand_id", bId)
+    .in("status", ["scheduled", "confirmed"])
+    .gte("scheduled_at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
+    .order("scheduled_at", { ascending: true })
+  if (qErr) return { ok: false, error: qErr.message }
+  let rows = (appts ?? []) as { id: string; scheduled_at: string; notes: string | null }[]
+  if (rows.length === 0) return { ok: false, error: "Este paciente no tiene citas activas por cancelar." }
+  const list = rows.map((r) => pacificWhen(r.scheduled_at)).join(" · ")
+
+  if (input.when_iso) {
+    const target = new Date(input.when_iso).getTime()
+    if (isNaN(target)) return { ok: false, error: "Fecha/hora inválida" }
+    const gap = (r: { scheduled_at: string }) => Math.abs(new Date(r.scheduled_at).getTime() - target)
+    const best = rows.reduce((a, b) => (gap(b) < gap(a) ? b : a))
+    // Tolerancia de 2 h: el bot a veces redondea la hora.
+    if (gap(best) > 2 * 60 * 60 * 1000) {
+      return { ok: false, error: `No hay una cita a esa hora. Citas activas: ${list}. Confirma con el paciente cuál cancelar.` }
+    }
+    rows = [best]
+  } else if (rows.length > 1) {
+    return { ok: false, error: `El paciente tiene ${rows.length} citas activas: ${list}. Pregúntale cuál quiere cancelar y manda when_iso.` }
+  }
+
+  const stamp = `[Bot] Cancelada por el asistente de voz${input.reason ? `: ${input.reason}` : ""}`
+  for (const r of rows) {
+    const { error } = await sb
+      .from("appointments")
+      .update({ status: "cancelled", notes: r.notes ? `${r.notes}\n${stamp}` : stamp })
+      .eq("id", r.id)
+    if (error) return { ok: false, error: error.message }
+  }
+  return { ok: true, cancelled: rows.map((r) => pacificWhen(r.scheduled_at)) }
+}
+
 // ── 3) Generar link de pago y mandarlo por SMS ───────────────────────────────
 export async function sendPaymentLink(input: {
   lead_id: string
