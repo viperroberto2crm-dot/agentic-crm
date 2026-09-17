@@ -50,26 +50,26 @@ botón humano de llamar **sin cambios, pero con bitácora** · `callback_at` + c
   lee `metadata.brand` como slug y cae al default "si-se-pierde".
 
 ### Pasos
-- [ ] 1. **SQL aditivo** (no despliega nada, desbloquea el resto): bitácora de
+- [x] 1. **SQL aditivo** (no despliega nada, desbloquea el resto): bitácora de
       consentimiento append-only, estado de conversación + candado, 
       `brands.whatsapp_bot_enabled`, `messages.bot_state`, `leads.ad_ref`.
       Incluye correr el SQL pendiente de agosto (`2026-08-25-whatsapp.sql`).
-- [ ] 2. **Refactor `send.ts`**: núcleo compartido con los guards de paciente,
+- [x] 2. **Refactor `send.ts`**: núcleo compartido con los guards de paciente,
       **recibiendo el cliente de Supabase como parámetro** (la entrada humana pasa
       el de sesión y conserva la RLS de `leads`; la de sistema pasa admin).
       Variante de sistema solo para WhatsApp y con `template` prohibido.
-- [ ] 3. **Refactor de la llamada** dentro de `src/lib/voice/core.ts` (ya tiene
+- [x] 3. **Refactor de la llamada** dentro de `src/lib/voice/core.ts` (ya tiene
       `pacificToday()`; no duplicarlo). DOS entradas explícitas, sin booleano
       `requireConsent`. Arregla de paso `metadata.brand` (slug) para Retell.
       La humana registra quién disparó y que no había consentimiento.
-- [ ] 4. **El bot** (Sonnet): candado por conversación + debounce (5 mensajes
+- [x] 4. **El bot** (Sonnet): candado por conversación + debounce (5 mensajes
       seguidos = 1 sola respuesta), tope de turnos, gate `+1` y horario 8am-9pm
       Pacific, aviso de asistente automatizado, nada de dosis/diagnóstico/promesas.
-- [ ] 5. **Consentimiento + disparo**: texto FIJO en código (no lo escribe Claude)
+- [x] 5. **Consentimiento + disparo**: texto FIJO en código (no lo escribe Claude)
       con la divulgación de TCPA; la bitácora guarda el wamid de la pregunta Y el
       de la respuesta. Segundo claim atómico antes de llamar a Retell (no tiene
       idempotency key). `after()` + `maxDuration = 60` en la ruta del webhook.
-- [ ] 6. **Verificación**: tsc, build, fail-closed en producción (503 vs 403),
+- [x] 6. **Verificación**: tsc, build, fail-closed en producción (503 vs 403),
       prueba end-to-end, y comprobar que sin el "sí" NO se dispara nada.
 
 ### Recortado de Fase 1 (con motivo)
@@ -98,4 +98,49 @@ botón humano de llamar **sin cambios, pero con bitácora** · `callback_at` + c
 - [ ] [CONFIRMAR] Qué puede prometer Valeria del GLP-1 (precio, proceso, nada de resultados).
 
 ## Review
-(pendiente — se llena al terminar)
+
+**Fase 1 escrita y desplegada** — commit `031d6b4` en `master`. Todo apagado por
+default: el gancho exige `WHATSAPP_BOT_ENABLED=true` en env **Y**
+`brands.whatsapp_bot_mode != 'off'` en la base. Sin las dos, no corre nada.
+
+### Lo que la auditoría de Fable cambió (verificado por mí, no por su palabra)
+- **El bot no habría podido contestar ni el primer mensaje.** La ventana de 24h
+  se mide con `lastInboundAt(leadId)` y el entrante de un no-paciente se guarda
+  con `lead_id = null`. Se resolvió reenganchando los mensajes al crear el lead.
+- **Fuga entre marcas, ya viva.** `storeInbound` prefiere la marca del lead sobre
+  la del número receptor. El bot ahora usa SIEMPRE la del `phone_number_id` y
+  re-atribuye los mensajes que toma.
+- **Un webhook para todos los números.** Un flag global habría prendido el bot en
+  el +1 562, que lo contesta una persona. El interruptor quedó por marca y en la
+  BASE, para poder apagarlo sin redeploy.
+- **El "refactor puro" no era puro.** El camino humano lee `leads` con el cliente
+  de SESIÓN, así que la RLS es una capa extra. El núcleo recibe el cliente como
+  parámetro para no quitarla en silencio.
+- **Bug vivo arreglado de paso:** se mandaba `metadata.brand_id` a Retell, pero
+  su webhook lee `metadata.brand` como slug y caía al default "si-se-pierde".
+
+### Premisa corregida (verificada en la doc de Meta)
+Desde 2025-07-01 Meta cobra por mensaje, PERO los no-plantilla dentro de la
+ventana abierta son **gratis** y un anuncio CTWA abre ventana gratuita de **72h**.
+El bot no cuesta WhatsApp: cuesta Claude. Por eso el techo de turnos y el gate
+por marca no son opcionales.
+
+### Verificación hecha
+- `tsc --noEmit` y `npm run build` en 0. Lint sin hallazgos en los archivos nuevos.
+- En PRODUCCIÓN, fail-closed intacto: WhatsApp `503 not configured`, Twilio
+  `403 invalid signature`, canal inexistente `404`, `/mensajes` redirige.
+
+### LO QUE NO ESTÁ PROBADO — decirlo claro
+**Ni una sola línea del bot se ha ejecutado.** No hay número, ni credenciales, ni
+SQL corrido. Compila y despliega, pero la primera vez que corra de verdad será la
+prueba con tu celular en modo `allowlist`. Hasta entonces esto es código escrito,
+no código probado.
+
+### Falta (manual, en este orden)
+1. Correr `docs/sql/2026-08-25-whatsapp.sql` (el de agosto) y luego
+   `docs/sql/2026-09-17-whatsapp-bot-valeria.sql`.
+2. Que Horizon apruebe el texto de `CONSENT_PROMPT` en
+   `src/lib/bot/whatsapp-agent.ts`. Está marcado [CONFIRMAR].
+3. Número nuevo en Meta + los 5 campos en Configuración → Integraciones.
+4. `WHATSAPP_BOT_ENABLED=true` en Vercel y la marca en modo `shadow` primero,
+   luego `allowlist` con tu celular, y solo después `on`.
