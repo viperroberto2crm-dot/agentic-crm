@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { emitSalePaid } from "@/lib/alerts/emit"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -289,6 +290,18 @@ export async function POST(request: Request) {
       if (error) {
         console.error("[square webhook] pago upsert:", error.message)
         return NextResponse.json({ error: "db error" }, { status: 500 })
+      }
+      // Aviso al equipo, SOLO cuando el pago ya está completado. Square manda
+      // `payment.created` en PENDING y luego varios `payment.updated`.
+      if (row.status === "completed") {
+        await emitSalePaid({
+          provider: "square",
+          externalId: payment.id,
+          brandId: row.brand_id,
+          amountCents: row.amount_cents,
+          currency: row.currency,
+          customerName: row.customer_name,
+        })
       }
       // Enriquecer el paciente de PB del lead PRE-EXISTENTE (caso Leslie) con
       // dirección + detalle del pago. Gate PB_ENRICH_RECORDS. No bloqueante.

@@ -947,6 +947,7 @@
       "clickToDeactivate": "Click para desactivar"
     },
     "tabIntegraciones": "Integraciones",
+    "tabAlertas": "Alertas",
     "integrations": {
       "subtitle": "Conecta y revisa el estado de los servicios externos del CRM. El estado se calcula por la configuración presente; usa \"Probar\" para verificar en vivo.",
       "stConnected": "Conectado",

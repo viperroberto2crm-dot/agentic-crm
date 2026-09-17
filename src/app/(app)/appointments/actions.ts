@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { z } from "zod"
 import { assertNotProvider, getCurrentRole } from "@/lib/auth/role-guards"
+import { emitCrmEvent, pacificStamp } from "@/lib/alerts/emit"
 
 async function typedClient(): Promise<SupabaseClient<Database>> {
   return (await createClient()) as unknown as SupabaseClient<Database>
@@ -93,7 +94,7 @@ export async function createAppointment(raw: CreateAppointmentInput) {
   const effectiveProviderId =
     role === "admin" || role === "manager" ? input.provider_id ?? null : null
 
-  const { error } = await supabase.from("appointments").insert({
+  const { data: createdAppt, error } = await supabase.from("appointments").insert({
     brand_id: input.brand_id,
     lead_id: input.lead_id,
     rep_id: effectiveRepId,
@@ -111,8 +112,8 @@ export async function createAppointment(raw: CreateAppointmentInput) {
     state: isHome ? input.state : null,
     zip: isHome ? input.zip : null,
     telehealth_link: isTele ? input.telehealth_link : null,
-  })
-  if (error) throw new Error(error.message)
+  }).select("id").single()
+  if (error || !createdAppt) throw new Error(error?.message ?? "No se pudo crear la cita")
 
   // Auto-mover el lead status de new/contacted/qualified → appointment_set.
   // NO tocar si está en sold/lost/on_hold/not_interested/appointment_set.
@@ -120,7 +121,7 @@ export async function createAppointment(raw: CreateAppointmentInput) {
   // queda en "new" aunque ya tenga cita agendada (visualmente confunde).
   const { data: leadRow } = await supabase
     .from("leads")
-    .select("status")
+    .select("status, first_name, last_name, phone")
     .eq("id", input.lead_id)
     .maybeSingle()
   if (leadRow?.status && (["new", "contacted", "qualified"] as const).includes(leadRow.status as "new" | "contacted" | "qualified")) {
@@ -129,6 +130,19 @@ export async function createAppointment(raw: CreateAppointmentInput) {
       .update({ status: "appointment_set" })
       .eq("id", input.lead_id)
   }
+
+  // Aviso al equipo (dedupe por id de cita: el mismo que usa el bot de voz).
+  await emitCrmEvent({
+    event: "appointment_set",
+    brandId: input.brand_id,
+    dedupeKey: `appt:${createdAppt.id}`,
+    subject: "Nueva cita agendada",
+    body: [
+      `${[leadRow?.first_name, leadRow?.last_name].filter(Boolean).join(" ") || "Paciente"} · ${pacificStamp(input.scheduled_at)}`,
+      `Tel: ${leadRow?.phone ?? "sin teléfono"}`,
+      "Agendada desde el CRM.",
+    ].join("\n"),
+  })
 
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
@@ -149,11 +163,13 @@ export async function updateAppointmentStatus(
 
   const { data: appt } = await supabase
     .from("appointments")
-    .select("lead_id")
+    .select("lead_id, brand_id, scheduled_at")
     .eq("id", id)
     .maybeSingle()
 
   const base = supabase.from("appointments").update({ status }).eq("id", id)
+  // Aquí cae el "cancelar" hecho a mano desde el CRM (no pasa por
+  // updateAppointment), así que el aviso de cancelación tiene que salir de aquí.
   // Provider está en provider_id (separado de rep_id desde commit 779a819).
   // Filtrar por el campo correcto para no recibir 0 rows silenciosamente.
   const { error } =
@@ -163,6 +179,28 @@ export async function updateAppointmentStatus(
         ? await base.eq("provider_id", user.id)
         : await base
   if (error) throw new Error(error.message)
+
+  if (status === "cancelled" && appt?.lead_id) {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("first_name, last_name, phone")
+      .eq("id", appt.lead_id)
+      .maybeSingle()
+    // Mismo dedupe que el bot (`cancel:<id de cita>`): si el bot ya canceló y
+    // además alguien la marca a mano, sale un solo correo.
+    await emitCrmEvent({
+      event: "appointment_cancelled",
+      brandId: appt.brand_id,
+      dedupeKey: `cancel:${id}`,
+      subject: "Cita cancelada",
+      body: [
+        `${[lead?.first_name, lead?.last_name].filter(Boolean).join(" ") || "Paciente"} · ${pacificStamp(appt.scheduled_at)}`,
+        `Tel: ${lead?.phone ?? "sin teléfono"}`,
+        "Cancelada desde el CRM.",
+      ].join("\n"),
+    })
+  }
+
   revalidatePath("/appointments")
   revalidatePath("/dashboard")
   if (appt?.lead_id) revalidatePath(`/leads/${appt.lead_id}`)

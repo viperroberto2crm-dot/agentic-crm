@@ -24,6 +24,7 @@ import {
 import { PbServiceMapTab } from "./_components/pb-service-map-tab"
 import type { ServiceMapRow } from "./_actions/pb-service-map-actions"
 import { IntegracionesTab } from "./_components/integraciones-tab"
+import { AlertsTab, type AlertRecipientRow } from "./_components/alerts-tab"
 import { getIntegrationStatuses } from "@/lib/integrations/health"
 import { getTranslations } from "next-intl/server"
 
@@ -66,6 +67,7 @@ export default async function SettingsPage({
   if (role !== "admin" && tab === "ofertas") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "servicios-pb") redirect("/settings?tab=perfil")
   if (role !== "admin" && tab === "integraciones") redirect("/settings?tab=perfil")
+  if (role !== "admin" && role !== "manager" && tab === "alertas") redirect("/settings?tab=perfil")
 
   // Estado de integraciones (presencia de config: DB cifrada + fallback env).
   const integrationStatuses = role === "admin" ? await getIntegrationStatuses() : null
@@ -158,6 +160,26 @@ export default async function SettingsPage({
     }
   }
 
+  // ── Destinatarios de alertas (admin/manager) ───────────────────────────────
+  // alert_recipients es tabla nueva y no está en Database types → cast puntual.
+  let alertRecipients: AlertRecipientRow[] = []
+  if (role === "admin" || role === "manager") {
+    try {
+      const admin = createAdminClient()
+      const arRes = await (admin
+        .from("alert_recipients" as never)
+        .select("id, label, channel, email, phone, brand_ids, events, active")
+        .order("created_at", { ascending: true }) as unknown as Promise<{
+          data: AlertRecipientRow[] | null
+          error: { message: string } | null
+        }>)
+      if (arRes.error) console.error("[settings] alert_recipients query error:", arRes.error.message)
+      alertRecipients = (arRes.data ?? []) as AlertRecipientRow[]
+    } catch (e) {
+      console.error("[settings] alert_recipients fetch threw:", e)
+    }
+  }
+
   // ── Offer → brand map (admin) ───────────────────────────────────────────────
   let offerMaps: OfferMapRow[] = []
   let offerBrands: BrandOption[] = []
@@ -236,6 +258,7 @@ export default async function SettingsPage({
         { value: "ofertas", label: t("tabOfertas") },
         { value: "servicios-pb", label: t("tabServiciosPb") },
         { value: "integraciones", label: t("tabIntegraciones") },
+        { value: "alertas", label: t("tabAlertas") },
         { value: "usuarios", label: t("tabUsuarios") },
       ]
     : []
@@ -322,6 +345,12 @@ export default async function SettingsPage({
         )}
         {tab === "servicios-pb" && role === "admin" && (
           <PbServiceMapTab serviceMaps={serviceMaps} />
+        )}
+        {tab === "alertas" && (role === "admin" || role === "manager") && (
+          <AlertsTab
+            recipients={alertRecipients}
+            brands={(allBrands ?? []).map((b) => ({ id: b.id, name: b.name }))}
+          />
         )}
         {tab === "integraciones" && role === "admin" && integrationStatuses && (
           <IntegracionesTab statuses={integrationStatuses} />

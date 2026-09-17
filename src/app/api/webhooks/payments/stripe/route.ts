@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { emitSalePaid } from "@/lib/alerts/emit"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -254,6 +255,16 @@ export async function POST(request: Request) {
         console.error("[stripe webhook] checkout upsert:", error)
         return NextResponse.json({ error: "db error" }, { status: 500 })
       }
+      if (row.status === "completed") {
+        await emitSalePaid({
+          provider: "stripe",
+          externalId: s.id,
+          brandId: row.brand_id,
+          amountCents: row.amount_cents,
+          currency: row.currency,
+          customerName: row.customer_name,
+        })
+      }
       return NextResponse.json({ ok: true, kind: "checkout", linked: Boolean(match) })
     }
 
@@ -319,6 +330,14 @@ export async function POST(request: Request) {
         console.error("[stripe webhook] invoice upsert:", error)
         return NextResponse.json({ error: "db error" }, { status: 500 })
       }
+      await emitSalePaid({
+        provider: "stripe",
+        externalId: inv.id,
+        brandId: row.brand_id,
+        amountCents: row.amount_cents,
+        currency: row.currency,
+        customerName: row.customer_name,
+      })
       return NextResponse.json({ ok: true, kind: "invoice", linked: Boolean(match) })
     }
 

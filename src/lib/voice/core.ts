@@ -9,6 +9,7 @@ import { createSquarePaymentLinkForLead } from "@/lib/integrations/square-checko
 import { sendTwilioSms } from "@/lib/integrations/twilio"
 import { getConnectionSecret } from "@/lib/integrations/connections"
 import { resolveBrandTwilioFrom } from "@/lib/integrations/brand-numbers"
+import { emitCrmEvent, pacificStamp } from "@/lib/alerts/emit"
 
 /**
  * Herramientas que el bot de voz (Retell) llama a media llamada, service-to-service
@@ -150,7 +151,21 @@ export async function getOrCreatePatient(input: {
     .select("id")
     .single()
   if (error || !created) return { ok: false, error: error?.message ?? "No se pudo crear el paciente" }
-  return { ok: true, lead_id: (created as { id: string }).id, name: `${first} ${last ?? ""}`.trim(), is_new: true, today: t.human, today_iso: t.iso }
+  const newLeadId = (created as { id: string }).id
+  // Lead nuevo por llamada (uno a uno). Las importaciones masivas NO pasan por
+  // aquí, así que esto no puede convertirse en una avalancha de correos.
+  await emitCrmEvent({
+    event: "new_lead",
+    brandId: bId,
+    dedupeKey: `lead:${newLeadId}`,
+    subject: "Paciente nuevo por teléfono",
+    body: [
+      `${`${first} ${last ?? ""}`.trim() || "Paciente"}`,
+      `Tel: ${phone}`,
+      "Creado por el asistente de voz. Todavía sin cita.",
+    ].join("\n"),
+  })
+  return { ok: true, lead_id: newLeadId, name: `${first} ${last ?? ""}`.trim(), is_new: true, today: t.human, today_iso: t.iso }
 }
 
 // ── 2) Agendar cita ──────────────────────────────────────────────────────────
@@ -179,14 +194,17 @@ export async function bookAppointment(input: {
   }
 
   const { data: lead } = await sb
-    .from("leads").select("id, brand_id, status, assigned_rep_id").eq("id", input.lead_id).maybeSingle()
-  const l = lead as { id: string; brand_id: string; status: string; assigned_rep_id: string | null } | null
+    .from("leads").select("id, brand_id, status, assigned_rep_id, first_name, last_name, phone").eq("id", input.lead_id).maybeSingle()
+  const l = lead as {
+    id: string; brand_id: string; status: string; assigned_rep_id: string | null
+    first_name: string | null; last_name: string | null; phone: string | null
+  } | null
   if (!l || l.brand_id !== bId) return { ok: false, error: "Paciente no válido para esta marca" }
 
   const repId = await serviceUserId(sb, bId, l.assigned_rep_id)
   if (!repId) return { ok: false, error: "No hay usuario para asignar la cita" }
 
-  const { error } = await sb.from("appointments").insert({
+  const { data: appt, error } = await sb.from("appointments").insert({
     brand_id: bId,
     lead_id: l.id,
     rep_id: repId,
@@ -196,13 +214,27 @@ export async function bookAppointment(input: {
     duration_minutes: 30,
     service: input.service ?? null,
     notes: input.notes ? `[Bot] ${input.notes}` : "[Bot] Cita agendada por el asistente de voz",
-  })
-  if (error) return { ok: false, error: error.message }
+  }).select("id").single()
+  if (error || !appt) return { ok: false, error: error?.message ?? "No se pudo agendar" }
 
   // Avanzar status del lead como lo hace createAppointment.
   if (["new", "contacted", "qualified"].includes(l.status)) {
     await sb.from("leads").update({ status: "appointment_set" }).eq("id", l.id)
   }
+
+  // Aviso al equipo. El dedupe es el id de la cita: si Retell reintenta la
+  // herramienta, el segundo correo no sale.
+  await emitCrmEvent({
+    event: "appointment_set",
+    brandId: bId,
+    dedupeKey: `appt:${(appt as { id: string }).id}`,
+    subject: "Nueva cita agendada",
+    body: [
+      `${[l.first_name, l.last_name].filter(Boolean).join(" ") || "Paciente"} · ${pacificStamp(when.toISOString())}`,
+      `Tel: ${l.phone ?? "sin teléfono"}`,
+      "Agendada por el asistente de voz.",
+    ].join("\n"),
+  })
   return { ok: true, when: when.toISOString() }
 }
 
@@ -231,8 +263,11 @@ export async function cancelAppointment(input: {
   if (!input.lead_id) return { ok: false, error: "Falta lead_id: primero llama buscar_o_crear_paciente" }
 
   const { data: lead } = await sb
-    .from("leads").select("id, brand_id").eq("id", input.lead_id).maybeSingle()
-  const l = lead as { id: string; brand_id: string } | null
+    .from("leads").select("id, brand_id, first_name, last_name, phone").eq("id", input.lead_id).maybeSingle()
+  const l = lead as {
+    id: string; brand_id: string
+    first_name: string | null; last_name: string | null; phone: string | null
+  } | null
   if (!l || l.brand_id !== bId) return { ok: false, error: "Paciente no válido para esta marca" }
 
   // Margen de 1 h hacia atrás: una cita de hace un rato todavía se puede cancelar.
@@ -270,6 +305,19 @@ export async function cancelAppointment(input: {
       .update({ status: "cancelled", notes: r.notes ? `${r.notes}\n${stamp}` : stamp })
       .eq("id", r.id)
     if (error) return { ok: false, error: error.message }
+  }
+  for (const r of rows) {
+    await emitCrmEvent({
+      event: "appointment_cancelled",
+      brandId: bId,
+      dedupeKey: `cancel:${r.id}`,
+      subject: "Cita cancelada",
+      body: [
+        `${[l.first_name, l.last_name].filter(Boolean).join(" ") || "Paciente"} · ${pacificWhen(r.scheduled_at)}`,
+        `Tel: ${l.phone ?? "sin teléfono"}`,
+        `Cancelada por el asistente de voz${input.reason ? `: ${input.reason}` : ""}.`,
+      ].join("\n"),
+    })
   }
   return { ok: true, cancelled: rows.map((r) => pacificWhen(r.scheduled_at)) }
 }

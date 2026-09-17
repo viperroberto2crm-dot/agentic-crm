@@ -947,6 +947,7 @@
       "clickToDeactivate": "Click to deactivate"
     },
     "tabIntegraciones": "Integrations",
+    "tabAlertas": "Alerts",
     "integrations": {
       "subtitle": "Connect and check the status of the CRM’s external services. Status is based on the config present; use \"Test\" to verify live.",
       "stConnected": "Connected",
