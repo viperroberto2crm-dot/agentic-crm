@@ -1,5 +1,5 @@
 import "server-only"
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAdapterByWebhookSlug } from "./registry"
 import type { ChannelAdapter, InboundMessage } from "./types"
@@ -149,6 +149,21 @@ export async function handleChannelPost(request: Request, slug: string): Promise
       const r = await storeInbound(sb, adapter, m)
       // 500 → el proveedor reintenta; el upsert lo hace seguro.
       if (!r.ok) return NextResponse.json({ error: "db error" }, { status: 500 })
+
+      // Trabajo posterior del canal (hoy: el bot de texto de WhatsApp). Va con
+      // `after()` para que NO retrase el ACK: Meta reintenta si tardas, y un
+      // reintento con el bot dentro del camino síncrono lo haría contestar dos
+      // veces. El gancho jamás lanza hacia acá.
+      if (adapter.onInboundStored) {
+        const hook = adapter.onInboundStored.bind(adapter)
+        after(async () => {
+          try {
+            await hook(m)
+          } catch (e) {
+            console.error(`[${adapter.key} webhook] gancho:`, e instanceof Error ? e.message : String(e))
+          }
+        })
+      }
     }
 
     return adapter.ack()

@@ -1,83 +1,101 @@
-# Centro de Canales — 2026-08-25
+# Puente WhatsApp → Valeria: el bot capta, Valeria llama y cierra
 
-Decidido con Roberto: **los dos, bandeja primero**. Canales que entran después:
-Instagram DM, Facebook Messenger, Email.
+Fecha: 2026-09-17 · Repo: proyectosagentic-crm · rama master
 
-Motivo real (hallazgo): hoy la tabla `messages` solo se lee en
-`leads/[id]/page.tsx` filtrando por `lead_id`. **Los mensajes de quien todavía no
-es lead se guardan y NADIE los ve.** Eso es el leak que la bandeja cierra.
+## La idea
+WhatsApp cobra por mensaje y encierra la conversación en 24h. La llamada no tiene
+esos límites y cierra mejor. Entonces WhatsApp solo hace UNA cosa: captar el lead y
+conseguir el **permiso por escrito** para llamar. De ahí, Valeria llama y cierra.
 
-Decisión de número (Roberto, 2026-08-25): el WhatsApp del CRM **no** es el
-+1 562-298-3012 — ese se queda en la app, con la persona que contesta.
+    Anuncio CTWA → bot de WhatsApp (3-4 mensajes: nombre, qué necesita, permiso,
+    horario) → lead en el CRM con el consentimiento guardado → Retell llama con
+    Valeria → Valeria agenda y manda el link de pago → todo queda en la ficha.
 
----
+## Lo que YA existe (esto es lo que hace el puente barato)
+- `startBotCall` en `leads/[id]/actions.ts:1476` → Retell `create-phone-call` con
+  `retell_llm_dynamic_variables` (nombre, lead_id, teléfono, fecha de hoy en hora de California).
+- Valeria ya agenda y manda el link de pago con las herramientas de `/api/voice/*`.
+- El webhook de WhatsApp ya recibe, verifica firma, atribuye marca y guarda en `messages`.
+- El resumen de la llamada ya regresa a la ficha del paciente.
 
-## FASE 1 — Bandeja unificada `/mensajes`
+## DECISIÓN: número nuevo para los anuncios
+Evita Coexistence, Tech Provider, BSP y semanas de trámite. El +1 562-298-3012 se
+queda como está, con su persona. Cero riesgo de que el bot le conteste a un paciente viejo.
 
-- [x] 1. SQL `docs/sql/2026-08-25-bandeja.sql`: `messages.read_at` + índices
-      (`brand_id, created_at`) y (`from_number`). Aditivo.
-- [x] 2. `src/lib/queries/messages.ts` — agrupar mensajes en conversaciones.
-      Conversación = (marca, canal, lead_id ó número). Agrupado en TS sobre una
-      consulta acotada (90 días / 2000 filas) — sin vista nueva, sin RLS nueva.
-      Si el volumen crece, se cambia a un RPC; queda anotado, no silencioso.
-- [x] 3. `/mensajes` — página server, con el mismo scoping por marca que el resto.
-- [x] 4. `_components/inbox.tsx` — lista de conversaciones + hilo + responder,
-      con Realtime. Reusa `sendSms` / `sendWhatsApp` (guards y opt-out intactos).
-- [x] 5. Conversaciones SIN lead: botón **"Crear paciente"** (acción nueva) que
-      convierte el número en lead de la marca y engancha el hilo existente.
-      Responder exige lead — así el opt-out y la ventana de 24h siguen aplicando.
-- [x] 6. Marcar leído + badge de no leídos en el sidebar.
-- [x] 7. Bucket **"Sin marca"** solo-admin (mensajes con `brand_id` null, que la
-      RLS deja invisibles). Bypass explícito y guardado, si no se pierden.
-- [x] 8. i18n es/en + item en el sidebar.
-- [x] 9. `tsc` + build + probar en producción.
+## FASE 0 — Manual de Roberto
+- [ ] Número nuevo dado de alta en Meta (Phone Number ID + token de System User + método de pago).
+- [ ] Correr `docs/sql/2026-08-25-whatsapp.sql` en Supabase (pendiente desde agosto).
+- [ ] Configuración → Integraciones → WhatsApp (5 campos) + webhook + suscribir `messages`.
+- [ ] Confirmar `RETELL_API_KEY`, `RETELL_AGENT_ID`, `RETELL_FROM_NUMBER` en Vercel.
+- [ ] Apuntar el anuncio Click-to-WhatsApp al número nuevo.
 
-## FASE 2 — Registro + adaptadores
+## FASE 1 — Código (APROBADO 2026-09-17, tras auditoría de Fable)
 
-- [x] 10. `src/lib/channels/types.ts` — contrato `ChannelAdapter`
-      (`verifyWebhook`, `parseInbound`, `send`, `capabilities`).
-- [x] 11. `registry.ts` + `adapters/twilio-sms.ts` + `adapters/whatsapp-cloud.ts`
-      (mover la lógica que hoy vive suelta en las rutas).
-- [x] 12. `api/webhooks/[channel]/route.ts` — UNA ruta que despacha.
-      **Las rutas viejas se quedan** delegando: `/api/webhooks/twilio` y
-      `/api/webhooks/whatsapp` YA están registradas con Twilio y Meta; romper
-      esas URLs tira los canales en vivo.
-- [x] 13. `sendSms`/`sendWhatsApp` pasan a una sola `sendMessage(channel, …)`.
-- [x] 14. `tsc` + build + volver a probar los dos canales vivos.
+Decisiones: **Sonnet** para el bot (el costo real del bot es Claude, no WhatsApp) ·
+botón humano de llamar **sin cambios, pero con bitácora** · `callback_at` + cron
+**fuera** de Fase 1.
+
+### Correcciones de premisa que salieron de la auditoría (verificadas)
+- Meta cobra por mensaje desde 2025-07-01, PERO los no-plantilla dentro de la
+  ventana abierta son **gratis** (`free_customer_service`), y CTWA abre ventana
+  gratuita de **72h**. El bot no cuesta WhatsApp; cuesta Claude.
+- `checkSendPolicy` mide la ventana con `lastInboundAt(leadId)`, pero el entrante
+  de un no-lead se guarda con `lead_id = null` → al crear el lead hay que
+  REENGANCHAR el mensaje o la ventana lee "cerrada" y el bot no puede contestar.
+- `storeInbound` prefiere la marca del lead sobre la del número receptor
+  (webhook.ts:68-74) → el bot debe usar SIEMPRE la marca del `phone_number_id`.
+- Un solo webhook sirve a TODOS los números de la app de Meta → el interruptor
+  del bot va por marca en la BASE, no en un env var.
+- Bug latente: `startBotCall` manda `metadata.brand_id`, pero el webhook de Retell
+  lee `metadata.brand` como slug y cae al default "si-se-pierde".
+
+### Pasos
+- [ ] 1. **SQL aditivo** (no despliega nada, desbloquea el resto): bitácora de
+      consentimiento append-only, estado de conversación + candado, 
+      `brands.whatsapp_bot_enabled`, `messages.bot_state`, `leads.ad_ref`.
+      Incluye correr el SQL pendiente de agosto (`2026-08-25-whatsapp.sql`).
+- [ ] 2. **Refactor `send.ts`**: núcleo compartido con los guards de paciente,
+      **recibiendo el cliente de Supabase como parámetro** (la entrada humana pasa
+      el de sesión y conserva la RLS de `leads`; la de sistema pasa admin).
+      Variante de sistema solo para WhatsApp y con `template` prohibido.
+- [ ] 3. **Refactor de la llamada** dentro de `src/lib/voice/core.ts` (ya tiene
+      `pacificToday()`; no duplicarlo). DOS entradas explícitas, sin booleano
+      `requireConsent`. Arregla de paso `metadata.brand` (slug) para Retell.
+      La humana registra quién disparó y que no había consentimiento.
+- [ ] 4. **El bot** (Sonnet): candado por conversación + debounce (5 mensajes
+      seguidos = 1 sola respuesta), tope de turnos, gate `+1` y horario 8am-9pm
+      Pacific, aviso de asistente automatizado, nada de dosis/diagnóstico/promesas.
+- [ ] 5. **Consentimiento + disparo**: texto FIJO en código (no lo escribe Claude)
+      con la divulgación de TCPA; la bitácora guarda el wamid de la pregunta Y el
+      de la respuesta. Segundo claim atómico antes de llamar a Retell (no tiene
+      idempotency key). `after()` + `maxDuration = 60` en la ruta del webhook.
+- [ ] 6. **Verificación**: tsc, build, fail-closed en producción (503 vs 403),
+      prueba end-to-end, y comprobar que sin el "sí" NO se dispara nada.
+
+### Recortado de Fase 1 (con motivo)
+- `callback_at` + cron: los crons frecuentes NO corren en Vercel (Hobby = diarios);
+  los dispara **cron-job.org**, externo y sin versionar. En Fase 1 el bot guarda la
+  preferencia de horario y un humano marca.
+- `referral` normalizado: se guarda crudo en `raw` (ya cae ahí) + `leads.ad_ref`.
+
+### [CONFIRMAR] antes de prender el bot
+- El texto exacto de la pregunta de consentimiento (lo redacto, lo aprueba Horizon).
+  Un "¿te podemos llamar?" NO es consentimiento previo por escrito.
+- El número de WhatsApp puede NO ser el celular donde quieren la llamada → el bot
+  debe confirmar "¿a este mismo número?".
+
+## FASE 2 — Verificación
+- [ ] `tsc --noEmit` y `npm run build` en 0.
+- [ ] Webhook sigue fail-closed (503 sin credenciales, 403 con firma mala).
+- [ ] Prueba end-to-end con tu propio celular: escribir por el anuncio → recibir la llamada.
+- [ ] Verificar que sin el "sí" explícito NO se dispara ninguna llamada.
+
+## Legal — hay que resolverlo, no es opcional
+- [ ] [CONFIRMAR con Horizon] Llamada automatizada a celular en EE.UU. (TCPA): necesita
+      consentimiento previo. Por eso el "sí, llámenme" del chat se guarda con fecha y hora.
+- [ ] [CONFIRMAR] California pide avisar que se habla con un asistente automatizado:
+      revisar que Valeria lo diga al inicio.
+- [ ] [CONFIRMAR] Qué puede prometer Valeria del GLP-1 (precio, proceso, nada de resultados).
 
 ## Review
-
-**HECHO y desplegado.** Commits `9fc988c` (bandeja), `c906f29` (canales) + el aviso
-de migracion. Vivo en agentic-crm-sigma.vercel.app.
-
-### Lo que se gano
-Antes: 2 rutas de webhook y 2 acciones de envio con la misma logica copiada.
-Ahora: `lib/channels/` con un contrato, un manejador de entrantes y un camino de
-salida. **Instagram DM / Messenger / Email = 1 archivo en `adapters/` + 1 linea en
-`registry.ts`.** Ni ruta, ni pantalla, ni accion nuevas.
-
-Y la bandeja saca a la luz lo que se perdia: los mensajes de quien todavia no es
-paciente ahora se ven y se pueden convertir en lead de un clic.
-
-### Verificacion en PRODUCCION (no solo build)
-| endpoint | respuesta | que prueba |
-|---|---|---|
-| `POST /api/webhooks/twilio` sin firma | `403 invalid signature` | el canal VIVO sigue leyendo su token y verificando |
-| `POST /api/webhooks/sms` (alias nuevo) | `403 invalid signature` | la ruta dinamica despacha al mismo adaptador |
-| `GET /api/webhooks/sms` | `405` | SMS no usa handshake, y lo dice bien |
-| `GET`/`POST /api/webhooks/whatsapp` | `503 not configured` | fail-closed mientras no haya credenciales |
-| `GET /api/webhooks/telegram` | `404 unknown channel` | no hay canales fantasma |
-
-`tsc --noEmit` exit 0 y `npm run build` exit 0 en cada paso.
-
-### LO QUE NO PUDE PROBAR — decirlo claro
-El camino de **firma VALIDA** de Twilio no se probo en vivo: hacerlo requiere el
-Auth Token, que esta cifrado en la base. Lo que sostiene que sigue bien es que
-`verifyTwilioSignature` y la reconstruccion de la URL firmada se movieron
-**verbatim**, sin tocar una linea. Aun asi, **la prueba definitiva es un SMS real
-al numero de rastreo** — vale la pena mandarse uno y confirmar que aparece.
-
-### Falta correr (manual)
-1. `docs/sql/2026-08-25-bandeja.sql` — sin esto /mensajes avisa que falta y se ve vacia.
-2. `docs/sql/2026-08-25-whatsapp.sql` — sin esto no se puede ENVIAR WhatsApp.
-
+(pendiente — se llena al terminar)

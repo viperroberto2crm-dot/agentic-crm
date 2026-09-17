@@ -35,6 +35,12 @@ export type InboundMessage = {
   status: string
   raw: unknown
   /**
+   * Datos del anuncio del que vino (Click-to-WhatsApp: ctwa_clid, source_id,
+   * headline). Crudo a proposito: normalizarlo no sirve hasta que se quiera
+   * mandar conversiones de vuelta a Meta.
+   */
+  referral?: unknown
+  /**
    * Con qué identificar la marca dueña del endpoint que recibió (número Twilio,
    * phone_number_id de Meta…). null si el proveedor no lo manda.
    */
@@ -111,6 +117,14 @@ export type ChannelAdapter = {
 
   /** Marca dueña del endpoint que recibió el mensaje. */
   resolveBrand: (receiverId: string | null) => Promise<string | null>
+
+  /**
+   * Gancho OPCIONAL que corre DESPUES de guardar un entrante, fuera del camino
+   * del ACK (el manejador lo agenda con `after()`). Es por donde se engancha el
+   * bot de texto sin meterle logica de un canal al manejador generico.
+   * Nunca debe lanzar: una falla aqui no puede tumbar la recepcion.
+   */
+  onInboundStored?: (m: InboundMessage) => Promise<void>
 
   /** Manda el mensaje. Aquí vive TODO lo específico del proveedor. */
   send: (args: SendArgs) => Promise<SendOutcome>

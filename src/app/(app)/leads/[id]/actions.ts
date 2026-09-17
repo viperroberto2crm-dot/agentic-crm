@@ -15,6 +15,7 @@ import { createCheckoutSessionForLead, createStripeCustomCheckout } from "@/lib/
 import { createSquarePaymentLinkForLead, createSquareCustomLink } from "@/lib/integrations/square-checkout"
 import { listWhatsAppTemplates, type WaTemplate } from "@/lib/integrations/whatsapp"
 import { sendChannelMessage } from "@/lib/channels/send"
+import { dispatchOutboundCallByHuman } from "@/lib/voice/outbound"
 import { getConnectionSecret } from "@/lib/integrations/connections"
 import { MissingPbCredentialsError } from "@/lib/integrations/practice-better"
 import { findOrCreatePbRecord } from "@/lib/integrations/pb-dedup"
@@ -1498,60 +1499,17 @@ export async function startBotCall(
       return { ok: false, error: "Sin acceso a esta marca." }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadRaw } = await (sb as any)
-      .from("leads")
-      .select("phone, brand_id, first_name, last_name")
-      .eq("id", input.lead_id)
-      .single()
-    const lead = leadRaw as {
-      phone: string | null; brand_id: string; first_name: string; last_name: string | null
-    } | null
-    if (!lead || lead.brand_id !== input.brand_id) {
-      return { ok: false, error: "El paciente no es válido para esta marca." }
-    }
-    const to = lead.phone
-    if (!to || !to.startsWith("+")) {
-      return { ok: false, error: "El paciente no tiene un teléfono válido (formato +1…)." }
-    }
-
-    const apiKey = process.env.RETELL_API_KEY
-    const agentId = process.env.RETELL_AGENT_ID
-    const from = process.env.RETELL_FROM_NUMBER
-    if (!apiKey || !agentId || !from) {
-      return { ok: false, error: "Falta configurar Retell (RETELL_API_KEY, RETELL_AGENT_ID y RETELL_FROM_NUMBER en Vercel)." }
-    }
-
-    // El LLM no conoce la fecha de hoy → calcula "mañana"/"próximo lunes" mal y
-    // agendar_cita rechaza fechas pasadas. Le pasamos la fecha de HOY en hora de
-    // California para que el guion la use como referencia. (E164 ya validado arriba.)
-    const currentDatePacific = new Intl.DateTimeFormat("es-MX", {
-      timeZone: "America/Los_Angeles",
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    }).format(new Date())
-
-    const res = await fetch("https://api.retellai.com/v2/create-phone-call", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from_number: from,
-        to_number: to,
-        override_agent_id: agentId,
-        retell_llm_dynamic_variables: {
-          patient_name: `${lead.first_name} ${lead.last_name ?? ""}`.trim(),
-          lead_id: input.lead_id,
-          patient_phone: to,
-          current_date: currentDatePacific,
-        },
-        metadata: { lead_id: input.lead_id, brand_id: input.brand_id },
-      }),
+    // El núcleo valida que el lead sea de la marca y que el teléfono sirva, y
+    // deja constancia en `outbound_call_attempts` de quién disparó la llamada y
+    // de si había consentimiento guardado. Conducta idéntica a la de antes: esta
+    // entrada NO exige consentimiento.
+    const r = await dispatchOutboundCallByHuman({
+      sb,
+      leadId: input.lead_id,
+      brandId: input.brand_id,
+      actorUserId: userId,
     })
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "")
-      console.error("[startBotCall] retell:", res.status, txt.slice(0, 200))
-      return { ok: false, error: `No se pudo iniciar la llamada (Retell ${res.status}).` }
-    }
-    return { ok: true }
+    return r.ok ? { ok: true } : r
   } catch (e) {
     if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" }
     return { ok: false, error: e instanceof Error ? e.message : "Error al iniciar la llamada" }

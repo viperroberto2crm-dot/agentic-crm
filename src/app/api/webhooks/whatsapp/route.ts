@@ -13,6 +13,9 @@ import { handleChannelGet, handleChannelPost } from "@/lib/channels/webhook"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+// El trabajo de `after()` (bot de texto: Claude + envio + Retell) corre hasta
+// este tope. Con el default de 10s se cortaria a la mitad.
+export const maxDuration = 60
 
 export async function GET(request: Request) {
   return handleChannelGet(request, "whatsapp")

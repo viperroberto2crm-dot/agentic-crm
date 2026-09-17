@@ -32,6 +32,15 @@ type WaMessage = {
   text?: { body?: string }
   button?: { text?: string }
   interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } }
+  /** Solo en el PRIMER mensaje de un anuncio Click-to-WhatsApp. */
+  referral?: {
+    source_url?: string
+    source_id?: string
+    source_type?: string
+    headline?: string
+    body?: string
+    ctwa_clid?: string
+  }
 }
 
 /**
@@ -189,6 +198,7 @@ export const whatsappCloudAdapter: ChannelAdapter = {
             sentAt: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
             status: "received",
             raw: { message: m, metadata: value.metadata ?? null },
+            ...(m.referral ? { referral: m.referral } : {}),
             receiverId: phoneNumberId,
           })
         }
@@ -203,6 +213,32 @@ export const whatsappCloudAdapter: ChannelAdapter = {
 
   async resolveBrand(receiverId) {
     return receiverId ? resolveBrandByWhatsAppPhoneId(receiverId) : null
+  },
+
+  /**
+   * Bot de texto del puente WhatsApp -> Valeria. Corre FUERA del camino del ACK.
+   *
+   * Dos interruptores en serie, los dos apagados por default:
+   *  - WHATSAPP_BOT_ENABLED en env: llave maestra de todo el sistema.
+   *  - brands.whatsapp_bot_mode en la BASE: por marca, y es el que se usa a
+   *    diario porque se apaga sin redeploy (lo revisa el runner).
+   *
+   * El import es dinamico para romper el ciclo adaptador -> runner -> send ->
+   * registry -> adaptador.
+   */
+  async onInboundStored(m) {
+    if (process.env.WHATSAPP_BOT_ENABLED !== "true") return
+    try {
+      const { handleInboundForBot } = await import("@/lib/bot/runner")
+      await handleInboundForBot({
+        wamid: m.externalId,
+        fromE164: m.fromE164,
+        receiverId: m.receiverId,
+        adRef: m.referral ?? null,
+      })
+    } catch (e) {
+      console.error("[whatsapp] bot:", e instanceof Error ? e.message : String(e))
+    }
   },
 
   async checkSendPolicy({ leadId, template }) {
