@@ -10,6 +10,7 @@ import { sendTwilioSms } from "@/lib/integrations/twilio"
 import { getConnectionSecret } from "@/lib/integrations/connections"
 import { resolveBrandTwilioFrom } from "@/lib/integrations/brand-numbers"
 import { emitCrmEvent, pacificStamp } from "@/lib/alerts/emit"
+import { outsideClinicHours } from "./clinic-hours"
 
 /**
  * Herramientas que el bot de voz (Retell) llama a media llamada, service-to-service
@@ -192,6 +193,10 @@ export async function bookAppointment(input: {
     const t = pacificToday()
     return { ok: false, error: `Esa fecha está demasiado lejos. HOY es ${t.human} (${t.iso}). Confirma el día correcto con el paciente y reintenta.` }
   }
+  // Horario de la clínica: domingo cerrado, sábado hasta las 2. Se rechaza aquí
+  // aunque el prompt ya lo diga, porque el bot puede equivocarse y la base no.
+  const closed = outsideClinicHours((input.brand && input.brand.trim()) || BRAND_SLUG, when)
+  if (closed) return { ok: false, error: closed }
 
   const { data: lead } = await sb
     .from("leads").select("id, brand_id, status, assigned_rep_id, first_name, last_name, phone").eq("id", input.lead_id).maybeSingle()
