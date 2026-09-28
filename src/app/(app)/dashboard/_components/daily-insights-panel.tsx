@@ -80,6 +80,7 @@ export function DailyInsightsPanel({ leads }: Props) {
 
         {open && hasLeads && (
           <div className="mt-3 border-t border-gray-100 pt-3">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
@@ -146,6 +147,7 @@ export function DailyInsightsPanel({ leads }: Props) {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </CardContent>

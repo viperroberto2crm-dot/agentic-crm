@@ -45,7 +45,9 @@ export function AppShell({
 
   return (
     <BrandProvider brands={brands}>
-      <div className="flex h-screen bg-background overflow-hidden md:p-3 md:gap-3">
+      {/* h-dvh: en iPhone h-screen (100vh) mide más que lo visible y esconde el final
+          bajo la barra de Safari. Los px de safe-area cubren el notch en horizontal. */}
+      <div className="flex h-dvh bg-background overflow-hidden md:p-3 md:gap-3 px-[env(safe-area-inset-left)]">
         <AppSidebar
           mobileOpen={mobileOpen}
           onMobileClose={() => setMobileOpen(false)}
@@ -67,7 +69,7 @@ export function AppShell({
             onOpenMobile={() => setMobileOpen(true)}
             onOpenCommand={() => setCommandOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
             {children}
           </main>
         </div>

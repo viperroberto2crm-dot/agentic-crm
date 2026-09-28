@@ -319,7 +319,7 @@ export default function ImportPlansPage() {
         <div className="space-y-4">
           <div className="rounded-lg border border-border bg-white p-4">
             <p className="text-sm font-medium text-foreground mb-3">{fileName}</p>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               <Stat label="Planes detectados" value={plans.length} />
               <Stat label="Abonos detectados" value={abonos.length} />
               <Stat
@@ -331,7 +331,7 @@ export default function ImportPlansPage() {
           </div>
 
           {plans.length > 0 && (
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-secondary/40 text-xs">
                   <tr>

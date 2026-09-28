@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Albert_Sans, Fraunces, Geist_Mono } from "next/font/google"
 import { NextIntlClientProvider } from "next-intl"
 import { getMessages, getLocale } from "next-intl/server"
@@ -26,6 +26,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "HORIZON",
   description: "Si Se Pierde / Sunny Slim Wellness Center — CRM",
+  // iPhone: "Agregar a pantalla de inicio" abre sin barra de Safari
+  appleWebApp: {
+    capable: true,
+    title: "HORIZON",
+    // "default" = barra de estado propia (no se encima sobre el top bar crema)
+    statusBarStyle: "default",
+  },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // cover = el contenido llega bajo el notch; los insets se respetan con env(safe-area-*)
+  viewportFit: "cover",
+  themeColor: "#0C3B30",
 }
 
 export default async function RootLayout({

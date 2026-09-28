@@ -116,6 +116,7 @@ export function RegisterWebhookClient({
             Sin webhooks. Click &quot;Register webhook&quot; arriba.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -180,6 +181,7 @@ export function RegisterWebhookClient({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

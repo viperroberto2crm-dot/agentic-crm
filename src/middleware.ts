@@ -23,6 +23,7 @@ const PUBLIC_PATHS = [
   "/pago/",  // retorno de checkout de Stripe (success_url/cancel_url). El paciente no tiene sesión. Sin datos sensibles.
   "/api/cron/",  // crons internos (auto-link-calls, etc.). Auth via CRON_SECRET/HERMES_SECRET.
   "/auth/confirm",  // verifyOtp de invite/recovery/magic-link: el usuario aún NO tiene sesión.
+  "/manifest.webmanifest",  // manifest de la app instalable: el navegador lo pide sin cookies.
 ]
 
 export async function middleware(request: NextRequest) {

@@ -145,7 +145,7 @@ function SummaryView({ summary }: { summary: BackfillSummary }) {
             Detalle ({summary.items.length})
           </p>
         </div>
-        <div className="max-h-[600px] overflow-y-auto">
+        <div className="max-h-[600px] overflow-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
               <tr>

@@ -479,6 +479,7 @@ export default async function AppointmentsPage({
         {appts.length === 0 ? (
           <p className="text-sm text-[#93A39D] py-10 text-center">{t("noApptsFilter")}</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#ECE3D3]">
@@ -621,6 +622,7 @@ export default async function AppointmentsPage({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
