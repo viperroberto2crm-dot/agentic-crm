@@ -1,5 +1,5 @@
 /**
- * Horario de la clínica de 726 S. Main (Si Se Pierde y La Esperanza), confirmado
+ * Horario de la clínica de 726 S. Main (Si Se Pierde, La Esperanza y Sunny Slim), confirmado
  * por Roberto: lunes a viernes 9:00 am–7:00 pm · sábado 10:00 am–2:00 pm ·
  * domingo cerrado.
  *
@@ -26,6 +26,7 @@ const CLINIC_726_MAIN: ReadonlyArray<Window | null> = [
 const HOURS_BY_BRAND: Record<string, ReadonlyArray<Window | null>> = {
   "si-se-pierde": CLINIC_726_MAIN,
   "la-esperanza": CLINIC_726_MAIN,
+  "sunny-slim": CLINIC_726_MAIN,
 }
 
 const HORARIO =
