@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeToE164 } from "@/lib/integrations/800com"
-import { patientCallerId } from "@/lib/voice/clinic-numbers"
+import { resolveCaller } from "@/lib/voice/clinic-numbers"
 import { createCheckoutSessionForLead } from "@/lib/integrations/stripe-checkout"
 import { createSquarePaymentLinkForLead } from "@/lib/integrations/square-checkout"
 import { sendTwilioSms } from "@/lib/integrations/twilio"
@@ -447,7 +447,7 @@ export async function recordCallFromWebhook(call: {
 
   const dir: "inbound" | "outbound" = call.direction === "outbound" ? "outbound" : "inbound"
   // El teléfono del PACIENTE es el "from" en entrantes y el "to" en salientes.
-  const patientRaw = patientCallerId(dir === "outbound" ? call.to_number : call.from_number)
+  const patientRaw = (await resolveCaller(dir === "outbound" ? call.to_number : call.from_number)).phone
   const phone = patientRaw ? normalizeToE164(patientRaw) || null : null
   if (!phone && !call.metadata?.lead_id) {
     // Llamada reenviada desde un número de la clínica: no sabemos quién llamó.
@@ -519,7 +519,7 @@ export async function logCall(input: {
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   let leadId = input.lead_id ?? null
-  const callerRaw = patientCallerId(input.phone)
+  const callerRaw = (await resolveCaller(input.phone)).phone
   const callerE164 = callerRaw ? normalizeToE164(callerRaw) || null : null
   if (!leadId && callerE164) {
     const { data } = await sb
@@ -578,7 +578,7 @@ export async function saveCallAnalysis(input: {
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   const dir: "inbound" | "outbound" = input.direction === "outbound" ? "outbound" : "inbound"
-  const patientRaw = patientCallerId(dir === "outbound" ? input.to_number : input.from_number)
+  const patientRaw = (await resolveCaller(dir === "outbound" ? input.to_number : input.from_number)).phone
   const phone = patientRaw ? normalizeToE164(patientRaw) || null : null
 
   // 1) Ubicar el lead (por metadata o por telefono).

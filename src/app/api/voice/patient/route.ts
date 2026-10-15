@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { verifyVoiceSecret, getOrCreatePatient, asStr } from "@/lib/voice/core"
-import { isClinicNumber, patientCallerId } from "@/lib/voice/clinic-numbers"
+import { resolveCaller } from "@/lib/voice/clinic-numbers"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -17,20 +17,24 @@ export async function POST(req: Request) {
 
   // Número REAL capturado por Twilio/Retell (from_number entrantes, to_number salientes).
   const call = body?.call ?? {}
-  // Si la llamada llegó reenviada desde un número de la clínica (ej. el 714-467-2002),
-  // ese número NO es del paciente: se descarta (ver clinic-numbers.ts).
-  const callerId = patientCallerId(asStr(call.direction === "outbound" ? call.to_number : call.from_number)) ?? ""
+  // Si la llamada llegó reenviada desde un número de la clínica o de rastreo (ej. el
+  // 714-467-2002, los de 800.com), ese número NO es del paciente: se descarta, y nos
+  // quedamos con `cameFrom` para decirle al bot por dónde llamó (ver clinic-numbers.ts).
+  const caller = await resolveCaller(asStr(call.direction === "outbound" ? call.to_number : call.from_number))
+  const callerId = caller.phone ?? ""
+  const cameFrom = caller.cameFrom ? { came_from: caller.cameFrom } : {}
 
   // Teléfono principal: el que dio el bot si es válido; si mandó el placeholder sin
   // sustituir o algo inválido, cae al número real de la llamada.
   let phone = asStr(args.phone) ?? ""
   const botGaveValid =
     !!phone && !phone.includes("{{") && !phone.toLowerCase().includes("from_number") &&
-    !phone.toLowerCase().includes("patient_phone") && !isClinicNumber(phone)
+    !phone.toLowerCase().includes("patient_phone") && !!(await resolveCaller(phone)).phone
   if (!botGaveValid) phone = callerId
   if (!phone) {
     return NextResponse.json({
       ok: false,
+      ...cameFrom,
       error:
         "No tengo el número del paciente (la llamada llegó reenviada desde un número de la clínica). " +
         "Pídele su número con lada, repíteselo y vuelve a llamar a esta herramienta con ese número en phone.",
@@ -49,5 +53,5 @@ export async function POST(req: Request) {
     email: asStr(args.email),
     brand: brand ?? undefined,
   })
-  return NextResponse.json(r)
+  return NextResponse.json({ ...r, ...cameFrom })
 }
