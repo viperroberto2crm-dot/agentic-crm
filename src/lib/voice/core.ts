@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/database"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeToE164 } from "@/lib/integrations/800com"
+import { patientCallerId } from "@/lib/voice/clinic-numbers"
 import { createCheckoutSessionForLead } from "@/lib/integrations/stripe-checkout"
 import { createSquarePaymentLinkForLead } from "@/lib/integrations/square-checkout"
 import { sendTwilioSms } from "@/lib/integrations/twilio"
@@ -446,14 +447,27 @@ export async function recordCallFromWebhook(call: {
 
   const dir: "inbound" | "outbound" = call.direction === "outbound" ? "outbound" : "inbound"
   // El teléfono del PACIENTE es el "from" en entrantes y el "to" en salientes.
-  const patientRaw = dir === "outbound" ? call.to_number : call.from_number
+  const patientRaw = patientCallerId(dir === "outbound" ? call.to_number : call.from_number)
   const phone = patientRaw ? normalizeToE164(patientRaw) || null : null
-  if (!phone) return { ok: false, error: "Sin número de paciente" }
+  if (!phone && !call.metadata?.lead_id) {
+    // Llamada reenviada desde un número de la clínica: no sabemos quién llamó.
+    // No creamos ni buscamos un lead con ese número (juntaría pacientes); solo
+    // guardamos la llamada suelta para que no se pierda la transcripción.
+    const res = await logCall({
+      direction: dir,
+      transcript: call.transcript,
+      recording_url: call.recording_url,
+      summary: "Llamada reenviada desde un número de la clínica: sin teléfono del paciente.",
+      brand: call.brand,
+    })
+    if (!res.ok) return { ok: false, error: res.error }
+    return { ok: true, created_lead: false, logged: true }
+  }
 
   // 1) Asegurar el lead (idempotente: busca por teléfono, crea si no existe).
   let leadId = call.metadata?.lead_id ?? null
   let createdLead = false
-  if (!leadId) {
+  if (!leadId && phone) {
     const r = await getOrCreatePatient({ phone, brand: call.brand })
     if (!r.ok) return { ok: false, error: r.error }
     leadId = r.lead_id
@@ -473,7 +487,7 @@ export async function recordCallFromWebhook(call: {
   // 3) Registrar la llamada (respaldo). Motivo de colgado → outcome básico.
   const outcome = call.disconnection_reason === "user_hangup" ? "connected" : undefined
   const res = await logCall({
-    phone,
+    phone: phone ?? undefined,
     lead_id: leadId ?? undefined,
     direction: dir,
     outcome,
@@ -505,7 +519,8 @@ export async function logCall(input: {
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   let leadId = input.lead_id ?? null
-  const callerE164 = input.phone ? normalizeToE164(input.phone) || null : null
+  const callerRaw = patientCallerId(input.phone)
+  const callerE164 = callerRaw ? normalizeToE164(callerRaw) || null : null
   if (!leadId && callerE164) {
     const { data } = await sb
       .from("leads").select("id").eq("brand_id", bId)
@@ -563,7 +578,7 @@ export async function saveCallAnalysis(input: {
   if (!bId) return { ok: false, error: "Marca no encontrada" }
 
   const dir: "inbound" | "outbound" = input.direction === "outbound" ? "outbound" : "inbound"
-  const patientRaw = dir === "outbound" ? input.to_number : input.from_number
+  const patientRaw = patientCallerId(dir === "outbound" ? input.to_number : input.from_number)
   const phone = patientRaw ? normalizeToE164(patientRaw) || null : null
 
   // 1) Ubicar el lead (por metadata o por telefono).

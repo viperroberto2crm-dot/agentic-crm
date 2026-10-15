@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { verifyVoiceSecret, getOrCreatePatient, asStr } from "@/lib/voice/core"
+import { isClinicNumber, patientCallerId } from "@/lib/voice/clinic-numbers"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -16,14 +17,25 @@ export async function POST(req: Request) {
 
   // Número REAL capturado por Twilio/Retell (from_number entrantes, to_number salientes).
   const call = body?.call ?? {}
-  const callerId = asStr(call.direction === "outbound" ? call.to_number : call.from_number) ?? ""
+  // Si la llamada llegó reenviada desde un número de la clínica (ej. el 714-467-2002),
+  // ese número NO es del paciente: se descarta (ver clinic-numbers.ts).
+  const callerId = patientCallerId(asStr(call.direction === "outbound" ? call.to_number : call.from_number)) ?? ""
 
   // Teléfono principal: el que dio el bot si es válido; si mandó el placeholder sin
   // sustituir o algo inválido, cae al número real de la llamada.
   let phone = asStr(args.phone) ?? ""
   const botGaveValid =
-    !!phone && !phone.includes("{{") && !phone.toLowerCase().includes("from_number") && !phone.toLowerCase().includes("patient_phone")
+    !!phone && !phone.includes("{{") && !phone.toLowerCase().includes("from_number") &&
+    !phone.toLowerCase().includes("patient_phone") && !isClinicNumber(phone)
   if (!botGaveValid) phone = callerId
+  if (!phone) {
+    return NextResponse.json({
+      ok: false,
+      error:
+        "No tengo el número del paciente (la llamada llegó reenviada desde un número de la clínica). " +
+        "Pídele su número con lada, repíteselo y vuelve a llamar a esta herramienta con ese número en phone.",
+    })
+  }
 
   // Si el paciente dio un número DISTINTO al de la llamada, guarda el de la llamada
   // como alterno (así no se pierde ninguno).
