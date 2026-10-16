@@ -22,6 +22,7 @@ import {
   Inbox,
   MessagesSquare,
   Receipt,
+  FileBarChart,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -70,6 +71,7 @@ const PROVIDER_ALLOWED_HREFS = new Set<string>(["/appointments", "/leads"])
 // Shipping lo ven admin y manager (no rep, no provider).
 const ADMIN_MANAGER_ONLY_HREFS = new Set<string>([
   "/shipping",
+  "/informes",
 ])
 
 // Externos sin vincular: SOLO admin. Contiene PII (nombre/tel/email) de pagos y
@@ -86,6 +88,7 @@ const NAV_HREFS = [
   { key: "intake", href: "/intake", icon: ClipboardList },
   { key: "mensajes", href: "/mensajes", icon: MessagesSquare, hasBadge: true },
   { key: "calls", href: "/calls", icon: Phone },
+  { key: "reports", href: "/informes", icon: FileBarChart },
   { key: "appointments", href: "/appointments", icon: CalendarDays },
   { key: "shipping", href: "/shipping", icon: Package, hasBadge: true },
   { key: "externalUnlinked", href: "/admin/external-unlinked", icon: Inbox, hasBadge: true },
