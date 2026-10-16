@@ -97,7 +97,12 @@ export function summarize(rows: CallRow[], { timeZone, teamPhones }: Opts): Summ
       hungUp: g.calls - g.answered,
       people: g.people.size,
       internalPhones: g.internal.size,
-      avgAnsweredSeconds: g.secs.length ? Math.round(g.secs.reduce((a, b) => a + b, 0) / g.secs.length) : null,
+      // Solo hay promedio si al menos la mitad de las contestadas tiene duración guardada;
+      // si no, el número sería engañoso (800.com cuenta todas, el CRM no las guarda).
+      avgAnsweredSeconds:
+        g.secs.length > 0 && g.secs.length * 2 >= g.answered
+          ? Math.round(g.secs.reduce((a, b) => a + b, 0) / g.secs.length)
+          : null,
     }))
 }
 

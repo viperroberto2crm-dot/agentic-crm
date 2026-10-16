@@ -141,3 +141,27 @@ test("una llamada de Retell que ya corresponde a una llamada contestada no se re
   const left = consumeAnswered(answeredAt, retell)
   assert.deepEqual(left, [{ startMs: t0 + 40 * 1000, durationSeconds: 2 }])
 })
+
+// ── duración promedio: solo si hay datos suficientes ────────────────────────────
+test("la duración promedio se oculta si menos de la mitad de las contestadas tiene duración guardada", () => {
+  const rows = [
+    call({ caller_e164: "+17140000011", duration_seconds: 100 }),
+    call({ caller_e164: "+17140000012", duration_seconds: null }),
+    call({ caller_e164: "+17140000013", duration_seconds: null }),
+    call({ caller_e164: "+17140000014", duration_seconds: null }),
+  ]
+  const [s] = summarize(rows, { timeZone: TZ, teamPhones: TEAM })
+  assert.equal(s.answered, 4)
+  assert.equal(s.avgAnsweredSeconds, null)
+})
+
+test("la duración promedio se muestra si al menos la mitad de las contestadas tiene duración", () => {
+  const rows = [
+    call({ caller_e164: "+17140000021", duration_seconds: 100 }),
+    call({ caller_e164: "+17140000022", duration_seconds: 50 }),
+    call({ caller_e164: "+17140000023", duration_seconds: null }),
+    call({ caller_e164: "+17140000024", duration_seconds: null }),
+  ]
+  const [s] = summarize(rows, { timeZone: TZ, teamPhones: TEAM })
+  assert.equal(s.avgAnsweredSeconds, 75)
+})
